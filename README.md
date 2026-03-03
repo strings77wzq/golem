@@ -56,16 +56,26 @@ unlimitedClaw is a progressive learning project that implements a full AI agent 
 └─────────────────────────────────────────────────────┘
 ```
 
-## Quick Start
+## Installation
 
-### Prerequisites
-
-- Go 1.25+
-- (Optional) Docker for containerized deployment
-
-### Build
+### From Source (go install)
 
 ```bash
+go install github.com/strings77wzq/unlimitedClaw/cmd/unlimitedclaw@latest
+```
+
+This installs the `unlimitedclaw` binary to your `$GOPATH/bin` (or `$HOME/go/bin`). Make sure it's in your `PATH`.
+
+### From Release Binaries
+
+Download pre-built binaries from the [Releases](https://github.com/strings77wzq/unlimitedClaw/releases) page. Available for Linux, macOS, and Windows (amd64/arm64).
+
+### Build from Source
+
+```bash
+git clone https://github.com/strings77wzq/unlimitedClaw.git
+cd unlimitedClaw
+
 # Build binary (pure Go, no CGO)
 CGO_ENABLED=0 go build -ldflags "-s -w" -o build/unlimitedclaw ./cmd/unlimitedclaw
 
@@ -73,20 +83,73 @@ CGO_ENABLED=0 go build -ldflags "-s -w" -o build/unlimitedclaw ./cmd/unlimitedcl
 make build
 ```
 
-### Run
+## Quick Start
+
+### Prerequisites
+
+- Go 1.25+
+- (Optional) Docker for containerized deployment
+
+### Usage
 
 ```bash
 # Show help
-./build/unlimitedclaw --help
+unlimitedclaw --help
 
 # Print version
-./build/unlimitedclaw version
+unlimitedclaw version
+
+# Start CLI agent (one-shot mode)
+unlimitedclaw agent -m "Hello, what can you do?"
+
+# Start CLI agent (interactive mode — reads from stdin)
+unlimitedclaw agent
 
 # Start HTTP gateway (port 18790)
-./build/unlimitedclaw gateway
+unlimitedclaw gateway
+```
 
-# Start CLI agent
-./build/unlimitedclaw agent -m "Hello, what can you do?"
+### Configuration Management
+
+unlimitedClaw stores config at `~/.unlimitedclaw/config.json`. Manage it via CLI:
+
+```bash
+# Set a config value
+unlimitedclaw config set default_model openai/gpt-4
+
+# Get a config value
+unlimitedclaw config get default_model
+
+# List all config values
+unlimitedclaw config list
+
+# Use a custom config file
+unlimitedclaw --config /path/to/config.json agent -m "hello"
+```
+
+### Status & Health Check
+
+```bash
+# Show system status (version, config, model info, gateway health)
+unlimitedclaw status
+```
+
+### Shell Completion
+
+Generate shell completion scripts for your shell:
+
+```bash
+# Bash
+unlimitedclaw completion bash > /etc/bash_completion.d/unlimitedclaw
+
+# Zsh
+unlimitedclaw completion zsh > "${fpath[1]}/_unlimitedclaw"
+
+# Fish
+unlimitedclaw completion fish > ~/.config/fish/completions/unlimitedclaw.fish
+
+# PowerShell
+unlimitedclaw completion powershell > unlimitedclaw.ps1
 ```
 
 ### Docker
@@ -102,19 +165,20 @@ docker compose -f docker/docker-compose.yml --profile gateway up
 docker compose -f docker/monitoring/docker-compose.monitoring.yml up
 ```
 
-### Configuration
-
-Copy and edit the example config:
-
-```bash
-cp config/config.example.json config/config.json
-```
+### Environment Variables
 
 Set API keys via environment variables:
 
 ```bash
 export OPENAI_API_KEY="sk-..."
 export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+Or use the config file approach:
+
+```bash
+cp config/config.example.json ~/.unlimitedclaw/config.json
+# Edit with your API keys, or use: unlimitedclaw config set ...
 ```
 
 ## Project Structure
@@ -177,7 +241,7 @@ go tool cover -html=coverage.out
 go test -bench=. -benchmem ./pkg/gateway/...
 ```
 
-**Test coverage: 76.9%** across 25 packages (200+ tests).
+**Test coverage: 76.9%** across 26 packages (200+ tests, 9 Example functions for godoc).
 
 ## Kubernetes Deployment
 
