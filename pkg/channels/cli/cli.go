@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/strings77wzq/unlimitedClaw/pkg/bus"
 )
@@ -22,6 +23,7 @@ type Adapter struct {
 	bus       bus.Bus
 	reader    io.Reader
 	writer    io.Writer
+	mu        sync.Mutex
 	sessionID string
 	prompt    string
 }
@@ -72,6 +74,18 @@ func New(b bus.Bus, opts ...Option) *Adapter {
 	return a
 }
 
+func (a *Adapter) writeln(s string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	fmt.Fprintln(a.writer, s)
+}
+
+func (a *Adapter) writePrompt() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	fmt.Fprint(a.writer, a.prompt)
+}
+
 // RunOnce sends a single message and waits for the response.
 // Used for `-m "message"` one-shot mode.
 func (a *Adapter) RunOnce(ctx context.Context, message string) error {
@@ -96,7 +110,7 @@ func (a *Adapter) RunOnce(ctx context.Context, message string) error {
 			if !ok || msg.SessionID != a.sessionID {
 				continue
 			}
-			fmt.Fprintln(a.writer, msg.Content)
+			a.writeln(msg.Content)
 			if msg.Done {
 				return nil
 			}
@@ -107,41 +121,45 @@ func (a *Adapter) RunOnce(ctx context.Context, message string) error {
 // RunInteractive starts an interactive readline loop.
 // Reads lines from reader, publishes to bus, prints responses.
 func (a *Adapter) RunInteractive(ctx context.Context) error {
-	// Subscribe to outbound
 	outCh := a.bus.Subscribe(TopicOutbound)
 	defer a.bus.Unsubscribe(TopicOutbound, outCh)
 
-	scanner := bufio.NewScanner(a.reader)
+	childCtx, childCancel := context.WithCancel(ctx)
+	defer childCancel()
 
-	// Start goroutine to print outbound messages
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for {
 			select {
-			case <-ctx.Done():
+			case <-childCtx.Done():
 				return
 			case raw := <-outCh:
 				msg, ok := raw.(bus.OutboundMessage)
 				if !ok || msg.SessionID != a.sessionID {
 					continue
 				}
-				fmt.Fprintln(a.writer, msg.Content)
+				a.writeln(msg.Content)
 			}
 		}
 	}()
 
-	// Read loop
+	scanner := bufio.NewScanner(a.reader)
+	var scanErr error
 	for {
-		fmt.Fprint(a.writer, a.prompt)
+		a.writePrompt()
 		if !scanner.Scan() {
-			break // EOF or error
+			scanErr = scanner.Err()
+			break
 		}
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
 		}
 		if line == "exit" || line == "quit" {
-			fmt.Fprintln(a.writer, "Goodbye!")
-			return nil
+			a.writeln("Goodbye!")
+			break
 		}
 
 		a.bus.Publish(TopicInbound, bus.InboundMessage{
@@ -151,5 +169,7 @@ func (a *Adapter) RunInteractive(ctx context.Context) error {
 		})
 	}
 
-	return scanner.Err()
+	childCancel()
+	wg.Wait()
+	return scanErr
 }
