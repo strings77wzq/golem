@@ -1,0 +1,32 @@
+# Binaries
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test
+*.test
+*.out
+coverage.txt
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config with secrets
+config/config.json
+config/secrets/
+!config/config.example.json
+
+# Vendor (if used)
+vendor/
+
+# Go build cache
+.cache/

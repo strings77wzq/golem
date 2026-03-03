@@ -1,0 +1,28 @@
+{
+  "agents": {
+    "defaults": {
+      "model_name": "gpt4",
+      "max_tokens": 8192,
+      "system_prompt": "You are unlimitedClaw, a helpful AI assistant."
+    }
+  },
+  "model_list": [
+    {
+      "model_name": "gpt4",
+      "model": "openai/gpt-4o",
+      "api_key": "${OPENAI_API_KEY}",
+      "api_base": "https://api.openai.com/v1"
+    },
+    {
+      "model_name": "claude",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "api_key": "${ANTHROPIC_API_KEY}",
+      "api_base": "https://api.anthropic.com"
+    },
+    {
+      "model_name": "mock",
+      "model": "mock/echo",
+      "api_key": ""
+    }
+  ]
+}
