@@ -6,8 +6,6 @@ on:
 jobs:
   setup-topics:
     runs-on: ubuntu-latest
-    permissions:
-      metadata: read
     steps:
       - name: Set repository topics
         uses: actions/github-script@v7
