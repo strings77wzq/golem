@@ -1,0 +1,14 @@
+apiVersion: v2
+name: golem
+description: A progressive Go AI assistant - learning by building
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - ai
+  - agent
+  - llm
+  - go
+maintainers:
+  - name: Golem Team
+    email: golem@example.com

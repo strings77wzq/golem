@@ -1,0 +1,80 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/strings77wzq/golem
+  tag: latest
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+service:
+  type: ClusterIP
+  port: 18790
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: golem.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: golem-tls
+  #    hosts:
+  #      - golem.example.com
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+config:
+  model_name: gpt4
+  max_tokens: 8192
+  provider: openai
+
+env: {}
+  # OPENAI_API_KEY: ""
+  # ANTHROPIC_API_KEY: ""
+
+probes:
+  enabled: true
+  liveness:
+    initialDelaySeconds: 5
+    periodSeconds: 30
+  readiness:
+    initialDelaySeconds: 3
+    periodSeconds: 10
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+
+podAnnotations: {}
+
+podLabels: {}
+
+serviceAccount:
+  create: false
+  name: ""
