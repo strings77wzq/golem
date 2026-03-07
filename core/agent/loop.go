@@ -76,6 +76,8 @@ func (a *Agent) processMessage(
 	model := a.config.Agents.Defaults.ModelName
 	toolDefs := a.toolRegistry.ListDefinitions()
 
+	// Guard against infinite loops if the LLM repeatedly calls tools without converging.
+	// Default maxToolIterations=25 prevents runaway agents while allowing complex tasks.
 	for i := 0; i < a.maxToolIterations; i++ {
 		contextMsgs := a.historyManager.GetContextWindow(sess.GetMessages())
 
@@ -109,6 +111,8 @@ func (a *Agent) processMessage(
 			}
 			if emit != nil {
 				finalContent := resp.Content
+				// When streaming, tokens already emitted via onToken callback.
+				// Final emit only carries Done flag + Usage for completion signal.
 				if streamed {
 					finalContent = ""
 				}
@@ -157,6 +161,8 @@ func (a *Agent) processMessage(
 			})
 
 			if result.ForUser != "" && !result.Silent {
+				// ForUser: user-visible feedback (e.g., "Searched for X", "Downloaded file Y")
+				// Silent: suppress display for noisy tools that produce too much output
 				if emit != nil {
 					emit(bus.OutboundMessage{
 						SessionID: msg.SessionID,
@@ -208,6 +214,9 @@ func (a *Agent) invokeProvider(
 	emit func(bus.OutboundMessage),
 ) (*providers.LLMResponse, bool, error) {
 	sp, ok := provider.(providers.StreamingProvider)
+	// Streaming is disabled when tools are present because mid-stream tool call arguments
+	// require buffering the entire stream to parse JSON, eliminating any latency benefit.
+	// The streaming contract only applies to final text responses without tool calls.
 	canStream := ok && streamFinal && len(toolDefs) == 0
 	if !canStream {
 		resp, err := provider.Chat(ctx, messages, toolDefs, modelName, nil)
