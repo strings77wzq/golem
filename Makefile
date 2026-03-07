@@ -12,7 +12,7 @@ LDFLAGS := -s -w \
 	-X main.commit=$(COMMIT) \
 	-X main.date=$(DATE)
 
-GO_BUILD := CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)"
+GO_BUILD := CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)"
 
 .PHONY: build build-all test lint deps clean fmt vet check
 

@@ -9,3 +9,7 @@ rules:
   - Use constructor-based dependency injection, no DI frameworks
   - All interfaces defined in core, implementations in adapter packages
   - CGO_ENABLED=0 compatible only (pure Go dependencies)
+ai_collaboration:
+  - 使用第一性原理思考：在实施前先理解"为什么"，而非直接跳到"怎么做"
+  - 目标不清晰时及时暂停并与用户讨论，不要在模糊的前提下盲目推进
+  - 目标清晰但路径不是最优时，主动说明并给出更好的方案，而非机械执行

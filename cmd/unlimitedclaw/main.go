@@ -7,6 +7,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -20,14 +21,18 @@ import (
 	"github.com/strings77wzq/unlimitedClaw/core/agent"
 	"github.com/strings77wzq/unlimitedClaw/core/bus"
 	"github.com/strings77wzq/unlimitedClaw/core/config"
-	"github.com/strings77wzq/unlimitedClaw/internal/gateway"
-	"github.com/strings77wzq/unlimitedClaw/foundation/logger"
 	"github.com/strings77wzq/unlimitedClaw/core/providers"
 	"github.com/strings77wzq/unlimitedClaw/core/providers/anthropic"
 	"github.com/strings77wzq/unlimitedClaw/core/providers/openai"
 	"github.com/strings77wzq/unlimitedClaw/core/session"
-	"github.com/strings77wzq/unlimitedClaw/foundation/term"
 	"github.com/strings77wzq/unlimitedClaw/core/tools"
+	toolexec "github.com/strings77wzq/unlimitedClaw/core/tools/exec"
+	"github.com/strings77wzq/unlimitedClaw/core/tools/fileops"
+	"github.com/strings77wzq/unlimitedClaw/core/tools/websearch"
+	"github.com/strings77wzq/unlimitedClaw/foundation/logger"
+	"github.com/strings77wzq/unlimitedClaw/foundation/term"
+	"github.com/strings77wzq/unlimitedClaw/internal/channels/tui"
+	"github.com/strings77wzq/unlimitedClaw/internal/gateway"
 )
 
 // Version info injected at build time via ldflags
@@ -56,6 +61,7 @@ func NewRootCommand() *cobra.Command {
 		newConfigCommand(),
 		newStatusCommand(),
 		newSessionCommand(),
+		newInitCommand(),
 	)
 
 	return cmd
@@ -83,6 +89,7 @@ func newAgentCommand() *cobra.Command {
 			message, _ := cmd.Flags().GetString("message")
 			modelFlag, _ := cmd.Flags().GetString("model")
 			continueFlag, _ := cmd.Flags().GetString("continue")
+			noTUI, _ := cmd.Flags().GetBool("no-tui")
 
 			cfg, err := loadConfig(cmd)
 			if err != nil {
@@ -97,7 +104,8 @@ func newAgentCommand() *cobra.Command {
 			}
 
 			b := bus.New()
-			registry := tools.NewRegistry()
+			workspace, _ := os.Getwd()
+			registry := buildToolRegistry(workspace)
 			factory := registerProviders(cfg)
 			log := logger.New(logger.DefaultOptions())
 
@@ -149,13 +157,34 @@ func newAgentCommand() *cobra.Command {
 				return fmt.Errorf("no input: use -m flag or pipe content via stdin")
 			}
 
+			if !noTUI {
+				ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+				defer cancel()
+				go ag.Start(ctx)
+				if sessionID == "" {
+					sessionID = uuid.New().String()
+				}
+				return tui.Run(ctx, sessionID, ag)
+			}
+
 			return runAgentInteractive(ag, b, sessionID)
 		},
 	}
 	cmd.Flags().StringP("message", "m", "", "Send a single message and exit")
 	cmd.Flags().StringP("model", "M", "", "Model to use (overrides config default)")
 	cmd.Flags().StringP("continue", "C", "", `Resume a session ("last" or session-id)`)
+	cmd.Flags().Bool("no-tui", false, "Use plain interactive mode instead of TUI")
 	return cmd
+}
+
+func buildToolRegistry(workspace string) *tools.Registry {
+	registry := tools.NewRegistry()
+	registry.Register(toolexec.New(workspace))
+	registry.Register(fileops.NewFileReadTool(workspace))
+	registry.Register(fileops.NewFileWriteTool(workspace))
+	registry.Register(fileops.NewFileListTool(workspace))
+	registry.Register(websearch.New())
+	return registry
 }
 
 // registerProviders creates a Factory and registers providers from config ModelList.
@@ -394,7 +423,8 @@ func newGatewayCommand() *cobra.Command {
 			}
 
 			b := bus.New()
-			registry := tools.NewRegistry()
+			workspace, _ := os.Getwd()
+			registry := buildToolRegistry(workspace)
 			factory := registerProviders(cfg)
 			store := session.NewMemoryStore()
 			history := session.NewHistoryManager(cfg.Agents.Defaults.MaxTokens)
@@ -407,9 +437,8 @@ func newGatewayCommand() *cobra.Command {
 
 			go ag.Start(ctx)
 
-			handler := &agentBridge{bus: b, agent: ag}
 			serverCfg := gateway.DefaultServerConfig()
-			server := gateway.NewServer(serverCfg, handler, log)
+			server := gateway.NewServer(serverCfg, ag, log)
 
 			log.Info("starting gateway server", "addr", serverCfg.Addr)
 			return server.Start()
@@ -417,48 +446,19 @@ func newGatewayCommand() *cobra.Command {
 	}
 }
 
-type agentBridge struct {
-	bus   bus.Bus
-	agent *agent.Agent
-}
-
-func (a *agentBridge) HandleMessage(ctx context.Context, sessionID string, message string) (string, error) {
-	outCh := a.bus.Subscribe(agent.TopicOutbound)
-	defer a.bus.Unsubscribe(agent.TopicOutbound, outCh)
-
-	a.bus.Publish(agent.TopicInbound, bus.InboundMessage{
-		SessionID: sessionID,
-		Content:   message,
-		Role:      bus.RoleUser,
-	})
-
-	var response string
-	for {
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case raw := <-outCh:
-			outMsg, ok := raw.(bus.OutboundMessage)
-			if !ok {
-				continue
-			}
-			if outMsg.SessionID != sessionID {
-				continue
-			}
-			response += outMsg.Content
-			if outMsg.Done {
-				return response, nil
-			}
-		}
-	}
-}
-
 func loadConfig(cmd *cobra.Command) (*config.Config, error) {
-	configPath, _ := cmd.Root().Flags().GetString("config")
-	if configPath != "" {
-		return config.Load(configPath)
+	configPath, err := getConfigPath(cmd)
+	if err != nil {
+		return nil, err
 	}
-	return config.DefaultConfig(), nil
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return config.DefaultConfig(), nil
+		}
+		return nil, err
+	}
+	return cfg, nil
 }
 
 func main() {

@@ -5,10 +5,10 @@ import (
 
 	"github.com/strings77wzq/unlimitedClaw/core/bus"
 	"github.com/strings77wzq/unlimitedClaw/core/config"
-	"github.com/strings77wzq/unlimitedClaw/foundation/logger"
 	"github.com/strings77wzq/unlimitedClaw/core/providers"
 	"github.com/strings77wzq/unlimitedClaw/core/session"
 	"github.com/strings77wzq/unlimitedClaw/core/tools"
+	"github.com/strings77wzq/unlimitedClaw/foundation/logger"
 )
 
 const (
@@ -20,6 +20,12 @@ const (
 // Runner abstracts the agent lifecycle for dependency injection and testing.
 type Runner interface {
 	Start(ctx context.Context)
+}
+
+// MessageHandler provides direct request/response handling for gateways and TUIs.
+type MessageHandler interface {
+	HandleMessage(ctx context.Context, sessionID string, message string) (string, error)
+	HandleMessageStream(ctx context.Context, sessionID string, message string, tokens chan<- string) error
 }
 
 // Agent is the core orchestrator that runs the ReAct loop
@@ -109,3 +115,4 @@ func (a *Agent) Start(ctx context.Context) {
 
 // Compile-time interface compliance check.
 var _ Runner = (*Agent)(nil)
+var _ MessageHandler = (*Agent)(nil)

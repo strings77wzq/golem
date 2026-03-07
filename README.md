@@ -18,7 +18,8 @@ unlimitedClaw is a progressive learning project that implements a full AI agent 
 - **RAG Pipeline** — Retrieval-Augmented Generation with TF-IDF indexing, similarity search, and OpenAI embedding support
 - **Skills System** — Composable skill registry with built-in skills (summarize, code-review)
 - **Long-term Memory** — Persistent memory with importance scoring and exponential decay
-- **Multiple Channels** — CLI, HTTP Gateway (with SSE streaming), and Telegram bot adapters
+- **Multiple Channels** — CLI, interactive TUI (Bubble Tea, auto-detected on TTY), HTTP Gateway (with SSE streaming), and Telegram bot adapters
+- **First-run Wizard** — `unlimitedclaw init` interactive setup with 7 provider presets
 - **Message Bus** — Async pub/sub event system for decoupled communication
 - **Session Management** — Conversation history with SQLite persistence
 - **Security** — Auth middleware, rate limiting, and command sandboxing
@@ -90,6 +91,15 @@ make build
 - Go 1.25+
 - (Optional) Docker for containerized deployment
 
+### First-run Setup
+
+```bash
+# Interactive setup wizard — configures provider, API key, and default model
+unlimitedclaw init
+```
+
+The wizard supports 7 provider presets: OpenAI, Anthropic, DeepSeek, Moonshot/Kimi, Zhipu/GLM, MiniMax, and DashScope/Qwen. It writes to `~/.unlimitedclaw/config.json`.
+
 ### Usage
 
 ```bash
@@ -99,11 +109,14 @@ unlimitedclaw --help
 # Print version
 unlimitedclaw version
 
-# Start CLI agent (one-shot mode)
+# Start agent (auto-detects TTY → opens Bubble Tea TUI; pipe/redirect → plain output)
+unlimitedclaw agent
+
+# Start agent with an initial message (one-shot, no TUI)
 unlimitedclaw agent -m "Hello, what can you do?"
 
-# Start CLI agent (interactive mode — reads from stdin)
-unlimitedclaw agent
+# Force plain interactive mode (no TUI)
+unlimitedclaw agent --no-tui
 
 # Start HTTP gateway (port 18790)
 unlimitedclaw gateway
@@ -223,7 +236,8 @@ unlimitedClaw/
 │   ├── logger/                     # Structured logging (slog)
 │   ├── store/                      # SQLite persistence (pure Go)
 │   └── term/                       # Terminal detection
-├── feature/                        # Optional feature modules
+├── feature/                        # Reference implementations (not wired into main.go)
+│   │                               # These exist as standalone learning modules only.
 │   ├── mcp/                        # MCP protocol client
 │   ├── memory/                     # Long-term memory with importance decay
 │   ├── rag/                        # RAG pipeline with OpenAI embedder
@@ -233,6 +247,7 @@ unlimitedClaw/
 ├── internal/                       # Internal-only packages
 │   ├── channels/                   # I/O adapters
 │   │   ├── cli/                    # CLI adapter
+│   │   ├── tui/                    # Bubble Tea TUI (auto-detected on TTY)
 │   │   └── telegram/               # Telegram bot adapter
 │   ├── gateway/                    # HTTP gateway server with SSE streaming
 │   ├── metrics/                    # Prometheus-compatible metrics
@@ -266,7 +281,7 @@ go tool cover -html=coverage.out
 go test -bench=. -benchmem ./internal/gateway/...
 ```
 
-**Test coverage: 79.2%** across 27 packages (200+ tests, 9 Example functions for godoc).
+**Test coverage: 79.2%** across 28 packages (200+ tests, 9 Example functions for godoc).
 
 ## Kubernetes Deployment
 
@@ -303,6 +318,7 @@ The `docs/study/` directory contains Chinese learning guides:
 |-----------|-----------|
 | Language | Go 1.25+ |
 | CLI | [cobra](https://github.com/spf13/cobra) |
+| TUI | [Bubble Tea v1.3.10](https://github.com/charmbracelet/bubbletea) + lipgloss |
 | Database | [modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite) (pure Go) |
 | Metrics | Custom Prometheus-compatible (no external deps) |
 | Container | Docker multi-stage build |

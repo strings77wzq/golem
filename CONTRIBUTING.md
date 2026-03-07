@@ -49,6 +49,14 @@ Examples:
 - **Pure Go**: All dependencies must work with `CGO_ENABLED=0`
 - **Error handling**: Return errors, don't panic. Use `fmt.Errorf("context: %w", err)` for wrapping
 
+## AI 协作工作原则
+
+本项目使用 AI 辅助开发。以下原则约束 AI 协作者的行为：
+
+- **第一性原理**：实施前先理解动机和目标，而非直接跳到实现路径
+- **目标不清晰时停下来讨论**：如果需求的动机或目标存在歧义，及时与用户确认，不要在模糊前提下盲目推进
+- **路径不最优时主动提出**：目标清晰但发现更好的实现路径时，明确说明当前方案的局限并给出替代建议，由用户决策
+
 ## Reporting Issues
 
 - Use GitHub Issues for bug reports and feature requests

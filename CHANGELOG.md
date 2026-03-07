@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] - 2026-03-07
+
+### Added
+
+#### TUI Channel (`internal/channels/tui/`)
+- Interactive Bubble Tea TUI with real-time token streaming display
+- Auto-detection: opens TUI when stdin is a TTY; falls back to plain interactive mode on pipes/redirects
+- `--no-tui` flag on `agent` command to force plain mode
+- Termux-safe: no mouse options (default behaviour), no Alt+key shortcuts
+- Key bindings: `ctrl+c`/`esc` to quit, `enter` to send, `backspace` to delete
+- 11 unit tests covering model state transitions and command generation
+
+#### First-run Setup Wizard (`unlimitedclaw init`)
+- Interactive `init` command for first-time configuration
+- 7 provider presets: OpenAI, Anthropic, DeepSeek, Moonshot/Kimi, Zhipu/GLM, MiniMax, DashScope/Qwen
+- Prompts for API key, base URL override, and default model selection
+- Writes `~/.unlimitedclaw/config.json` with safe file permissions (0600)
+- Skips fields left blank (preserves defaults)
+
+#### Streaming Fixes (`core/agent/loop.go`)
+- Fixed `invokeProvider` double-call bug: tools present → always `Chat` (sync); no tools → `ChatStream`
+- `HandleMessageStream` now emits a single-chunk fallback if no tokens were streamed (tool-assisted responses)
+- `handleMessage` (bus path) uses `streamFinal=false` to avoid streaming into the message bus
+
+### Changed
+- `agent` command in `main.go` wires TUI automatically on TTY
+- `main.go` registers `newInitCommand()` in the root cobra command
+- 28 test packages now pass (added `internal/channels/tui` package with 11 tests)
+- README updated: TUI in features list, `feature/` marked as reference implementations, `tui/` added to project structure, `init` command added to Quick Start, Bubble Tea added to tech stack table
+
 ## [0.2.1] - 2026-03-07
 
 ### Changed

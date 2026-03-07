@@ -3,6 +3,7 @@ package providers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/strings77wzq/unlimitedClaw/core/tools"
@@ -13,6 +14,7 @@ type MockProvider struct {
 	mu           sync.Mutex
 	responses    []*LLMResponse
 	responseIdx  int
+	streamDelay  int
 	CallCount    int
 	LastMessages []Message
 	LastModel    string
@@ -57,4 +59,45 @@ func (m *MockProvider) Chat(ctx context.Context, messages []Message, toolDefs []
 // Name returns the provider name.
 func (m *MockProvider) Name() string {
 	return m.ProviderName
+}
+
+// ChatStream streams the next queued response token-by-token.
+func (m *MockProvider) ChatStream(ctx context.Context, messages []Message, toolDefs []tools.ToolDefinition, model string, opts *ChatOptions, onToken func(token string)) (*LLMResponse, error) {
+	resp, err := m.Chat(ctx, messages, toolDefs, model, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if onToken != nil && resp.Content != "" {
+		for _, token := range splitMockTokens(resp.Content) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			default:
+			}
+			onToken(token)
+		}
+	}
+
+	return resp, nil
+}
+
+func splitMockTokens(content string) []string {
+	parts := strings.Fields(content)
+	if len(parts) == 0 {
+		if content == "" {
+			return nil
+		}
+		return []string{content}
+	}
+
+	tokens := make([]string, 0, len(parts))
+	for i, part := range parts {
+		token := part
+		if i < len(parts)-1 {
+			token += " "
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens
 }

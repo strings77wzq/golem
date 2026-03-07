@@ -7,10 +7,10 @@ import (
 
 	"github.com/strings77wzq/unlimitedClaw/core/bus"
 	"github.com/strings77wzq/unlimitedClaw/core/config"
-	"github.com/strings77wzq/unlimitedClaw/foundation/logger"
 	"github.com/strings77wzq/unlimitedClaw/core/providers"
 	"github.com/strings77wzq/unlimitedClaw/core/session"
 	"github.com/strings77wzq/unlimitedClaw/core/tools"
+	"github.com/strings77wzq/unlimitedClaw/foundation/logger"
 )
 
 func setupTestAgent(t *testing.T) (*Agent, bus.Bus, *providers.MockProvider, *tools.Registry) {
@@ -471,6 +471,104 @@ func TestAgentToolForUserOutput(t *testing.T) {
 	}
 	if !messages[1].Done {
 		t.Error("expected second message Done to be true")
+	}
+}
+
+func TestAgentHandleMessage(t *testing.T) {
+	a, b, mockProvider, _ := setupTestAgent(t)
+	defer b.Close()
+
+	mockProvider.AddResponse(&providers.LLMResponse{Content: "Direct reply"})
+
+	ctx := context.Background()
+	got, err := a.HandleMessage(ctx, "sess-direct", "Hello")
+	if err != nil {
+		t.Fatalf("HandleMessage error: %v", err)
+	}
+	if got != "Direct reply" {
+		t.Errorf("HandleMessage = %q, want %q", got, "Direct reply")
+	}
+}
+
+func TestAgentHandleMessageStream(t *testing.T) {
+	a, b, mockProvider, _ := setupTestAgent(t)
+	defer b.Close()
+
+	mockProvider.AddResponse(&providers.LLMResponse{Content: "Hello streaming world"})
+
+	ctx := context.Background()
+	tokens := make(chan string, 32)
+	errCh := make(chan error, 1)
+
+	go func() {
+		errCh <- a.HandleMessageStream(ctx, "sess-stream", "Hello", tokens)
+	}()
+
+	var collected []string
+	for tok := range tokens {
+		collected = append(collected, tok)
+	}
+	if err := <-errCh; err != nil {
+		t.Fatalf("HandleMessageStream error: %v", err)
+	}
+	if len(collected) == 0 {
+		t.Fatal("expected streaming tokens, got none")
+	}
+
+	full := ""
+	for _, tok := range collected {
+		full += tok
+	}
+	if full != "Hello streaming world" {
+		t.Errorf("reassembled content = %q, want %q", full, "Hello streaming world")
+	}
+}
+
+func TestAgentHandleMessageStreamWithTools(t *testing.T) {
+	a, b, mockProvider, registry := setupTestAgent(t)
+	defer b.Close()
+
+	called := false
+	echoTool := &tools.MockTool{
+		ToolName:        "echo",
+		ToolDescription: "echoes input",
+	}
+	echoTool.ExecuteFn = func(ctx context.Context, args map[string]interface{}) (*tools.ToolResult, error) {
+		called = true
+		return &tools.ToolResult{ForLLM: "echoed"}, nil
+	}
+	registry.Register(echoTool)
+
+	mockProvider.AddResponse(&providers.LLMResponse{
+		ToolCalls: []providers.ToolCall{
+			{ID: "c1", Name: "echo", Arguments: map[string]interface{}{"text": "hi"}},
+		},
+	})
+	mockProvider.AddResponse(&providers.LLMResponse{Content: "Tool done"})
+
+	ctx := context.Background()
+	tokens := make(chan string, 32)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- a.HandleMessageStream(ctx, "sess-tool-stream", "echo hi", tokens)
+	}()
+
+	var collected []string
+	for tok := range tokens {
+		collected = append(collected, tok)
+	}
+	if err := <-errCh; err != nil {
+		t.Fatalf("HandleMessageStream with tools error: %v", err)
+	}
+	if !called {
+		t.Error("expected echo tool to be called")
+	}
+	full := ""
+	for _, tok := range collected {
+		full += tok
+	}
+	if full != "Tool done" {
+		t.Errorf("final streamed content = %q, want %q", full, "Tool done")
 	}
 }
 

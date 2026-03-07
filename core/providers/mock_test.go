@@ -147,6 +147,56 @@ func TestMockProviderExhaustedQueue(t *testing.T) {
 	}
 }
 
+func TestMockProviderChatStream(t *testing.T) {
+	mock := NewMockProvider("test")
+	mock.AddResponse(&LLMResponse{Content: "Hello world test"})
+
+	var tokens []string
+	resp, err := mock.ChatStream(context.Background(), nil, nil, "model", nil, func(tok string) {
+		tokens = append(tokens, tok)
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Content != "Hello world test" {
+		t.Errorf("resp.Content = %q, want %q", resp.Content, "Hello world test")
+	}
+	if len(tokens) == 0 {
+		t.Fatal("expected tokens to be emitted, got none")
+	}
+	reassembled := strings.Join(tokens, "")
+	if !strings.Contains(reassembled, "Hello") || !strings.Contains(reassembled, "world") {
+		t.Errorf("reassembled tokens %q missing expected words", reassembled)
+	}
+}
+
+func TestMockProviderChatStreamContextCancel(t *testing.T) {
+	mock := NewMockProvider("test")
+	mock.AddResponse(&LLMResponse{Content: strings.Repeat("token ", 1000)})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := mock.ChatStream(ctx, nil, nil, "model", nil, func(_ string) {})
+	if err == nil {
+		t.Error("expected context cancellation error, got nil")
+	}
+}
+
+func TestMockProviderChatStreamNoTokenCallback(t *testing.T) {
+	mock := NewMockProvider("test")
+	mock.AddResponse(&LLMResponse{Content: "Silent response"})
+
+	resp, err := mock.ChatStream(context.Background(), nil, nil, "model", nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Content != "Silent response" {
+		t.Errorf("resp.Content = %q", resp.Content)
+	}
+}
+
 func TestMockProviderTracking(t *testing.T) {
 	mock := NewMockProvider("openai")
 
