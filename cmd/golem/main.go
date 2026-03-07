@@ -29,7 +29,9 @@ import (
 	toolexec "github.com/strings77wzq/golem/core/tools/exec"
 	"github.com/strings77wzq/golem/core/tools/fileops"
 	"github.com/strings77wzq/golem/core/tools/websearch"
+	"github.com/strings77wzq/golem/feature/mcp"
 	"github.com/strings77wzq/golem/feature/skills"
+	"github.com/strings77wzq/golem/feature/skills/builtins"
 	"github.com/strings77wzq/golem/foundation/logger"
 	"github.com/strings77wzq/golem/foundation/term"
 	"github.com/strings77wzq/golem/internal/channels/tui"
@@ -109,8 +111,10 @@ func newAgentCommand() *cobra.Command {
 				cfg.Agents.Defaults.ModelName = modelFlag
 			}
 
-			// Load skills from directory
 			skillRegistry := skills.NewRegistry()
+
+			builtins.RegisterAll(skillRegistry)
+
 			if skillsDir != "" {
 				loader := skills.NewLoader()
 				loaded, loadErr := loader.LoadFromDirectory(skillsDir)
@@ -127,23 +131,78 @@ func newAgentCommand() *cobra.Command {
 				}
 			}
 
-			// Enable specific skills by name
 			if skillsFlag != "" {
 				names := strings.Split(skillsFlag, ",")
+				requested := make(map[string]bool)
 				for _, name := range names {
 					name = strings.TrimSpace(name)
-					if name == "" {
-						continue
+					if name != "" {
+						requested[name] = true
 					}
-					// Try to load from builtins or previously loaded
-					// For now, log that the skill is requested
-					log.Info("skill requested", "name", name)
+				}
+
+				if len(requested) > 0 {
+					filtered := skillRegistry.List()[:0]
+					for _, s := range skillRegistry.List() {
+						if requested[s.Name] {
+							filtered = append(filtered, s)
+						}
+					}
+
+					skillRegistry = skills.NewRegistry()
+					for _, s := range filtered {
+						skillRegistry.Register(s)
+					}
+					log.Info("filtered skills", "count", skillRegistry.Count(), "names", skillsFlag)
 				}
 			}
 
 			b := bus.New()
 			workspace, _ := os.Getwd()
 			registry := buildToolRegistry(workspace)
+
+			// Load RAG tools if configured
+			ragFlag, _ := cmd.Flags().GetString("rag")
+			if ragFlag != "" {
+				ragCfg, err := ParseRagConfig(ragFlag)
+				if err != nil {
+					return fmt.Errorf("parsing RAG config: %w", err)
+				}
+				if ragCfg.APIKey == "" {
+					if defaultModel, _ := cfg.FindModel(cfg.Agents.Defaults.ModelName); defaultModel != nil {
+						ragCfg.APIKey = defaultModel.APIKey
+					}
+				}
+				ragRegistry, err := LoadRAGTools(context.Background(), ragCfg)
+				if err != nil {
+					return fmt.Errorf("loading RAG tools: %w", err)
+				}
+				for _, t := range ragRegistry.ListTools() {
+					registry.Register(t)
+				}
+			}
+
+			mcpFlag, _ := cmd.Flags().GetString("mcp")
+			var mcpManager *mcp.Manager
+			if mcpFlag != "" {
+				mcpCfg, err := ParseMCPConfig(mcpFlag)
+				if err != nil {
+					return fmt.Errorf("parsing MCP config: %w", err)
+				}
+				mcpManager, err = LoadMCPTools(context.Background(), mcpCfg)
+				if err != nil {
+					return fmt.Errorf("loading MCP tools: %w", err)
+				}
+				mcpProxies, err := MCPToolsToRegistry(mcpManager)
+				if err != nil {
+					return fmt.Errorf("converting MCP tools: %w", err)
+				}
+				for _, proxy := range mcpProxies {
+					registry.Register(proxy)
+				}
+				log.Info("loaded MCP tools", "count", len(mcpProxies))
+			}
+
 			factory := registerProviders(cfg)
 			log = logger.New(logger.DefaultOptions())
 
@@ -231,6 +290,8 @@ func newAgentCommand() *cobra.Command {
 	cmd.Flags().Bool("no-tui", false, "Use plain interactive mode instead of TUI")
 	cmd.Flags().String("skills-dir", "", "Directory containing skills (with skill.json files)")
 	cmd.Flags().String("skills", "", "Comma-separated skill names to enable (e.g., 'summarize,codereview')")
+	cmd.Flags().String("rag", "", "RAG configuration: directory path or JSON config for document index")
+	cmd.Flags().String("mcp", "", "MCP servers configuration: JSON array of server configs")
 	return cmd
 }
 
