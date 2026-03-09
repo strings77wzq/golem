@@ -5,9 +5,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://go.dev/)
 
-A lightweight, cloud-native AI assistant built with pure Go — inspired by [PicoClaw](https://github.com/sipeed/picoclaw).
+✨ **纯Go实现的轻量AI Agent框架，单二进制无依赖，支持7大LLM厂商、MCP/RAG/技能系统，可直接在Android/Termux运行，既是生产可用的AI助手，也是极佳的Go语言AI开发学习项目。**
 
-Golem is a progressive learning project that implements a full AI agent system from scratch, covering Agent core, Tool system, LLM integration, MCP protocol, RAG pipeline, and cloud-native deployment.
+Golem 是一个云原生AI助理框架，从零实现了完整的AI Agent系统，包含ReAct推理循环、工具调用系统、多LLM提供商适配、MCP协议支持、RAG检索增强、技能系统等核心能力，同时支持Docker/K8s部署，完美适配云原生场景。
 
 ## Features
 
@@ -109,7 +109,57 @@ CGO_ENABLED=0 go build -ldflags "-s -w" -trimpath \
 > - Alt+key shortcuts are not used; all keybindings work with standard terminal key sequences.
 > - Use `golem init` for the first-run setup wizard to configure your API key.
 
-## Quick Start
+## 🚀 三分钟快速上手
+
+### 1. 下载安装
+```bash
+# 方式1：Go 直接安装（推荐）
+go install github.com/strings77wzq/golem/cmd/golem@latest
+
+# 方式2：下载预编译二进制
+# 从 https://github.com/strings77wzq/golem/releases 下载对应平台版本
+```
+
+### 2. 初始化配置
+运行交互式配置向导，选择你使用的LLM厂商并配置API密钥：
+```bash
+golem init
+```
+支持7大LLM厂商：OpenAI、Anthropic、DeepSeek、Moonshot/Kimi、Zhipu/GLM、MiniMax、DashScope/Qwen，开箱即用。
+
+### 3. 第一次对话
+启动TUI交互界面，直接开始对话：
+```bash
+golem agent
+```
+或者直接执行单次查询：
+```bash
+golem agent -m "用Go写一个快速排序算法"
+```
+
+### 4. 体验进阶功能
+#### 👉 开启RAG本地知识库
+```bash
+# 索引./docs目录下的所有文档，构建本地知识库
+golem agent --rag ./docs
+# 现在可以提问关于文档的问题了
+```
+
+#### 👉 开启MCP外部工具
+```bash
+# 加载MCP服务器，接入外部工具能力
+golem agent --mcp '[{"command": "python", "args": ["path/to/mcp-server.py"]}]'
+```
+
+#### 👉 开启内置技能
+```bash
+# 启用代码评审和总结技能
+golem agent --skills summarize,code-review
+```
+
+---
+
+## 完整使用文档
 
 ### Prerequisites
 
@@ -157,6 +207,22 @@ golem agent -C <session-id>
 
 # Pipe input from another command
 echo "Summarize this" | golem agent
+
+# Start agent with MCP server (loads external tools from Model Context Protocol server)
+golem agent --mcp '[{"command": "python", "args": ["path/to/mcp-server.py"]}]'
+# Or load MCP config from JSON file
+golem agent --mcp ./mcp-config.json
+
+# Start agent with RAG (indexes all text files in ./docs directory)
+golem agent --rag ./docs
+# Or load RAG document list from JSON file
+golem agent --rag ./rag-documents.json
+
+# Start agent with built-in skills enabled
+golem agent --skills summarize,code-review
+
+# Combine multiple features: RAG + Skills + MCP
+golem agent --rag ./docs --skills summarize,code-review --mcp ./mcp-config.json
 ```
 
 ### Configuration Management
@@ -261,13 +327,12 @@ Golem/
 │   ├── logger/                     # Structured logging (slog)
 │   ├── store/                      # SQLite persistence (pure Go)
 │   └── term/                       # Terminal detection
-├── feature/                        # Reference implementations (not wired into main.go)
-│   │                               # These exist as standalone learning modules only.
-│   ├── mcp/                        # MCP protocol client
-│   ├── memory/                     # Long-term memory with importance decay
-│   ├── rag/                        # RAG pipeline with OpenAI embedder
+├── feature/                        # Optional feature modules
+│   ├── mcp/                        # MCP protocol client (wired, enabled via --mcp flag)
+│   ├── memory/                     # Long-term memory with importance decay (in development)
+│   ├── rag/                        # RAG pipeline with OpenAI embedder (wired, enabled via --rag flag)
 │   ├── routing/                    # Error handling + fallback
-│   └── skills/                     # Skills registry + built-in skills
+│   └── skills/                     # Skills registry + built-in skills (wired, enabled via --skills flag)
 │       └── builtins/               # Built-in skills (summarize, code-review)
 ├── internal/                       # Internal-only packages
 │   ├── channels/                   # I/O adapters

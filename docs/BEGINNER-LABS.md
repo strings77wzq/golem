@@ -179,6 +179,164 @@ CGO_ENABLED=0 go build -o build/golem ./cmd/golem
 
 ---
 
+## Lab D: RAG 本地知识库问答
+**Goal**: 基于本地文档构建知识库，让Agent可以回答和文档相关的问题。
+
+### 前置准备
+在当前目录下创建`docs/`文件夹，添加几个测试文档：
+```bash
+mkdir -p docs
+echo "# Golem 架构说明
+Golem采用四层六边形架构：core、foundation、feature、internal。
+core层不能依赖其他上层模块，所有接线都在cmd/golem/目录完成。" > docs/architecture.md
+
+echo "# Golem 命令说明
+golem agent: 启动Agent交互
+golem init: 初始化配置
+golem gateway: 启动HTTP网关
+支持的flags: --rag, --mcp, --skills" > docs/commands.md
+```
+
+### 步骤
+1. **启动Agent并开启RAG**
+```bash
+./build/golem agent --rag ./docs
+```
+
+2. **提问关于文档的问题**
+```
+Golem的架构有几层？分别是什么？
+```
+**Expected output**: Agent会调用`rag_retrieve`工具检索相关文档内容，然后给出准确回答。
+
+3. **再提问命令相关问题**
+```
+golem有哪些主要命令？
+```
+**Expected output**: Agent会返回文档中列出的三个主要命令和支持的flags。
+
+### 原理说明
+1. `--rag ./docs` 会自动索引目录下所有`.md`/`.txt`文件
+2. 索引过程会计算文本向量，存储在内存中
+3. 用户提问时，Agent自动调用`rag_retrieve`工具检索最相关的文档片段
+4. 检索结果会被注入到LLM上下文中，让回答基于文档内容
+
+---
+
+## Lab E: MCP 外部工具集成
+**Goal**: 通过MCP协议接入外部工具，扩展Agent能力。我们将使用一个简单的MCP演示服务器。
+
+### 前置准备
+1. 安装Python 3.8+
+2. 下载一个简单的MCP演示服务器：
+```bash
+# 创建一个简单的MCP echo服务器
+cat > mcp_echo_server.py << 'EOF'
+import sys
+import json
+
+def main():
+    for line in sys.stdin:
+        try:
+            req = json.loads(line.strip())
+            if req.get("method") == "tools/list":
+                resp = {
+                    "jsonrpc": "2.0",
+                    "id": req["id"],
+                    "result": {
+                        "tools": [
+                            {
+                                "name": "echo",
+                                "description": "Echo back input text",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {
+                                        "text": {"type": "string", "description": "Text to echo"}
+                                    },
+                                    "required": ["text"]
+                                }
+                            }
+                        ]
+                    }
+                }
+                print(json.dumps(resp))
+                sys.stdout.flush()
+            elif req.get("method") == "tools/call":
+                tool_name = req["params"]["name"]
+                args = req["params"]["arguments"]
+                if tool_name == "echo":
+                    resp = {
+                        "jsonrpc": "2.0",
+                        "id": req["id"],
+                        "result": {
+                            "content": [{"type": "text", "text": f"MCP Echo: {args['text']}"}]
+                        }
+                    }
+                    print(json.dumps(resp))
+                    sys.stdout.flush()
+        except Exception as e:
+            pass
+
+if __name__ == "__main__":
+    main()
+EOF
+```
+
+### 步骤
+1. **启动Agent并加载MCP服务器**
+```bash
+./build/golem agent --mcp '[{"command": "python", "args": ["mcp_echo_server.py"]}]'
+```
+
+2. **让Agent调用MCP工具**
+```
+请使用echo工具返回"hello mcp"
+```
+**Expected output**: Agent会调用`mcp_echo`工具，返回"MCP Echo: hello mcp"。
+
+### 原理说明
+1. `--mcp` flag 会启动配置的MCP服务器进程
+2. Agent通过STDIO和MCP服务器通信，遵循JSON-RPC 2.0协议
+3. Agent自动从MCP服务器获取工具列表，注册到全局工具注册表
+4. 所有MCP工具自动添加`mcp_`前缀，避免和内置工具重名
+
+---
+
+## Lab F: 内置技能使用
+**Goal**: 使用Golem内置的技能，快速获得特定场景的能力。
+
+### 步骤
+1. **启动Agent并启用技能**
+```bash
+./build/golem agent --skills summarize,code-review
+```
+
+2. **使用summarize技能总结长文本**
+```
+请总结以下内容：
+Golem是一个纯Go实现的AI Agent框架，支持7大LLM厂商，具备MCP、RAG、技能系统等能力，
+可以在Linux、macOS、Windows以及Android Termux上运行，采用四层六边形架构，
+测试覆盖率79.2%，支持Docker/K8s云原生部署。
+```
+**Expected output**: Agent会调用`summarize`技能，返回简洁的摘要。
+
+3. **使用code-review技能评审代码**
+```
+请评审这段Go代码：
+func add(a, b int) int {
+    return a + b
+}
+```
+**Expected output**: Agent会调用`code-review`技能，给出代码评审意见。
+
+### 原理说明
+1. `--skills` flag 加载指定的内置技能
+2. 每个技能都是一个预定义的工作流，暴露为LLM可调用的工具
+3. 技能封装了特定领域的prompt和处理逻辑，不需要用户编写复杂提示词
+4. 技能执行结果也遵循ToolResult格式，分为ForLLM和ForUser两部分
+
+---
+
 ## Next Steps
 
 - **Add a real provider**: Edit `~/.golem/config.json`, add OpenAI API key, switch `model_name` to `"gpt4"`

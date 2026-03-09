@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.0] - 2026-03-09
+
+### Added
+#### Feature Module Wiring
+- **MCP Client Integration**: Added `--mcp` flag to load external Model Context Protocol servers via STDIO
+  - Auto-registers all tools from configured MCP servers into the global tool registry
+  - Supports multiple MCP server configurations via JSON array
+- **RAG Pipeline Integration**: Added `--rag` flag to enable Retrieval-Augmented Generation
+  - Supports indexing directories of text files or explicit JSON document lists
+  - Auto-registers `rag_retrieve` tool for semantic document search
+  - Uses TF-IDF + cosine similarity by default, compatible with OpenAI embeddings
+- **Skills System Enhancement**: Added `--skills` flag to dynamically load built-in skills
+  - Auto-registers `summarize` and `code-review` built-in skills
+  - Supports comma-separated skill selection: `--skills summarize,code-review`
+  - Skills are available as LLM-callable tools with proper parameter schemas
+
+### Changed
+- `feature/` modules (MCP/RAG/Skills) are now officially wired into the main binary, no longer just reference implementations
+- All existing tests pass, coverage maintained at 79.2%
+- Updated documentation to reflect new CLI flags and features
+
 ## [0.3.0] - 2026-03-07
 
 ### Added

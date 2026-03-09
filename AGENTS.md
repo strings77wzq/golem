@@ -16,7 +16,7 @@
 2. **Educational**: A structured learning project for intermediate Go developers to understand
    hexagonal architecture, concurrency patterns, and AI agent design.
 
-**Current stable version**: v0.3.0  
+**Current stable version**: v0.5.0  
 **Target platform**: Linux amd64 + Android/Termux ARM64  
 **Build constraint**: `CGO_ENABLED=0` — pure Go, zero CGO dependencies, single static binary
 
@@ -29,12 +29,12 @@ golem/
 ├── cmd/golem/         # Composition root — wires all layers; cobra CLI entry point
 ├── core/                  # Domain logic — agent, bus, config, providers, session, tools, usage
 ├── foundation/            # Infrastructure primitives — concurrency, logger, store, term
-├── feature/               # Reference implementations (NOT wired into main.go — learning only)
-│   ├── mcp/               # MCP protocol client (JSON-RPC over stdio)
-│   ├── memory/            # Long-term memory with importance decay
-│   ├── rag/               # RAG pipeline with TF-IDF + embeddings
+├── feature/               # Optional feature modules (wired into main.go via CLI flags)
+│   ├── mcp/               # MCP protocol client (JSON-RPC over stdio) — ✅ Wired, enabled via --mcp
+│   ├── memory/            # Long-term memory with importance decay — 🚧 In development
+│   ├── rag/               # RAG pipeline with TF-IDF + embeddings — ✅ Wired, enabled via --rag
 │   ├── routing/           # Provider fallback routing
-│   └── skills/            # Composable skill registry
+│   └── skills/            # Composable skill registry — ✅ Wired, enabled via --skills
 ├── internal/              # Internal adapters (only importable within this module)
 │   ├── channels/cli/      # Plain readline-style interactive mode
 │   ├── channels/tui/      # Bubble Tea TUI (auto-activated on TTY)
@@ -56,7 +56,7 @@ These rules are **enforced by Go's import system** and must never be violated.
 cmd/         → imports ALL layers (composition root only)
 internal/    → imports core/ + foundation/ only
 core/        → imports foundation/ only (never internal/ or feature/)
-feature/     → imports core/ + foundation/ (standalone; not imported by main.go)
+feature/     → imports core/ + foundation/ only; wired into cmd/golem/ via adapters
 foundation/  → imports stdlib only (zero project dependencies)
 ```
 
@@ -115,11 +115,14 @@ type Runner interface {
 
 ## 6. Architecture Decision Log (Critical WHYs)
 
-### Why `feature/` is not wired into `main.go`
-`feature/` packages are **standalone learning modules** — complete, tested, but intentionally
-disconnected from the running binary. They exist to demonstrate advanced patterns (MCP, RAG,
-memory) without coupling the core agent to optional dependencies. Wire them in only if building
-a production extension.
+### Why `feature/` modules are wired via CLI flags (not imported by default)
+`feature/` packages are **optional extensions** — complete, tested, but enabled only when explicitly specified via CLI flags. This design:
+1. Keeps the core binary lightweight when features are not needed
+2. Avoids coupling the core agent to optional dependencies
+3. Maintains backward compatibility for existing users
+4. Follows the open/closed principle: new features can be added without modifying core code
+
+All feature wiring must be done in `cmd/golem/` (composition root) via adapter layers. `core/` and `internal/` must never directly import `feature/` packages.
 
 ### Why tools are always sorted alphabetically in the registry
 `ListTools()` / `ListDefinitions()` always return tools in alphabetical order. This is
@@ -250,3 +253,37 @@ golangci-lint run
 3. Return a meaningful `ToolResult.ForUser` string for user-visible output; put the LLM context
    in `ToolResult.ForLLM`.
 4. Add tests — tools are pure functions and should be unit-tested without a real agent.
+
+## 13. MCP Module Rules (Wired)
+**MUST ALWAYS FOLLOW THESE RULES WHEN MODIFYING MCP MODULE:**
+1. All MCP logic must remain in `feature/mcp/` — no MCP code allowed in core/ or internal/
+2. MCP servers are only supported via STDIO mode (HTTP mode is planned but not implemented)
+3. MCP tools must be registered into the global tool registry with `mcp_` prefix to avoid name conflicts
+4. MCP configuration must accept both JSON string and JSON file path via `--mcp` flag
+5. MCP servers must be started lazily only when the feature is enabled via flag
+
+## 14. RAG Module Rules (Wired)
+**MUST ALWAYS FOLLOW THESE RULES WHEN MODIFYING RAG MODULE:**
+1. All RAG logic must remain in `feature/rag/` — no RAG code allowed in core/ or internal/
+2. RAG supports two input modes: directory path (auto-index all text files) and JSON document list
+3. The `rag_retrieve` tool must be registered only when RAG is enabled via `--rag` flag
+4. Default similarity search uses TF-IDF + cosine similarity (no external embedding dependencies by default)
+5. Embedding providers must be optional and configurable without breaking the pure Go constraint
+
+## 15. Skills Module Rules (Wired)
+**MUST ALWAYS FOLLOW THESE RULES WHEN MODIFYING SKILLS MODULE:**
+1. All Skills logic must remain in `feature/skills/` — no Skills code allowed in core/ or internal/
+2. Built-in skills are registered automatically when enabled via `--skills` comma-separated list
+3. Skills are exposed as LLM-callable tools with proper JSON schema parameter definitions
+4. New built-in skills must be added to `feature/skills/builtins/` and registered in the skill registry
+5. Skills must not have side effects on the core agent state — they operate on input/output only
+
+## 16. How to Wire a New Feature Module
+Follow this standard process when wiring a new feature module from `feature/`:
+1. Create an adapter file in `cmd/golem/<feature>-adapter.go` to isolate wiring logic
+2. Add a CLI flag in `cmd/golem/main.go` to enable/disable the feature (disabled by default)
+3. Register any feature-provided tools into the global tool registry only when the flag is enabled
+4. Inject feature dependencies into the agent context via the composition root only
+5. Do NOT modify core/ or internal/ code to support the feature — use interfaces to decouple
+6. Update documentation, changelog, and AGENTS.md with the new feature rules and usage
+7. Ensure all existing tests pass without modification

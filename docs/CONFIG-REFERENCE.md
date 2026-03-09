@@ -110,11 +110,64 @@ golem agent
 
 ## CLI Flag Override
 
-Use `-M` to override `model_name` at runtime:
+Use CLI flags to override configuration at runtime:
 
 ```bash
+# Override default model
 golem agent -M deepseek -m "hello"
+
+# Enable MCP (Model Context Protocol) integration
+# Accepts JSON string or path to JSON config file
+golem agent --mcp '[{"command": "python", "args": ["mcp-server.py"]}]'
+golem agent --mcp ./mcp-config.json
+
+# Enable RAG (Retrieval-Augmented Generation)
+# Accepts directory path (indexes all text files) or path to JSON document list
+golem agent --rag ./docs
+golem agent --rag ./rag-documents.json
+
+# Enable built-in skills (comma-separated list)
+golem agent --skills summarize,code-review
 ```
+
+## Feature Configuration
+
+### MCP Configuration
+MCP config is a list of server definitions:
+```json
+[
+  {
+    "command": "python",
+    "args": ["/path/to/mcp-server.py"],
+    "env": {
+      "API_KEY": "${MCP_SERVER_API_KEY}"
+    }
+  }
+]
+```
+
+### RAG Document Configuration
+RAG document list JSON format:
+```json
+[
+  {
+    "id": "doc-1",
+    "title": "Golem Architecture",
+    "content": "Golem uses a hexagonal architecture with 4 layers..."
+  },
+  {
+    "id": "doc-2",
+    "title": "CLI Usage",
+    "content": "Golem supports multiple CLI flags for feature toggles..."
+  }
+]
+```
+
+### Available Skills
+| Skill Name | Description |
+|------------|-------------|
+| `summarize` | Summarizes long text content into concise points |
+| `code-review` | Performs code review with best practice suggestions |
 
 ## Complete Example
 
