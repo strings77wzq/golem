@@ -1,5 +1,5 @@
 #!/bin/bash
-# Load testing script for unlimitedClaw gateway
+# Load testing script for Golem gateway
 # Usage: ./scripts/loadtest.sh [URL] [DURATION] [CONCURRENCY]
 
 set -euo pipefail
@@ -9,7 +9,7 @@ DURATION="${2:-10}"
 CONCURRENCY="${3:-10}"
 TOTAL_REQUESTS=$((CONCURRENCY * 100))
 
-echo "=== unlimitedClaw Load Test ==="
+echo "=== Golem Load Test ==="
 echo "Target: $URL"
 echo "Duration: ${DURATION}s"
 echo "Concurrency: $CONCURRENCY"
