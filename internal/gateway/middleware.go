@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -73,12 +74,64 @@ func RecoveryMiddleware(log logger.Logger) Middleware {
 	}
 }
 
-func CORSMiddleware() Middleware {
+// CORSConfig holds CORS middleware configuration
+type CORSConfig struct {
+	AllowedOrigins   []string
+	AllowedMethods   []string
+	AllowedHeaders   []string
+	AllowCredentials bool
+}
+
+// DefaultCORSConfig returns a permissive default (localhost only)
+func DefaultCORSConfig() CORSConfig {
+	return CORSConfig{
+		AllowedOrigins: []string{"http://localhost", "http://127.0.0.1"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"Content-Type", "Authorization", "X-Request-ID"},
+	}
+}
+
+// CORSMiddleware creates CORS middleware with the given configuration
+func CORSMiddleware(cfg CORSConfig) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
+			origin := r.Header.Get("Origin")
+
+			allowedOrigin := ""
+			for _, allowed := range cfg.AllowedOrigins {
+				if allowed == "*" {
+					allowedOrigin = "*"
+					break
+				}
+				if allowed == origin {
+					allowedOrigin = origin
+					break
+				}
+				// Allow any localhost or 127.0.0.1 port when configured with localhost base
+				if (allowed == "http://localhost" || strings.HasPrefix(allowed, "http://localhost:")) &&
+					strings.HasPrefix(origin, "http://localhost:") {
+					allowedOrigin = origin
+					break
+				}
+				if (allowed == "http://127.0.0.1" || strings.HasPrefix(allowed, "http://127.0.0.1:")) &&
+					strings.HasPrefix(origin, "http://127.0.0.1:") {
+					allowedOrigin = origin
+					break
+				}
+			}
+
+			if allowedOrigin != "" {
+				w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+				if len(cfg.AllowedMethods) > 0 {
+					w.Header().Set("Access-Control-Allow-Methods", strings.Join(cfg.AllowedMethods, ", "))
+				}
+				if len(cfg.AllowedHeaders) > 0 {
+					w.Header().Set("Access-Control-Allow-Headers", strings.Join(cfg.AllowedHeaders, ", "))
+				}
+				if cfg.AllowCredentials {
+					w.Header().Set("Access-Control-Allow-Credentials", "true")
+				}
+			}
 
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusOK)

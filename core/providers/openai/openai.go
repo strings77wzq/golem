@@ -351,7 +351,10 @@ func (p *Provider) convertMessages(messages []providers.Message) []map[string]in
 		if len(msg.ToolCalls) > 0 {
 			toolCalls := make([]map[string]interface{}, 0, len(msg.ToolCalls))
 			for _, tc := range msg.ToolCalls {
-				argsJSON, _ := json.Marshal(tc.Arguments)
+				argsJSON, err := json.Marshal(tc.Arguments)
+				if err != nil {
+					argsJSON = []byte("{}")
+				}
 				toolCalls = append(toolCalls, map[string]interface{}{
 					"id":   tc.ID,
 					"type": "function",

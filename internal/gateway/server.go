@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/strings77wzq/golem/foundation/logger"
+	"github.com/strings77wzq/golem/internal/security"
 )
 
 // AgentHandler decouples gateway from agent package
@@ -27,10 +28,10 @@ type StreamingAgentHandler interface {
 
 // ServerConfig holds HTTP server configuration
 type ServerConfig struct {
-	Addr            string        // default ":18790"
-	ReadTimeout     time.Duration // default 30s
-	WriteTimeout    time.Duration // default 30s
-	ShutdownTimeout time.Duration // default 10s
+	Addr            string
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
+	ShutdownTimeout time.Duration
 }
 
 // DefaultServerConfig returns sensible defaults
@@ -40,6 +41,27 @@ func DefaultServerConfig() ServerConfig {
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,
 		ShutdownTimeout: 10 * time.Second,
+	}
+}
+
+// SecurityConfig holds security middleware configuration
+type SecurityConfig struct {
+	EnableAuth      bool
+	AuthToken       string
+	EnableRateLimit bool
+	RateLimitRPS    float64
+	RateLimitBurst  int
+	CORS            CORSConfig
+}
+
+// DefaultSecurityConfig returns security defaults (auth disabled, rate limit enabled)
+func DefaultSecurityConfig() SecurityConfig {
+	return SecurityConfig{
+		EnableAuth:      false,
+		EnableRateLimit: true,
+		RateLimitRPS:    100,
+		RateLimitBurst:  200,
+		CORS:            DefaultCORSConfig(),
 	}
 }
 
@@ -54,7 +76,11 @@ type Server struct {
 
 // NewServer creates a new HTTP gateway server
 func NewServer(cfg ServerConfig, agentHandler AgentHandler, log logger.Logger) *Server {
-	// Apply defaults if zero values
+	return NewServerWithSecurity(cfg, DefaultSecurityConfig(), agentHandler, log)
+}
+
+// NewServerWithSecurity creates a new HTTP gateway server with security configuration
+func NewServerWithSecurity(cfg ServerConfig, secCfg SecurityConfig, agentHandler AgentHandler, log logger.Logger) *Server {
 	if cfg.Addr == "" {
 		cfg.Addr = ":18790"
 	}
@@ -76,16 +102,34 @@ func NewServer(cfg ServerConfig, agentHandler AgentHandler, log logger.Logger) *
 		shutdownTimeout: cfg.ShutdownTimeout,
 	}
 
-	// Register routes
 	s.registerRoutes()
 
-	// Apply middleware chain
-	handler := Chain(
+	middlewares := []Middleware{
 		RequestIDMiddleware(),
 		LoggingMiddleware(log),
 		RecoveryMiddleware(log),
-		CORSMiddleware(),
-	)(mux)
+	}
+
+	if secCfg.EnableAuth && secCfg.AuthToken != "" {
+		middlewares = append(middlewares, security.AuthMiddleware(security.AuthConfig{
+			Enabled: true,
+			APIKeys: []string{secCfg.AuthToken},
+		}))
+		log.Info("gateway auth enabled")
+	}
+
+	if secCfg.EnableRateLimit {
+		middlewares = append(middlewares, security.RateLimitMiddleware(security.RateLimitConfig{
+			Enabled: true,
+			Rate:    secCfg.RateLimitRPS,
+			Burst:   secCfg.RateLimitBurst,
+		}))
+		log.Info("gateway rate limit enabled", "rps", secCfg.RateLimitRPS, "burst", secCfg.RateLimitBurst)
+	}
+
+	middlewares = append(middlewares, CORSMiddleware(secCfg.CORS))
+
+	handler := Chain(middlewares...)(mux)
 
 	s.httpServer = &http.Server{
 		Addr:         cfg.Addr,

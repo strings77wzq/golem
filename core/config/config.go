@@ -9,8 +9,9 @@ import (
 
 // Config is the root configuration structure
 type Config struct {
-	Agents    AgentConfig  `json:"agents"`
-	ModelList []ModelEntry `json:"model_list"`
+	Agents    AgentConfig   `json:"agents"`
+	Gateway   GatewayConfig `json:"gateway"`
+	ModelList []ModelEntry  `json:"model_list"`
 }
 
 // AgentConfig holds agent-related defaults
@@ -23,6 +24,17 @@ type AgentDefaults struct {
 	ModelName    string `json:"model_name"`
 	MaxTokens    int    `json:"max_tokens"`
 	SystemPrompt string `json:"system_prompt"`
+}
+
+// GatewayConfig holds HTTP gateway configuration
+type GatewayConfig struct {
+	Addr            string   `json:"addr"`
+	EnableAuth      bool     `json:"enable_auth"`
+	AuthToken       string   `json:"auth_token"`
+	EnableRateLimit bool     `json:"enable_rate_limit"`
+	RateLimitRPS    int      `json:"rate_limit_rps"`
+	RateLimitBurst  int      `json:"rate_limit_burst"`
+	AllowedOrigins  []string `json:"allowed_origins"`
 }
 
 // ModelEntry represents a single model configuration in model_list format

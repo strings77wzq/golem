@@ -13,9 +13,12 @@ import (
 )
 
 func (a *Agent) handleMessage(ctx context.Context, msg bus.InboundMessage) {
-	_, _, _ = a.processMessage(ctx, msg, false, nil, func(out bus.OutboundMessage) {
+	_, _, err := a.processMessage(ctx, msg, false, nil, func(out bus.OutboundMessage) {
 		a.bus.Publish(TopicOutbound, out)
 	})
+	if err != nil {
+		a.logger.Error("failed to process message", err, "session_id", msg.SessionID)
+	}
 }
 
 func (a *Agent) HandleMessage(ctx context.Context, sessionID string, message string) (string, error) {

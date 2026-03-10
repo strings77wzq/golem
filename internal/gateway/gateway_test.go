@@ -213,7 +213,9 @@ func TestCORSHeaders(t *testing.T) {
 	cfg := DefaultServerConfig()
 	server := NewServer(cfg, agent, log)
 
+	// Test with localhost origin (should be allowed by default)
 	req := httptest.NewRequest(http.MethodOptions, "/api/chat", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
 	rec := httptest.NewRecorder()
 
 	server.Handler().ServeHTTP(rec, req)
@@ -222,8 +224,9 @@ func TestCORSHeaders(t *testing.T) {
 		t.Errorf("expected status 200, got %d", rec.Code)
 	}
 
-	if origin := rec.Header().Get("Access-Control-Allow-Origin"); origin != "*" {
-		t.Errorf("expected Access-Control-Allow-Origin '*', got '%s'", origin)
+	origin := rec.Header().Get("Access-Control-Allow-Origin")
+	if origin != "http://localhost:3000" {
+		t.Errorf("expected Access-Control-Allow-Origin 'http://localhost:3000', got '%s'", origin)
 	}
 
 	if methods := rec.Header().Get("Access-Control-Allow-Methods"); methods == "" {
@@ -232,6 +235,54 @@ func TestCORSHeaders(t *testing.T) {
 
 	if headers := rec.Header().Get("Access-Control-Allow-Headers"); headers == "" {
 		t.Error("expected Access-Control-Allow-Headers to be set")
+	}
+}
+
+func TestCORSHeadersBlocked(t *testing.T) {
+	log := logger.NopLogger()
+	agent := &mockAgentHandler{response: "test"}
+	cfg := DefaultServerConfig()
+	server := NewServer(cfg, agent, log)
+
+	// Test with unknown origin (should be blocked by default)
+	req := httptest.NewRequest(http.MethodOptions, "/api/chat", nil)
+	req.Header.Set("Origin", "https://evil.com")
+	rec := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200 for OPTIONS, got %d", rec.Code)
+	}
+
+	// Origin should not be echoed back for blocked origins
+	origin := rec.Header().Get("Access-Control-Allow-Origin")
+	if origin != "" {
+		t.Errorf("expected no Access-Control-Allow-Origin for blocked origin, got '%s'", origin)
+	}
+}
+
+func TestCORSHeadersWildcard(t *testing.T) {
+	log := logger.NopLogger()
+	agent := &mockAgentHandler{response: "test"}
+	cfg := DefaultServerConfig()
+	secCfg := DefaultSecurityConfig()
+	secCfg.CORS = CORSConfig{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST"},
+		AllowedHeaders: []string{"Content-Type"},
+	}
+	server := NewServerWithSecurity(cfg, secCfg, agent, log)
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/chat", nil)
+	req.Header.Set("Origin", "https://any-site.com")
+	rec := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(rec, req)
+
+	origin := rec.Header().Get("Access-Control-Allow-Origin")
+	if origin != "*" {
+		t.Errorf("expected Access-Control-Allow-Origin '*', got '%s'", origin)
 	}
 }
 

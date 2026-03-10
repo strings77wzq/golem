@@ -530,7 +530,7 @@ func runAgentInteractive(ag *agent.Agent, b bus.Bus, existingSessionID string) e
 }
 
 func newGatewayCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "gateway",
 		Short: "Start the HTTP gateway server",
 		Long:  "Start the HTTP gateway server for agent communication",
@@ -556,12 +556,56 @@ func newGatewayCommand() *cobra.Command {
 			go ag.Start(ctx)
 
 			serverCfg := gateway.DefaultServerConfig()
-			server := gateway.NewServer(serverCfg, ag, log)
+			secCfg := gateway.DefaultSecurityConfig()
 
-			log.Info("starting gateway server", "addr", serverCfg.Addr)
+			// Apply gateway config from file
+			if cfg.Gateway.Addr != "" {
+				serverCfg.Addr = cfg.Gateway.Addr
+			}
+
+			// Check for auth token from environment variable (takes precedence)
+			authToken := os.Getenv("GOLEM_AUTH_TOKEN")
+			if authToken != "" {
+				secCfg.EnableAuth = true
+				secCfg.AuthToken = authToken
+			} else if cfg.Gateway.AuthToken != "" {
+				secCfg.EnableAuth = true
+				secCfg.AuthToken = cfg.Gateway.AuthToken
+			}
+
+			// Apply rate limit config
+			if cfg.Gateway.RateLimitRPS > 0 {
+				secCfg.EnableRateLimit = true
+				secCfg.RateLimitRPS = float64(cfg.Gateway.RateLimitRPS)
+			}
+			if cfg.Gateway.RateLimitBurst > 0 {
+				secCfg.RateLimitBurst = cfg.Gateway.RateLimitBurst
+			}
+
+			// Apply CORS config
+			if len(cfg.Gateway.AllowedOrigins) > 0 {
+				secCfg.CORS = gateway.CORSConfig{
+					AllowedOrigins: cfg.Gateway.AllowedOrigins,
+					AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+					AllowedHeaders: []string{"Content-Type", "Authorization", "X-Request-ID"},
+				}
+			}
+
+			server := gateway.NewServerWithSecurity(serverCfg, secCfg, ag, log)
+
+			log.Info("starting gateway server",
+				"addr", serverCfg.Addr,
+				"auth_enabled", secCfg.EnableAuth,
+				"rate_limit_enabled", secCfg.EnableRateLimit,
+			)
 			return server.Start()
 		},
 	}
+
+	cmd.Flags().String("auth-token", "", "API token for authentication (can also set GOLEM_AUTH_TOKEN env)")
+	cmd.Flags().Int("rate-limit", 100, "Rate limit requests per second")
+
+	return cmd
 }
 
 func loadConfig(cmd *cobra.Command) (*config.Config, error) {
