@@ -112,6 +112,7 @@ curl http://localhost:18790/v1/chat/completions \
 - **Tool selection** — smart tool picker based on task context
 - **Reflection** — evaluate step results before continuing
 - **Planning** — decompose complex tasks into structured plans
+- **Progress display** — real-time TUI shows planning, tool calls, and results
 
 ### Multi-Provider LLM
 - Ollama (local), OpenAI, Anthropic, DeepSeek, MiMo, Kimi, GLM, MiniMax, Qwen
