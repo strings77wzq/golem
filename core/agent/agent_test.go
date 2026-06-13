@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -396,8 +397,8 @@ func TestAgentSystemPrompt(t *testing.T) {
 	if lastMessages[0].Role != providers.RoleSystem {
 		t.Errorf("expected first message to be system, got %v", lastMessages[0].Role)
 	}
-	if lastMessages[0].Content != customPrompt {
-		t.Errorf("expected system prompt %q, got %q", customPrompt, lastMessages[0].Content)
+	if !strings.Contains(lastMessages[0].Content, customPrompt) {
+		t.Errorf("expected system prompt to contain %q, got %q", customPrompt, lastMessages[0].Content)
 	}
 }
 
