@@ -1,106 +1,115 @@
 # Spec: Database Schema
 
-## [S1] Schema Definition
+## [S1] Schema Discovery (NOT Hardcoded Tables)
 
-Three tables with proper relationships:
+The agent does NOT have predefined tables. Instead, it **auto-discovers** whatever schema exists in the connected database.
 
-### users
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | INTEGER | PRIMARY KEY AUTOINCREMENT |
-| username | TEXT | NOT NULL UNIQUE |
-| email | TEXT | NOT NULL UNIQUE |
-| password_hash | TEXT | NOT NULL |
-| display_name | TEXT | nullable |
-| avatar_url | TEXT | nullable |
-| bio | TEXT | nullable |
-| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP |
-| updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP |
+**Flow:**
+1. Agent connects to database (SQLite/MySQL/PostgreSQL/Redis/VectorDB)
+2. Calls `GetSchema()` to discover all tables
+3. Reads column names, types, constraints, indexes
+4. Injects schema summary into system prompt
+5. Agent generates SQL based on ACTUAL schema
 
-### articles
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | INTEGER | PRIMARY KEY AUTOINCREMENT |
-| author_id | INTEGER | NOT NULL, FK → users(id) ON DELETE CASCADE |
-| title | TEXT | NOT NULL |
-| slug | TEXT | NOT NULL UNIQUE |
-| content | TEXT | NOT NULL |
-| summary | TEXT | nullable |
-| status | TEXT | DEFAULT 'draft', CHECK IN ('draft', 'published', 'archived') |
-| view_count | INTEGER | DEFAULT 0 |
-| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP |
-| updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP |
-| published_at | DATETIME | nullable |
+**This means:**
+- Connect to your existing MySQL → agent sees YOUR tables
+- Connect to your existing PostgreSQL → agent sees YOUR schema
+- Connect to SQLite → agent sees whatever tables exist
 
-### comments
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | INTEGER | PRIMARY KEY AUTOINCREMENT |
-| article_id | INTEGER | NOT NULL, FK → articles(id) ON DELETE CASCADE |
-| user_id | INTEGER | nullable, FK → users(id) ON DELETE SET NULL |
-| parent_id | INTEGER | nullable, FK → comments(id) ON DELETE CASCADE |
-| author_name | TEXT | nullable (for anonymous comments) |
-| content | TEXT | NOT NULL |
-| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP |
+## [S2] Schema Introspection
 
-## [S2] SchemaManager
+The `SchemaManager` reads database metadata dynamically:
 
-The `SchemaManager` handles schema creation and introspection.
+### SQL Databases (SQLite, MySQL, PostgreSQL)
 
-**Methods:**
-- `InitSchema(ctx)` — CREATE TABLE IF NOT EXISTS for all tables
-- `GetSchema(ctx)` — return full schema as string
-- `GetTableInfo(ctx, table)` — return column info for one table
-- `GetTables(ctx)` — return list of table names
-
-**Constraints:**
-- Must be idempotent (safe to call multiple times)
-- Must use `modernc.org/sqlite` (pure Go, no CGO)
-- Schema stored in configurable path (default: `~/.golem/data.db`)
-
-## [S3] Seed Data
-
-Initial seed data for demonstration:
+Query `INFORMATION_SCHEMA` or equivalent:
 
 ```sql
-INSERT INTO users (username, email, password_hash, display_name, bio)
-VALUES
-  ('admin', 'admin@example.com', 'hash1', 'Admin', 'System administrator'),
-  ('alice', 'alice@example.com', 'hash2', 'Alice', 'Tech writer'),
-  ('bob', 'bob@example.com', 'hash3', 'Bob', 'Developer');
+-- Get all tables
+SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';
 
-INSERT INTO articles (author_id, title, slug, content, summary, status, published_at)
-VALUES
-  (1, 'Golem v0.6.0 Release', 'golem-v060-release', 'Content...', 'New release', 'published', NOW),
-  (2, 'Getting Started with Go Agents', 'go-agents-guide', 'Content...', 'Guide', 'published', NOW),
-  (3, 'Database Design Patterns', 'db-design-patterns', 'Content...', 'Patterns', 'draft', NULL);
+-- Get columns for a table
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_name = 'users';
 
-INSERT INTO comments (article_id, user_id, author_name, content)
-VALUES
-  (1, 2, NULL, 'Great release!'),
-  (1, 3, NULL, 'Looking forward to the next version'),
-  (2, 1, NULL, 'Very helpful guide');
+-- Get primary keys
+SELECT column_name FROM information_schema.key_column_usage
+WHERE table_name = 'users' AND constraint_type = 'PRIMARY KEY';
+
+-- Get foreign keys
+SELECT column_name, referenced_table_name, referenced_column_name
+FROM information_schema.key_column_usage
+WHERE table_name = 'orders' AND referenced_table_name IS NOT NULL;
 ```
 
-## [S4] Schema as String
+### Redis
 
-The `GetSchema()` method returns a human-readable string for injection into system prompt:
+Redis has no schema. `GetSchema()` returns:
+```
+Redis key-value store
+Sample keys: user:1001, session:abc, cache:home
+Key patterns: user:*, session:*, cache:*
+```
+
+### Vector DB (Qdrant, Milvus)
+
+```go
+// Qdrant
+GET /collections/{name} → {vectors: {size: 1536, distance: "Cosine"}}
+
+// Milvus
+GET /collections/{name} → {fields: [{name: "text", type: "VARCHAR"}, ...]}
+```
+
+## [S3] Schema Summary Format
+
+The schema is summarized for system prompt injection:
 
 ```
-Database: SQLite
+Database: MySQL (myapp)
 
 Tables:
-- users (id, username, email, display_name, bio, created_at)
-- articles (id, author_id, title, slug, content, summary, status, view_count, created_at, published_at)
-  FK: author_id → users(id)
-- comments (id, article_id, user_id, parent_id, author_name, content, created_at)
-  FK: article_id → articles(id), user_id → users(id), parent_id → comments(id)
+- users (id INT PK, name VARCHAR, email VARCHAR UNIQUE, created_at TIMESTAMP)
+- orders (id INT PK, user_id INT FK→users.id, amount DECIMAL, status VARCHAR, created_at TIMESTAMP)
+- products (id INT PK, name VARCHAR, price DECIMAL, category VARCHAR)
+- order_items (id INT PK, order_id INT FK→orders.id, product_id INT FK→products.id, quantity INT)
 
 Relationships:
-- articles.author_id → users.id
-- comments.article_id → articles.id
-- comments.user_id → users.id
-- comments.parent_id → comments.id (nested replies)
+- orders.user_id → users.id
+- order_items.order_id → orders.id
+- order_items.product_id → products.id
 ```
 
-Estimated token cost: ~80 tokens for 3 tables. Acceptable for system prompt.
+**Token cost:** ~50-100 tokens per table (depends on column count). Acceptable.
+
+## [S4] Schema Refresh
+
+Schema can change (tables added/dropped/altered). The agent should:
+
+1. Cache schema on first read
+2. Re-read schema if SQL query fails with "table doesn't exist"
+3. Provide `sql_refresh_schema` tool to force re-read
+4. Cache TTL: 5 minutes (configurable)
+
+## [S5] Multi-Database Schema
+
+When multiple databases are connected, schema shows all:
+
+```
+=== SQLite (local.db) ===
+- users (id, name, email)
+- sessions (id, user_id, data)
+
+=== MySQL (production) ===
+- orders (id, user_id, amount, status)
+- products (id, name, price)
+
+=== Redis (cache) ===
+- Key patterns: session:*, user:*, product:*
+```
+
+Agent can query across databases using the `database` parameter:
+```json
+{"database": "mysql", "sql": "SELECT * FROM orders"}
+```

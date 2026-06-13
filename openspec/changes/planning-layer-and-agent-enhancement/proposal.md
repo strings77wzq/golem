@@ -15,7 +15,7 @@ The user is a database engineer with a team using K8s and Docker. Golem should b
 
 ### 1. Database Intelligence (`core/database/`)
 
-Multi-database support with schema awareness:
+Multi-database support with **auto-discovery** — no hardcoded schemas:
 
 - **SQLite** — embedded, pure Go (modernc.org/sqlite)
 - **MySQL** — remote database operations
@@ -23,11 +23,7 @@ Multi-database support with schema awareness:
 - **Redis** — cache and key-value operations
 - **Vector DB** — semantic search (pgvector, Qdrant, Milvus)
 
-Each database type gets:
-- Schema introspection (understand table structure)
-- Query execution (run SQL/commands)
-- Data analysis (statistics, distribution)
-- CRUD operations (with safety guards)
+The agent connects to whatever database the user specifies, auto-discovers the schema (tables, columns, relationships), and operates on the actual data. No predefined tables — it works with YOUR database.
 
 ### 2. Infrastructure Tools (`core/tools/infra/`)
 
