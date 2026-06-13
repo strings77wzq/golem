@@ -80,11 +80,12 @@ func TestDockerToolBuild(t *testing.T) {
 
 func TestDockerToolBuildNoTag(t *testing.T) {
 	tool := NewDockerTool()
+	tool.executor = &mockExecutor{output: "Successfully built golem:latest"}
+
 	result, err := tool.Execute(context.Background(), map[string]interface{}{"action": "build"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Should still work (tag is optional)
 	if result.IsError {
 		t.Errorf("unexpected error: %s", result.ForLLM)
 	}
