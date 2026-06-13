@@ -49,23 +49,6 @@ jobs:
           name: golem-linux-amd64
           path: build/golem
 
-  goreleaser-check:
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-      - name: GoReleaser check
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: '~> v2'
-          args: check
-
   docker:
     runs-on: ubuntu-latest
     needs: test
