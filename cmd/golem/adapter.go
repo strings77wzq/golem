@@ -95,6 +95,12 @@ func registerProviders(cfg *config.Config) *providers.Factory {
 				opts = append(opts, ollama.WithAPIBase(entry.APIBase))
 			}
 			factory.Register(vendor, ollama.New(opts...))
+		case "mimo":
+			base := entry.APIBase
+			if base == "" {
+				base = "https://api.xiaomimimo.com/v1"
+			}
+			factory.Register(vendor, openai.New(entry.APIKey, openai.WithAPIBase(base)))
 		case "mock":
 			factory.Register(vendor, providers.NewMockProvider("mock"))
 		}
