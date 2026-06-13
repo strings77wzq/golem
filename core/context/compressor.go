@@ -111,6 +111,8 @@ func (c *Compressor) truncateContent(content string, maxTokens int) string {
 }
 
 // fitToBudget drops oldest messages until everything fits.
+// Preserves tool message chains: if a tool message is kept, its preceding
+// assistant message with tool_calls must also be kept.
 func (c *Compressor) fitToBudget(
 	compressed []providers.Message,
 	recent []providers.Message,
@@ -125,12 +127,52 @@ func (c *Compressor) fitToBudget(
 		used += tokenFunc(msg)
 	}
 
+	// Build set of message indices already in result
+	recentStart := len(compressed)
+	if len(recent) > 0 {
+		// Find where recent messages came from in compressed
+		for i := len(compressed) - 1; i >= 0; i-- {
+			if len(recent) > 0 && compressed[i].Content == recent[0].Content {
+				recentStart = i
+				break
+			}
+		}
+	}
+
 	// Add compressed messages from newest to oldest
 	for i := len(compressed) - 1; i >= 0; i-- {
-		msgTokens := tokenFunc(compressed[i])
+		if i >= recentStart {
+			continue // already in result
+		}
+
+		msg := compressed[i]
+
+		// If this is a tool message, check if its preceding assistant message is included
+		if msg.Role == providers.RoleTool {
+			// Find the preceding assistant message with tool_calls
+			hasPredecessor := false
+			for j := i - 1; j >= 0; j-- {
+				if compressed[j].Role == providers.RoleAssistant && len(compressed[j].ToolCalls) > 0 {
+					// Check if this assistant message is already in result
+					for _, r := range result {
+						if r.Content == compressed[j].Content && len(r.ToolCalls) > 0 {
+							hasPredecessor = true
+							break
+						}
+					}
+					break
+				}
+			}
+			if !hasPredecessor {
+				// Skip this tool message to avoid breaking the chain
+				continue
+			}
+		}
+
+		msgTokens := tokenFunc(msg)
 		if used+msgTokens > budget {
 			// Can't fit this message, try to fit a summary
-			summary := c.makeSummary(compressed[i])
+			summary := c.makeSummary(msg)
 			summaryTokens := tokenFunc(providers.Message{Role: providers.RoleAssistant, Content: summary})
 			if used+summaryTokens <= budget {
 				result = append([]providers.Message{{Role: providers.RoleAssistant, Content: summary}}, result...)
@@ -138,7 +180,7 @@ func (c *Compressor) fitToBudget(
 			}
 			continue
 		}
-		result = append([]providers.Message{compressed[i]}, result...)
+		result = append([]providers.Message{msg}, result...)
 		used += msgTokens
 	}
 
