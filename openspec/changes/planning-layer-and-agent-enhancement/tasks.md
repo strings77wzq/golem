@@ -1,83 +1,129 @@
-# Tasks: Planning Layer & Agent Enhancement
+# Tasks: Cloud-Native AI Agent with Infrastructure & Data Intelligence
 
-## Phase 1: Core Planner (T1-T4)
+## Phase 1: Database Layer (T1-T5)
 
-### T1: Plan data model
-- Create `core/planner/plan.go` with Plan, Step, PlanStatus, StepStatus types
-- Add JSON serialization tags
-- Add Plan.AddStep(), Plan.GetStep(), Plan.IsComplete() methods
-- Test: `core/planner/plan_test.go`
+### T1: Driver interface + SQLite driver
+- Create `core/database/driver.go` with Driver interface, Config, Row, Result types
+- Create `core/database/sqlite.go` with SQLite driver (modernc.org/sqlite)
+- Implement Connect, Query, Execute, GetSchema, Ping
+- Create `core/database/sqlite_test.go`
+- Seed data (users, articles, comments)
 
-### T2: Planner.Decompose
-- Create `core/planner/planner.go` with Planner struct
-- Implement Decompose: sends prompt to LLM, parses JSON response
-- Implement fallback: if JSON parse fails, create single-step plan
-- Test: `core/planner/planner_test.go` with mock LLM
+### T2: Database Registry
+- Create `core/database/registry.go` with Registry
+- Implement Register, Connect, Get, List, Close
+- Create `core/database/registry_test.go`
 
-### T3: Planner.Revise
-- Implement Revise: sends current plan + step result to LLM
-- Parse revised plan, keep completed steps unchanged
-- Safety limit: max 3 revisions per plan
-- Test: revision with mock LLM
+### T3: MySQL driver
+- Create `core/database/mysql.go`
+- Implement MySQL driver using go-sql-driver/mysql
+- Connection pooling, query timeout
+- Create `core/database/mysql_test.go`
 
-### T4: Planner.ShouldContinue
-- Implement termination logic
-- Check: all steps done, max revisions reached, plan status
-- Test: various plan states
+### T4: PostgreSQL driver
+- Create `core/database/postgres.go`
+- Implement PostgreSQL driver using lib/pq
+- Create `core/database/postgres_test.go`
 
-## Phase 2: Tool Selector (T5-T6)
+### T5: Redis driver
+- Create `core/database/redis.go`
+- Implement Redis driver using go-redis/redis
+- Support GET, SET, DEL, KEYS, HGETALL, LRANGE, INFO
+- Create `core/database/redis_test.go`
 
-### T5: ToolSelector
-- Create `core/agent/tool_selector.go`
-- Implement keyword-based relevance scoring
-- Implement Select() method
-- Test: `core/agent/tool_selector_test.go`
+## Phase 2: Database Tools (T6-T8)
 
-### T6: Keyword extraction
-- Implement stop word removal and tokenization
-- Test: various input strings
+### T6: sql_query + sql_schema tools
+- Create `core/tools/database/sql_query.go`
+- Create `core/tools/database/sql_schema.go`
+- Multi-database support (specify database parameter)
+- Create `core/tools/database/*_test.go`
 
-## Phase 3: Reflector (T7-T8)
+### T7: sql_analyze + CRUD tools
+- Create `core/tools/database/sql_analyze.go`
+- Create `core/tools/database/sql_insert.go`
+- Create `core/tools/database/sql_update.go`
+- Create `core/tools/database/sql_delete.go`
+- Safety guards (--allow-writes, --confirm-delete)
 
-### T7: Reflector
-- Create `core/agent/reflector.go`
-- Implement heuristic evaluation (keyword matching, error check)
-- Test: `core/agent/reflector_test.go`
+### T8: Wire database into agent
+- Add `--db` flag to `golem agent`
+- Register database tools when `--db` is set
+- Inject schema into system prompt
+- Test: end-to-end with SQLite
 
-### T8: LLM escalation
-- Implement fallback to LLM evaluation when heuristic is uncertain
-- Test: uncertain cases
+## Phase 3: Infrastructure Tools (T9-T11)
 
-## Phase 4: Agent Integration (T9-T12)
+### T9: Docker tools
+- Create `core/tools/infra/docker.go`
+- Implement docker_build, docker_ps, docker_logs, docker_run, docker_stop, docker_exec
+- Safety tiers (read-only always, writes with flag)
+- Create `core/tools/infra/docker_test.go`
 
-### T9: Enhanced agent loop
-- Modify `core/agent/loop.go` to support planning mode
+### T10: Kubernetes tools
+- Create `core/tools/infra/kubectl.go`
+- Implement k8s_get, k8s_apply, k8s_delete, k8s_describe, k8s_logs, k8s_scale
+- Safety tiers
+- Create `core/tools/infra/kubectl_test.go`
+
+### T11: Helm tools
+- Create `core/tools/infra/helm.go`
+- Implement helm_install, helm_upgrade, helm_list, helm_rollback
+- Safety tiers
+- Create `core/tools/infra/helm_test.go`
+
+## Phase 4: Planner (T12-T14)
+
+### T12: Plan data model
+- Already implemented (core/planner/plan.go)
+- Verify tests pass
+
+### T13: Planner.Decompose + Revise
+- Already implemented (core/planner/planner.go)
+- Verify tests pass
+
+### T14: Planner integration
+- Wire planner into agent loop
 - Add complexity detection
-- Add mini ReAct loop per step
-- Test: planning mode with mock provider
-
-### T10: Agent configuration
-- Add PlanningConfig to config.go
 - Add --plan CLI flag
+- Test with mock provider
+
+## Phase 5: Tool Selector & Reflector (T15-T16)
+
+### T15: Tool Selector
+- Create `core/agent/tool_selector.go`
+- Keyword-based relevance scoring
+- Create `core/agent/tool_selector_test.go`
+
+### T16: Reflector
+- Create `core/agent/reflector.go`
+- Heuristic evaluation + LLM escalation
+- Create `core/agent/reflector_test.go`
+
+## Phase 6: Agent Integration (T17-T19)
+
+### T17: Enhanced agent loop
+- Modify `core/agent/loop.go` for planning mode
+- Mini ReAct loop per step
+- Test with mock provider
+
+### T18: Agent configuration
+- Add PlanningConfig to config.go
+- Add --plan, --allow-writes, --allow-infra, --confirm-destructive flags
 - Test: config loading
 
-### T11: Progress display
+### T19: Progress display + session integration
 - Emit progress messages during plan execution
-- Format: [Plan] Step 1/4: ..., [Step 1] ✓ Done, etc.
-- Test: message emission
+- Store ActivePlan in session
+- Test: end-to-end
 
-### T12: Session integration
-- Add ActivePlan to Session struct
-- Store/retrieve plan with session
-- Test: session persistence
+## Phase 7: Polish (T20-T21)
 
-## Phase 5: Polish (T13-T14)
+### T20: Documentation
+- Update README with all new flags
+- Add database + infrastructure sections to docs
+- Update architecture diagram
 
-### T13: Documentation
-- Update README with --plan flag
-- Add planning section to architecture docs
-- Update AGENTS.md
-
-### T14: Integration test
-- End-to-end test: user request → plan → execute → verify
-- Test with mock provider
+### T21: Integration test
+- End-to-end: user request → plan → SQL query → Docker build → K8s deploy → verify
+- Test with real SQLite + Docker

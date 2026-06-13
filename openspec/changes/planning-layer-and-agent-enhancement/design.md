@@ -1,215 +1,266 @@
-# Design: Planning Layer & Agent Enhancement
+# Design: Cloud-Native AI Agent with Infrastructure & Data Intelligence
 
 ## Context
 
-Golem's current agent loop is a flat ReAct cycle:
-
-```
-user message → [system prompt + history + tools] → LLM → tool call → execute → LLM → ... → response
-```
-
-This works for simple tasks ("what's the weather?") but fails for complex tasks ("deploy this service to production") because:
-
-1. The LLM has no structured plan — it improvises each step
-2. There's no goal tracking — the agent doesn't know when it's "done"
-3. No error recovery — if a tool fails, the agent just tries again or gives up
-4. Tool selection is wasteful — all tools are sent to the LLM every turn
+Golem needs to become a cloud-native AI agent that understands the full stack: databases, containers, and orchestration. The user's team uses Docker, K8s, MySQL, PostgreSQL, Redis, and vector databases. Golem should be able to operate on all of these.
 
 ## Architecture
 
-### Planning Layer
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      User Request                            │
+│  "把 golen 服务部署到 k8s，用 mysql 做后端，redis 做缓存"       │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────────┐
+│                     PLANNER                                   │
+│                                                               │
+│  Step 1: Build Docker image                                   │
+│  Step 2: Push to registry                                     │
+│  Step 3: Create MySQL database and tables                     │
+│  Step 4: Configure Redis connection                           │
+│  Step 5: Apply K8s manifests                                  │
+│  Step 6: Verify rollout                                       │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────────┐
+│                   TOOL SELECTOR                                │
+│                                                               │
+│  Step 1 → docker_build                                        │
+│  Step 2 → docker_push (exec: docker push)                    │
+│  Step 3 → sql_query (MySQL)                                   │
+│  Step 4 → redis_set                                           │
+│  Step 5 → k8s_apply                                           │
+│  Step 6 → k8s_get (check pods)                               │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────────┐
+│                    TOOL LAYER                                  │
+│                                                               │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
+│  │   Database   │  │   Infra      │  │   Existing       │   │
+│  │              │  │              │  │                  │   │
+│  │ SQLite       │  │ Docker       │  │ exec, file_read  │   │
+│  │ MySQL        │  │ K8s          │  │ file_write       │   │
+│  │ PostgreSQL   │  │ Helm         │  │ web_search       │   │
+│  │ Redis        │  │              │  │                  │   │
+│  │ VectorDB     │  │              │  │                  │   │
+│  └──────────────┘  └──────────────┘  └──────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Data Flow: Multi-Database Query
 
 ```
-User: "deploy the golem service to production"
+User: "比较 MySQL 用户表和 SQLite 用户表的数据差异"
   │
   ▼
-┌─────────────────────────────────┐
-│ PLANNER                         │
-│                                 │
-│ 1. Decompose into plan:         │
-│    Step 1: Build Docker image   │
-│    Step 2: Push to registry     │
-│    Step 3: Apply K8s manifests  │
-│    Step 4: Verify rollout       │
-│                                 │
-│ 2. For each step:               │
-│    - Select relevant tools      │
-│    - Execute via ReAct loop     │
-│    - Check result               │
-│    - Revise plan if needed      │
-│                                 │
-│ 3. When all steps complete:     │
-│    - Compose final response     │
-└─────────────────────────────────┘
-```
-
-### Data Flow
-
-```
-User Input
+Planner decomposes:
+  Step 1: Query MySQL users
+  Step 2: Query SQLite users
+  Step 3: Compare results
   │
   ▼
-┌──────────────┐
-│ Context Mgr  │ → system prompt + token budget
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│   Planner    │ → plan: []Step
-└──────┬───────┘
-       │
-       ▼ (for each step)
-┌──────────────┐
-│ Tool Selector│ → subset of tools for this step
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│  ReAct Loop  │ → execute tools (max 5 iterations per step)
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐
-│  Reflector   │ → did step succeed? revise plan?
-└──────┬───────┘
-       │
-       ▼ (next step or final response)
+Step 1: ToolSelector → sql_query (mysql)
+  LLM generates: SELECT * FROM users
+  Execute on MySQL connection → 500 rows
+  │
+  ▼
+Step 2: ToolSelector → sql_query (sqlite)
+  LLM generates: SELECT * FROM users
+  Execute on SQLite connection → 3 rows
+  │
+  ▼
+Step 3: ToolSelector → (no tool, LLM analyzes)
+  LLM compares: "MySQL has 500 users, SQLite has 3.
+  MySQL has columns X, Y that SQLite doesn't."
+  │
+  ▼
+Final response with comparison report
 ```
 
 ## Key Interfaces
 
+### Database Abstraction
+
 ```go
-// core/planner/plan.go
+// core/database/driver.go
 
-type Plan struct {
-    ID        string      `json:"id"`
-    Goal      string      `json:"goal"`
-    Steps     []Step      `json:"steps"`
-    Status    PlanStatus  `json:"status"`
-    CreatedAt time.Time   `json:"created_at"`
+// Driver is the interface all database types must implement.
+type Driver interface {
+    // Name returns the driver name (e.g., "sqlite", "mysql").
+    Name() string
+    
+    // Connect establishes connection to the database.
+    Connect(ctx context.Context, config Config) error
+    
+    // Close closes the connection.
+    Close() error
+    
+    // Query executes a SELECT query.
+    Query(ctx context.Context, sql string, args ...interface{}) ([]Row, error)
+    
+    // Execute executes a non-SELECT query.
+    Execute(ctx context.Context, sql string, args ...interface{}) (Result, error)
+    
+    // GetSchema returns the database schema.
+    GetSchema(ctx context.Context) (string, error)
+    
+    // Ping checks connectivity.
+    Ping(ctx context.Context) error
 }
 
-type Step struct {
-    ID          string       `json:"id"`
-    Description string       `json:"description"`
-    ToolHints   []string     `json:"tool_hints,omitempty"`
-    ExpectedOut string       `json:"expected_outcome"`
-    Status      StepStatus   `json:"status"`
-    Result      string       `json:"result,omitempty"`
-    Error       string       `json:"error,omitempty"`
+type Row map[string]interface{}
+
+type Result struct {
+    RowsAffected int64
+    LastInsertID  int64
 }
 
-type PlanStatus string
-const (
-    PlanPending   PlanStatus = "pending"
-    PlanRunning   PlanStatus = "running"
-    PlanComplete  PlanStatus = "complete"
-    PlanFailed    PlanStatus = "failed"
-    PlanRevised   PlanStatus = "revised"
-)
-
-type StepStatus string
-const (
-    StepPending  StepStatus = "pending"
-    StepRunning  StepStatus = "running"
-    StepDone     StepStatus = "done"
-    StepFailed   StepStatus = "failed"
-    StepSkipped  StepStatus = "skipped"
-)
-
-// core/planner/planner.go
-
-type Planner struct {
-    llm       providers.LLMProvider
-    budget    *context.TokenBudget
-    maxSteps  int
+type Config struct {
+    Type     string            // "sqlite", "mysql", "postgres", "redis", "qdrant"
+    DSN      string            // connection string (for SQL databases)
+    Host     string            // host (for network databases)
+    Port     int               // port
+    User     string            // username
+    Password string            // password
+    Database string            // database name
+    Options  map[string]string // extra options
 }
 
-// Decompose breaks a user request into a structured plan.
-func (p *Planner) Decompose(ctx context.Context, goal string, tools []tools.ToolDefinition) (*Plan, error)
+// core/database/registry.go
 
-// Revise updates a plan based on step results.
-func (p *Planner) Revise(ctx context.Context, plan *Plan, stepResult string) (*Plan, error)
-
-// ShouldContinue decides whether to continue executing or stop.
-func (p *Planner) ShouldContinue(plan *Plan) bool
-
-// core/agent/enhanced_loop.go (modifications to existing loop)
-
-// Enhanced agent loop that uses planner:
-func (a *Agent) processMessageWithPlan(ctx, msg, streamFinal, onToken, emit) {
-    // 1. Build context
-    // 2. Create plan via planner.Decompose()
-    // 3. For each step:
-    //    a. Select tools via toolSelector.Select(step)
-    //    b. Run mini ReAct loop (max 5 iterations)
-    //    c. Reflector checks result
-    //    d. If failed, planner.Revise()
-    // 4. Compose final response
+// Registry manages multiple database connections.
+type Registry struct {
+    drivers map[string]Driver
 }
 
-// core/agent/tool_selector.go
+func NewRegistry() *Registry
 
-type ToolSelector struct {
-    registry *tools.Registry
+// Register adds a database driver.
+func (r *Registry) Register(name string, driver Driver) error
+
+// Get returns a driver by name.
+func (r *Registry) Get(name string) (Driver, error)
+
+// List returns all registered driver names.
+func (r *Registry) List() []string
+```
+
+### Database Tools
+
+```go
+// core/tools/database/sql_query.go
+
+type SQLQueryTool struct {
+    registry *database.Registry
+    defaultDB string  // default database name
 }
 
-// Select returns the most relevant tools for a given step.
-func (ts *ToolSelector) Select(step *planner.Step, allTools []tools.ToolDefinition, maxTools int) []tools.ToolDefinition
+// Execute runs SQL on the specified database.
+// Input: {"database": "mysql", "sql": "SELECT ...", "args": [...]}
+// If database is omitted, uses default.
+
+// core/tools/database/sql_schema.go
+
+type SQLSchemaTool struct {
+    registry *database.Registry
+}
+
+// Execute returns schema for a database.
+// Input: {"database": "sqlite"} or {"database": "mysql", "table": "users"}
+
+// core/tools/database/sql_analyze.go
+
+type SQLAnalyzeTool struct {
+    registry *database.Registry
+}
+
+// Execute analyzes data distribution.
+// Input: {"database": "mysql", "table": "users"}
+```
+
+### Infrastructure Tools
+
+```go
+// core/tools/infra/docker.go
+
+type DockerTool struct {
+    executor command.Executor
+}
+
+// Execute runs docker commands.
+// Input: {"action": "build", "context": ".", "tag": "golem:latest"}
+// Input: {"action": "ps", "filter": "status=running"}
+// Input: {"action": "logs", "container": "golem-1", "tail": 100}
+
+// core/tools/infra/kubectl.go
+
+type KubectlTool struct {
+    executor command.Executor
+}
+
+// Execute runs kubectl commands.
+// Input: {"action": "get", "resource": "pods", "namespace": "default"}
+// Input: {"action": "apply", "file": "deployment.yaml"}
+// Input: {"action": "scale", "deployment": "golem", "replicas": 3}
+
+// core/tools/infra/helm.go
+
+type HelmTool struct {
+    executor command.Executor
+}
+
+// Execute runs helm commands.
+// Input: {"action": "install", "release": "golem", "chart": "./helm/golem"}
 ```
 
 ## Decision Points
 
-### D1. Plan Generation Strategy
+### D1. Database Connection Strategy
 
-**Option A: LLM generates plan** — Ask the LLM to output a JSON plan with steps.
-- Pro: Flexible, handles arbitrary tasks
-- Con: Adds latency, LLM may generate invalid JSON
+**Option A: Connection per query** — Open/close connection for each query.
+- Pro: Simple, no connection management
+- Con: Slow for repeated queries
 
-**Option B: Rule-based decomposition** — Use templates for common task patterns.
-- Pro: Fast, reliable
-- Con: Rigid, can't handle novel tasks
+**Option B: Persistent connections** — Keep connections open.
+- Pro: Fast
+- Con: Connection pool management, cleanup
 
-**Decision: Option A with fallback.** LLM generates plan first. If JSON parsing fails, fall back to a single-step plan (the whole request as one step). This gives flexibility while maintaining reliability.
+**Decision: Option B with lazy connection.** Connect on first use, keep alive, close on agent shutdown. Connection pool managed by the driver.
 
-### D2. Tool Selection Strategy
+### D2. Multi-Database Routing
 
-**Option A: Embedding similarity** — Embed tool descriptions and step, pick top-K.
-- Pro: Semantic matching
-- Con: Requires embedding model, adds dependency
+How does the agent know which database to query?
 
-**Option B: Keyword matching** — Match step description against tool names/descriptions.
-- Pro: Zero dependencies, fast
-- Con: Less accurate
+**Option A: Explicit specification** — User specifies database name in each query.
+- Pro: Clear, no ambiguity
+- Con: Verbose
 
-**Option C: LLM-based selection** — Ask the LLM which tools are relevant.
-- Pro: Most accurate
-- Con: Extra LLM call per step
+**Option B: Default database** — Agent uses default database unless specified.
+- Pro: Convenient for single-database users
+- Con: May query wrong database
 
-**Decision: Option B for now.** Keyword matching is sufficient for v1. Can upgrade to Option C later.
+**Decision: Option B with explicit override.** Default database set via `--db` flag. Agent can specify `database` parameter in tool calls to query other databases.
 
-### D3. Reflection Strategy
+### D3. Infrastructure Tool Safety
 
-**Option A: LLM self-evaluation** — Ask the LLM "did this step achieve its goal?"
-- Pro: Nuanced understanding
-- Con: Extra LLM call
+**Option A: Allow all commands** — Agent can run any docker/kubectl command.
+- Pro: Maximum flexibility
+- Con: Dangerous (can delete production resources)
 
-**Option B: Output comparison** — Compare step output against expected outcome using heuristics.
-- Pro: Fast, no extra LLM calls
-- Con: May miss subtle failures
+**Option B: Restricted commands** — Only allow safe read operations.
+- Pro: Safe
+- Con: Very limited
 
-**Decision: Option B with escalation.** Use heuristic comparison first. If uncertain, escalate to LLM evaluation.
+**Decision: Tiered safety.**
+- Read-only operations (ps, get, logs, describe): always allowed
+- Write operations (build, apply, scale): require `--allow-infra` flag
+- Destructive operations (delete, rm): require `--allow-infra` AND `--confirm-destructive`
 
 ## Risks
 
-- **Latency**: Planning adds 1-2 extra LLM calls before execution starts. Mitigation: planning is only used for complex tasks (detected by intent analysis).
-- **Plan validity**: LLM may generate invalid plans. Mitigation: schema validation + fallback to single-step.
-- **Over-engineering**: Simple tasks don't need planning. Mitigation: skip planning for single-intent requests (detected by keyword/complexity analysis).
-
-## Success Criteria
-
-1. Agent can decompose "deploy this service" into [build, push, apply, verify]
-2. Agent can recover from step failures by revising the plan
-3. Tool selection reduces token usage by 30%+ vs sending all tools
-4. All existing tests pass, new tests cover planner and tool selector
-5. No new external dependencies
+- **Multi-database complexity**: 5 database drivers × tools = significant code. Mitigation: start with SQLite + MySQL, add others incrementally.
+- **Infrastructure safety**: Docker/K8s commands can be destructive. Mitigation: tiered safety with explicit flags.
+- **Connection management**: Multiple database connections consume resources. Mitigation: lazy connection + connection pool + cleanup on shutdown.
+- **Token overhead**: Multiple database schemas in system prompt. Mitigation: inject only default database schema, others on request.
