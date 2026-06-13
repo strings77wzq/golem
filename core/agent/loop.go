@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/strings77wzq/golem/core/bus"
 	"github.com/strings77wzq/golem/core/providers"
@@ -56,6 +57,11 @@ func (a *Agent) processMessage(
 	onToken func(string),
 	emit func(bus.OutboundMessage),
 ) (string, *bus.TokenUsage, error) {
+	// Observability: generate trace ID and record metrics
+	traceID := NewTraceID()
+	ctx = WithTraceID(ctx, traceID)
+	AgentMessagesTotal.Inc()
+	startTime := time.Now()
 	sess, found := a.sessionStore.Get(msg.SessionID)
 	if !found {
 		sess = session.NewSession(msg.SessionID)
@@ -107,15 +113,26 @@ func (a *Agent) processMessage(
 			}
 		}
 
+		// Observability: record LLM call
+		AgentLLMCalls.Inc()
+		llmStart := time.Now()
+
 		resp, streamed, err := a.invokeProvider(ctx, provider, contextMsgs, toolDefs, modelName, streamFinal, onToken, msg.SessionID, emit)
+		llmDuration := time.Since(llmStart)
+		AgentLLMLatency.Observe(llmDuration.Seconds())
+
 		if err != nil {
 			a.logger.Error("LLM chat failed", err)
+			AgentLLMErrors.Inc()
 			if a.hooks != nil && a.hooks.OnError != nil {
 				a.hooks.OnError(ctx, err)
 			}
 			a.emitError(msg.SessionID, fmt.Sprintf("LLM error: %v", err), emit)
 			return "", nil, err
 		}
+
+		// Observability: record token usage
+		AgentLLMTokens.Add(int64(resp.Usage.TotalTokens))
 
 		// Hook: after LLM call
 		if a.hooks != nil && a.hooks.AfterLLM != nil {
@@ -171,6 +188,9 @@ func (a *Agent) processMessage(
 				}
 			}
 
+			// Observability: record plan duration
+			AgentPlanDuration.Observe(time.Since(startTime).Seconds())
+
 			return resp.Content, tokenUsage, nil
 		}
 
@@ -188,30 +208,26 @@ func (a *Agent) processMessage(
 		for i, tc := range resp.ToolCalls {
 			i, tc := i, tc // capture loop variables
 			wg.Go(func() error {
-				// Hook: before tool execution
-				if a.hooks != nil && a.hooks.BeforeTool != nil {
-					if err := a.hooks.BeforeTool(ctx, tc); err != nil {
-						a.logger.Error("before_tool hook failed", err)
-					}
-				}
+				// Observability: record tool call
+				AgentToolCalls.Inc()
+				toolStart := time.Now()
 
 				tool, found := a.toolRegistry.Get(tc.Name)
 				if !found {
 					errors[i] = fmt.Errorf("tool %q not found", tc.Name)
+					AgentToolErrors.Inc()
 					return nil
 				}
 
 				result, err := tool.Execute(ctx, tc.Arguments)
+				toolDuration := time.Since(toolStart)
+				AgentToolLatency.Observe(toolDuration.Seconds())
+
 				results[i] = result
 				errors[i] = err
-
-				// Hook: after tool execution
-				if a.hooks != nil && a.hooks.AfterTool != nil {
-					if hookErr := a.hooks.AfterTool(ctx, tc, result); hookErr != nil {
-						a.logger.Error("after_tool hook failed", hookErr)
-					}
+				if err != nil {
+					AgentToolErrors.Inc()
 				}
-
 				return nil
 			})
 		}

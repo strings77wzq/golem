@@ -6,15 +6,20 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/go-sql-driver/mysql v1.10.0
 	github.com/google/uuid v1.6.0
+	github.com/lib/pq v1.12.3
 	github.com/mattn/go-isatty v0.0.20
+	github.com/redis/go-redis/v9 v9.20.1
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/sync v0.19.0
 	modernc.org/sqlite v1.46.1
 )
 
 require (
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.1 // indirect
 	github.com/charmbracelet/x/ansi v0.11.6 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
@@ -36,6 +41,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.3.8 // indirect
