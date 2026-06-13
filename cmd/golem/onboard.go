@@ -98,6 +98,10 @@ func runOnboardWizard(configPath string) error {
 	customModel, _ := readLine(r)
 	customModel = strings.TrimSpace(customModel)
 	if customModel != "" {
+		// Ensure vendor/model format
+		if !strings.Contains(customModel, "/") {
+			customModel = preset.vendor + "/" + customModel
+		}
 		modelName = customModel
 	}
 

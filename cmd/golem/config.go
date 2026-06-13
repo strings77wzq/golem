@@ -140,7 +140,7 @@ func newConfigListCommand() *cobra.Command {
 }
 
 func getConfigPath(cmd *cobra.Command) (string, error) {
-	configPath, _ := cmd.Root().Flags().GetString("config")
+	configPath, _ := cmd.Root().PersistentFlags().GetString("config")
 	if configPath == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
