@@ -1,67 +1,102 @@
 # Contributing to Golem
 
-Thank you for your interest in contributing to Golem!
+Thanks for your interest in contributing to Golem.
+
+## Before You Start
+
+- Go 1.25+
+- Git
+- Linux amd64 or Android/Termux ARM64 preferred for local verification
+- `CGO_ENABLED=0` is mandatory
+
+Recommended reading before first PR:
+
+- Project overview: `README.md`
+- Architecture and guardrails: `AGENTS.md`
+- Documentation index: `docs/README.md`
 
 ## Development Setup
 
-1. **Prerequisites**: Go 1.25+, Git
-2. **Clone**: `git clone https://github.com/strings77wzq/golem.git`
-3. **Build**: `make build`
-4. **Test**: `make test`
+```bash
+git clone https://github.com/strings77wzq/golem.git
+cd golem
+make build
+go test ./...
+```
 
-## Code Standards
+## Development Workflow
 
-- Run `go vet ./...` before committing
-- Run `go test -race ./...` to verify no race conditions
-- Follow existing code patterns and naming conventions
-- Keep `CGO_ENABLED=0` — no CGO dependencies allowed
-- Add tests for new features (target >70% coverage)
+1. Fork repository and create a feature branch.
+2. Implement the change with tests and docs updates if needed.
+3. Run verification commands.
+4. Open a pull request with clear scope and motivation.
 
-## Pull Request Process
+```bash
+git checkout -b feat/my-change
+go test -race ./...
+go vet ./...
+```
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Write your changes with tests
-4. Ensure all tests pass: `go test -race ./...`
-5. Commit with a clear message: `git commit -m "feat(pkg): add feature description"`
-6. Push and open a Pull Request
+## Verification Checklist
+
+Before PR submission:
+
+- Build succeeds with pure Go settings
+- Related tests are added/updated
+- `go test -race ./...` passes
+- `go vet ./...` passes
+- Docs are updated for any user-facing changes
 
 ## Commit Message Format
 
-We follow [Conventional Commits](https://www.conventionalcommits.org/):
+We follow Conventional Commits:
 
-```
+```text
 <type>(<scope>): <description>
-
-Types: feat, fix, docs, refactor, test, build, ci
-Scope: package name (agent, tools, providers, etc.)
 ```
+
+Types: `feat`, `fix`, `docs`, `refactor`, `test`, `build`, `ci`
 
 Examples:
-- `feat(agent): add multi-step planning support`
-- `fix(providers): handle API timeout gracefully`
-- `docs(study): add RAG pipeline guide`
 
-## Architecture Guidelines
+- `feat(agent): add first-run validation command`
+- `fix(gateway): improve error response consistency`
+- `docs(readme): simplify quickstart section`
 
-- **Hexagonal Architecture**: Define interfaces (ports) in the core package, implementations (adapters) separately
-- **No circular imports**: Use interfaces to break dependency cycles
-- **Pure Go**: All dependencies must work with `CGO_ENABLED=0`
-- **Error handling**: Return errors, don't panic. Use `fmt.Errorf("context: %w", err)` for wrapping
+## Architecture and Code Standards
 
-## AI 协作工作原则
+- Keep layer boundaries strict (cmd/core/foundation/feature/internal)
+- No circular imports
+- No CGO dependencies
+- Return errors instead of panics in library code
+- Wrap errors with context (`fmt.Errorf("...: %w", err)`)
 
-本项目使用 AI 辅助开发。以下原则约束 AI 协作者的行为：
+## Code Structure Index
 
-- **第一性原理**：实施前先理解动机和目标，而非直接跳到实现路径
-- **目标不清晰时停下来讨论**：如果需求的动机或目标存在歧义，及时与用户确认，不要在模糊前提下盲目推进
-- **路径不最优时主动提出**：目标清晰但发现更好的实现路径时，明确说明当前方案的局限并给出替代建议，由用户决策
+- `cmd/golem/`: composition root and CLI wiring
+- `core/`: domain logic (agent, providers, tools, session)
+- `foundation/`: infrastructure primitives (logger, store, concurrency)
+- `feature/`: optional feature modules (mcp, rag, skills, memory)
+- `internal/`: channels, gateway, metrics, security adapters
+- `docs/`: user docs and study guides
+- `openspec/`: specification-driven change artifacts
 
-## Reporting Issues
+## Reporting Issues and Requests
 
-- Use GitHub Issues for bug reports and feature requests
-- Include Go version, OS, and reproduction steps for bugs
+Use GitHub issue templates:
+
+- Bug report
+- Feature request
+- Documentation request
+
+Please include Go version, OS/architecture, and reproducible steps for bugs.
+
+## AI Collaboration Principles
+
+- Understand goals first, then implementation details
+- Surface better alternatives when they reduce risk or complexity
+- Avoid speculative changes without evidence
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree your contributions are licensed under the MIT License.

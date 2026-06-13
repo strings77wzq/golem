@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -113,4 +114,58 @@ func (s *InMemoryStore) List(ctx context.Context) ([]*Entry, error) {
 	})
 
 	return result, nil
+}
+
+// GetTopByRelevance returns the top k entries by relevance score.
+func (s *InMemoryStore) GetTopByRelevance(ctx context.Context, k int) ([]*Entry, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	now := time.Now()
+	type scoredEntry struct {
+		entry *Entry
+		score float64
+	}
+
+	scored := make([]scoredEntry, 0, len(s.entries))
+	for _, entry := range s.entries {
+		decayed := entry.DecayedImportance(now, DefaultDecayLambda)
+		score := decayed * math.Log(float64(len(entry.Tags)+1))
+		scored = append(scored, scoredEntry{entry: entry, score: score})
+	}
+
+	sort.Slice(scored, func(i, j int) bool {
+		return scored[i].score > scored[j].score
+	})
+
+	result := make([]*Entry, 0, k)
+	for i := 0; i < len(scored) && i < k; i++ {
+		result = append(result, scored[i].entry)
+	}
+
+	return result, nil
+}
+
+// Cleanup removes entries with decayed importance below the threshold.
+// Important entries (importance >= 0.9) are never deleted.
+func (s *InMemoryStore) Cleanup(ctx context.Context, threshold float64) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	deleted := 0
+
+	for id, entry := range s.entries {
+		if entry.Importance >= 0.9 {
+			continue
+		}
+
+		decayed := entry.DecayedImportance(now, DefaultDecayLambda)
+		if decayed < threshold {
+			delete(s.entries, id)
+			deleted++
+		}
+	}
+
+	return deleted, nil
 }

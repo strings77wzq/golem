@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -18,6 +19,8 @@ func newSessionCommand() *cobra.Command {
 		newSessionListCommand(),
 		newSessionShowCommand(),
 		newSessionDeleteCommand(),
+		newSessionExportCommand(),
+		newSessionImportCommand(),
 	)
 
 	return cmd
@@ -111,4 +114,69 @@ func openSessionStore(cmd *cobra.Command) (*session.SQLiteAdapter, error) {
 	}
 
 	return session.NewSQLiteAdapter(dbPath)
+}
+
+func newSessionExportCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "export <session-id>",
+		Short: "Export a session to JSON file",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			adapter, err := openSessionStore(cmd)
+			if err != nil {
+				return err
+			}
+			defer adapter.Close()
+
+			sess, ok := adapter.Get(args[0])
+			if !ok {
+				return fmt.Errorf("session %q not found", args[0])
+			}
+
+			jsonData, err := sess.ExportToJSON()
+			if err != nil {
+				return fmt.Errorf("exporting session: %w", err)
+			}
+
+			outputFile := args[0] + ".json"
+			if err := os.WriteFile(outputFile, jsonData, 0644); err != nil {
+				return fmt.Errorf("writing export file: %w", err)
+			}
+
+			fmt.Printf("Session exported to %s\n", outputFile)
+			return nil
+		},
+	}
+}
+
+func newSessionImportCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "import <file>",
+		Short: "Import a session from JSON file",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			adapter, err := openSessionStore(cmd)
+			if err != nil {
+				return err
+			}
+			defer adapter.Close()
+
+			jsonData, err := os.ReadFile(args[0])
+			if err != nil {
+				return fmt.Errorf("reading import file: %w", err)
+			}
+
+			sess, err := session.ImportFromJSON(jsonData)
+			if err != nil {
+				return fmt.Errorf("importing session: %w", err)
+			}
+
+			if err := adapter.Save(sess); err != nil {
+				return fmt.Errorf("saving imported session: %w", err)
+			}
+
+			fmt.Printf("Session imported: %s\n", sess.ID)
+			return nil
+		},
+	}
 }

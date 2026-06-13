@@ -1,6 +1,6 @@
 # 03 - 工具系统
 
-本文档详细介绍 Golem 的工具系统设计，包括 Tool 接口、ToolRegistry、ToolResult 的双通道模式，以及如何实现自定义工具。
+本文档详细讲解 Golem 工具系统的设计原理，包括 Tool 接口定义、ToolRegistry 工具注册表、ToolResult 双通道模式，以及自定义工具的实现方法。
 
 ## 目录
 

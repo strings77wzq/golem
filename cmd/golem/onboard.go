@@ -19,6 +19,7 @@ type providerPreset struct {
 }
 
 var providerPresets = []providerPreset{
+	{"Ollama (local, no key needed)", "ollama", "http://localhost:11434", "ollama/llama3"},
 	{"OpenAI (GPT-4o)", "openai", "", "openai/gpt-4o"},
 	{"Anthropic (Claude 3.5 Sonnet)", "anthropic", "", "anthropic/claude-3-5-sonnet-20241022"},
 	{"DeepSeek", "deepseek", "https://api.deepseek.com", "deepseek/deepseek-chat"},
@@ -67,14 +68,19 @@ func runOnboardWizard(configPath string) error {
 		return err
 	}
 
-	fmt.Printf("API key for %s: ", preset.label)
-	apiKey, err := readLine(r)
-	if err != nil {
-		return err
-	}
-	apiKey = strings.TrimSpace(apiKey)
-	if apiKey == "" {
-		return fmt.Errorf("API key cannot be empty")
+	apiKey := ""
+	if preset.vendor != "ollama" {
+		fmt.Printf("API key for %s: ", preset.label)
+		apiKey, err = readLine(r)
+		if err != nil {
+			return err
+		}
+		apiKey = strings.TrimSpace(apiKey)
+		if apiKey == "" {
+			return fmt.Errorf("API key cannot be empty")
+		}
+	} else {
+		fmt.Println("Ollama requires no API key — running locally.")
 	}
 
 	apiBase := preset.apiBase

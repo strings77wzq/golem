@@ -1,6 +1,6 @@
 # 01 - 架构总览
 
-本文档介绍 Golem 的整体架构设计，帮助您建立全局视角，理解各个组件之间的关系和职责划分。
+本文档系统介绍 Golem 的整体架构设计，帮助您建立全局认知，清晰理解各组件的职责划分与协作关系。
 
 ## 目录
 
@@ -13,109 +13,107 @@
 
 ## 六边形架构原理
 
-Golem 采用**六边形架构**（Hexagonal Architecture），也称为**端口和适配器架构**（Ports and Adapters）。这是一种将业务逻辑与外部依赖隔离的架构模式。
+Golem 采用**六边形架构**（Hexagonal Architecture，又称端口-适配器架构），这是一种实现业务逻辑与外部依赖完全解耦的先进架构模式。
 
-### 核心思想
-
+### 核心设计思想
+六边形架构的核心是实现"内外分离"，核心业务逻辑完全不依赖外部系统，所有与外部的交互都通过抽象接口完成：
 ```
-外部世界 → 适配器 → 端口（接口） → 核心业务逻辑
+外部系统 → 适配器（实现接口） → 端口（抽象接口） → 核心业务逻辑
 ```
+各层职责定义：
+- **核心层（Core）**：包含纯业务逻辑，不依赖任何外部系统或技术实现
+- **端口层（Ports）**：定义核心与外部交互的抽象接口契约，是内外交互的唯一入口
+- **适配层（Adapters）**：实现端口接口，负责对接具体的外部系统（数据库、API、终端等）
 
-- **核心（Core）**：业务逻辑不依赖任何外部系统
-- **端口（Ports）**：定义核心与外部交互的接口契约
-- **适配器（Adapters）**：实现端口，连接外部系统（数据库、API、CLI 等）
+### 架构核心优势
+1. **高可测试性**：核心逻辑可以通过 Mock 适配器进行完全独立的单元测试，无需依赖外部环境
+2. **高可替换性**：可以无缝替换外部系统实现（如切换 LLM 提供商、更换数据库等），无需修改核心逻辑
+3. **关注点分离**：业务逻辑与技术实现细节完全解耦，开发者可以专注于业务逻辑本身
+4. **灵活的技术选型**：可以在不影响核心逻辑的前提下推迟技术决策，甚至后期更换技术栈
 
-### 优势
-
-1. **可测试性**：核心逻辑可以使用 Mock 适配器进行独立测试
-2. **可替换性**：可以轻松替换外部系统（如切换 LLM 提供商）
-3. **关注点分离**：业务逻辑与技术细节解耦
-4. **延迟决策**：可以推迟技术选型决策，先专注核心逻辑
-
-### 在 Golem 中的体现
-
-| 层次 | 组件 | 说明 |
-|------|------|------|
-| **核心** | `core/agent/` | ReAct 循环业务逻辑 |
-| **核心** | `core/session/` | 会话状态管理 |
-| **端口** | `bus.Bus` 接口 | 消息传递契约 |
-| **端口** | `tools.Tool` 接口 | 工具能力契约 |
-| **端口** | `providers.LLMProvider` 接口 | LLM 调用契约 |
-| **适配器** | `core/bus/memBus` | 内存消息总线实现 |
-| **适配器** | `internal/channels/cli/` | CLI 输入输出适配器 |
-| **适配器** | `core/providers/openai/` | OpenAI API 适配器 |
+### 在 Golem 中的落地实现
+| 架构层次 | 对应组件 | 功能说明 |
+|----------|----------|----------|
+| **核心层** | `core/agent/` | ReAct 推理循环核心业务逻辑 |
+| **核心层** | `core/session/` | 会话状态与对话历史管理 |
+| **端口层** | `bus.Bus` 接口 | 消息传递的抽象契约 |
+| **端口层** | `tools.Tool` 接口 | 工具能力的抽象契约 |
+| **端口层** | `providers.LLMProvider` 接口 | LLM 调用的抽象契约 |
+| **适配层** | `core/bus/memBus` | 内存消息总线的具体实现 |
+| **适配层** | `internal/channels/cli/` | 命令行输入输出的适配器实现 |
+| **适配层** | `core/providers/openai/` | OpenAI API 的适配器实现 |
 
 ## 项目目录结构
-
+Golem 采用严格的四层分层架构，各层职责清晰，依赖关系单向：
 ```
 Golem/
 ├── cmd/
 │   └── golem/        # 组合根（Composition Root）
-│       └── main.go           # 应用程序入口，组装所有依赖
+│       └── main.go           # 应用程序唯一入口，负责组装所有依赖
 │
-├── core/                     # 核心领域逻辑
-│   ├── agent/                # Agent ReAct 循环核心
-│   │   └── agent.go          # Agent 主逻辑
+├── core/                     # 核心领域逻辑层（不依赖其他业务层）
+│   ├── agent/                # Agent ReAct 推理循环核心实现
+│   │   └── agent.go          # Agent 主逻辑入口
 │   │
-│   ├── bus/                  # 消息总线
-│   │   ├── bus.go            # Bus 接口和内存实现
-│   │   └── message.go        # InboundMessage、OutboundMessage 定义
+│   ├── bus/                  # 消息总线模块
+│   │   ├── bus.go            # Bus 抽象接口与内存实现
+│   │   └── message.go        # 入站/出站消息结构定义
 │   │
-│   ├── config/               # 配置管理
-│   │   └── config.go         # 配置结构和加载逻辑
+│   ├── config/               # 配置管理模块
+│   │   └── config.go         # 配置结构定义与加载逻辑
 │   │
-│   ├── tools/                # 工具系统
-│   │   ├── tool.go           # Tool 接口和 ToolResult
-│   │   ├── registry.go       # 工具注册表（线程安全）
-│   │   └── mock.go           # Mock 工具（用于测试）
+│   ├── tools/                # 工具系统模块
+│   │   ├── tool.go           # Tool 抽象接口与 ToolResult 定义
+│   │   ├── registry.go       # 线程安全的工具注册表
+│   │   └── mock.go           # Mock 工具实现（用于单元测试）
 │   │
-│   ├── providers/            # LLM 提供商抽象
-│   │   ├── types.go          # LLMProvider 接口、Message、ToolCall
-│   │   ├── factory.go        # Provider 工厂（路由到具体实现）
-│   │   └── mock.go           # Mock Provider（用于测试）
+│   ├── providers/            # LLM 提供商抽象层
+│   │   ├── types.go          # LLMProvider 接口、消息、工具调用定义
+│   │   ├── factory.go        # Provider 工厂（根据模型名路由到具体实现）
+│   │   └── mock.go           # Mock Provider 实现（用于单元测试）
 │   │
-│   ├── session/              # 会话管理
-│   │   ├── session.go        # Session 结构（消息历史）
-│   │   ├── store.go          # SessionStore 接口和内存实现
-│   │   └── history.go        # HistoryManager（会话持久化）
+│   ├── session/              # 会话管理模块
+│   │   ├── session.go        # Session 结构定义（包含消息历史）
+│   │   ├── store.go          # SessionStore 抽象接口与内存实现
+│   │   └── history.go        # HistoryManager 实现（会话持久化）
 │   │
-│   └── usage/                # Token 用量追踪和定价
+│   └── usage/                # Token 用量追踪与定价模块
 │
-├── foundation/               # 基础设施原语
-│   ├── concurrency/          # 并发原语（Pool, Semaphore, RateLimiter）
-│   ├── logger/               # 结构化日志
-│   │   └── logger.go         # Logger 接口和实现
-│   ├── store/                # SQLite 持久化（纯 Go）
-│   └── term/                 # 终端检测
+├── foundation/               # 基础设施原语层（仅依赖标准库）
+│   ├── concurrency/          # 并发原语（协程池、信号量、限流器）
+│   ├── logger/               # 结构化日志模块
+│   │   └── logger.go         # Logger 抽象接口与实现
+│   ├── store/                # SQLite 持久化层（纯 Go 实现，无 CGO 依赖）
+│   └── term/                 # 终端环境检测模块
 │
-├── feature/                  # 可选功能模块
-│   ├── mcp/                  # MCP 协议客户端
-│   ├── memory/               # 长期记忆（带重要性衰减）
-│   ├── rag/                  # RAG 管线
-│   ├── routing/              # 错误处理和 fallback
-│   └── skills/               # 技能注册表 + 内置技能
+├── feature/                  # 可选功能模块层（仅依赖 core 和 foundation）
+│   ├── mcp/                  # MCP 协议客户端实现
+│   ├── memory/               # 长期记忆模块（支持重要性衰减机制）
+│   ├── rag/                  # RAG 检索增强生成管线
+│   ├── routing/              # 错误处理与降级路由模块
+│   └── skills/               # 技能注册表与内置技能实现
 │
-├── internal/                 # 内部包（仅供本项目使用）
+├── internal/                 # 内部适配层（仅依赖 core 和 foundation，不对外暴露）
 │   ├── channels/             # I/O 适配器（输入输出通道）
-│   │   ├── cli/              # 命令行接口适配器
-│   │   └── telegram/         # Telegram bot 适配器
-│   ├── gateway/              # HTTP Gateway（SSE streaming）
-│   ├── metrics/              # Prometheus 兼容指标
-│   └── security/             # 认证、限流、沙箱
+│   │   ├── cli/              # 命令行接口适配器实现
+│   │   └── telegram/         # Telegram 机器人适配器实现
+│   ├── gateway/              # HTTP 网关实现（支持 SSE 流式输出）
+│   ├── metrics/              # Prometheus 兼容指标暴露模块
+│   └── security/             # 安全模块（认证、限流、沙箱）
 │
 ├── config/                   # 配置文件目录
-│   ├── config.example.json   # 配置模板
-│   └── secrets/              # 敏感配置（不入 git）
+│   ├── config.example.json   # 配置文件模板
+│   └── secrets/              # 敏感配置目录（不纳入 Git 版本控制）
 │
 ├── docs/
-│   └── study/                # 学习文档（本指南）
+│   └── study/                # 学习文档目录（即本指南）
 │
-├── scripts/                  # 构建和工具脚本
-├── docker/                   # Docker 配置
-├── k8s/                      # Kubernetes 配置
-├── build/                    # 构建输出目录
-├── go.mod                    # Go 模块定义
-└── Makefile                  # 构建任务
+├── scripts/                  # 构建与运维工具脚本
+├── docker/                   # Docker 镜像配置
+├── k8s/                      # Kubernetes 部署配置
+├── build/                    # 构建输出目录（自动生成）
+├── go.mod                    # Go 模块定义文件
+└── Makefile                  # 构建任务配置
 ```
 
 ## 核心包职责

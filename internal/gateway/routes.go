@@ -42,6 +42,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/chat/stream", s.handleChatStream)
 	s.mux.HandleFunc("GET /api/sessions/{id}/export", s.handleSessionExport)
 	s.mux.HandleFunc("POST /api/sessions/import", s.handleSessionImport)
+
+	// OpenAI-compatible API
+	s.registerOpenAICompatRoutes()
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

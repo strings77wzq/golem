@@ -1,6 +1,6 @@
-# 02 - Agent ReAct 循环
+# 02 - Agent ReAct 推理循环
 
-本文档深入讲解 Golem 的核心——Agent 的 ReAct 循环。理解这个循环是掌握整个系统的关键。
+本文档深入讲解 Golem 的核心模块——Agent ReAct 推理循环。理解这一核心工作流是掌握整个系统运行机制的关键。
 
 ## 目录
 
@@ -13,15 +13,13 @@
 
 ## 什么是 ReAct 模式
 
-**ReAct** = **Rea**son（推理）+ A**ct**（行动）
-
-ReAct 是一种让大语言模型（LLM）能够交替进行推理和行动的模式。与传统的一次性生成答案不同，ReAct 允许 AI：
-
-1. **分析问题**（Reason）：理解用户需求，决定下一步行动
-2. **执行工具**（Act）：调用外部工具获取信息或执行操作
-3. **观察结果**（Observe）：接收工具返回的结果
-4. **继续推理**：基于结果继续思考，决定是否需要更多工具
-5. **给出答案**：最终综合所有信息给出回答
+**ReAct** = **Rea**son（推理）+ A**ct**（行动），是当前主流的 Agent 工作模式。
+与传统大模型一次性生成答案的方式不同，ReAct 模式让 AI 可以模拟人类解决问题的过程，交替进行推理和行动：
+1. **问题分析（Reason）**：理解用户需求，决策下一步需要执行的操作
+2. **工具执行（Act）**：调用外部工具获取信息或执行具体操作
+3. **结果观察（Observe）**：接收并处理工具返回的执行结果
+4. **迭代推理**：基于工具结果继续思考，判断是否需要调用更多工具
+5. **答案生成**：综合所有信息，生成最终回答反馈给用户
 
 ### 示例对话流程
 
@@ -38,23 +36,20 @@ Agent 推理：我已经有了天气信息，可以回答用户
 Agent 回答：北京今天天气晴朗，温度 15°C，湿度 40%，适合外出活动。
 ```
 
-### ReAct vs 传统 Chain-of-Thought
-
-| 特性 | Chain-of-Thought | ReAct |
-|------|------------------|-------|
-| **推理方式** | 纯文本推理 | 推理 + 工具调用 |
-| **信息来源** | 仅模型知识 | 模型知识 + 外部工具 |
-| **实时性** | 依赖训练数据 | 可获取实时信息 |
-| **可靠性** | 可能产生幻觉 | 工具结果更可靠 |
-| **复杂任务** | 难以完成需要外部信息的任务 | 可完成复杂的多步骤任务 |
+### ReAct 模式 vs 传统思维链（Chain-of-Thought）
+| 对比维度 | 传统思维链（Chain-of-Thought） | ReAct 模式 |
+|----------|--------------------------------|------------|
+| **推理方式** | 纯文本内部推理 | 推理与工具调用交替进行 |
+| **信息来源** | 仅依赖模型训练时的知识库 | 模型知识 + 外部工具实时信息 |
+| **信息时效性** | 受限于训练数据截止时间 | 可获取最新的实时信息 |
+| **结果可靠性** | 容易产生幻觉（虚构信息） | 基于工具真实返回结果，可靠性更高 |
+| **任务适应性** | 难以完成需要外部信息的复杂任务 | 支持多步骤复杂任务的自动拆解与执行 |
 
 ## ReAct 循环工作流程
+Golem 的 Agent 模块实现了完整的 ReAct 推理循环，核心工作流步骤如下：
 
-Golem 的 Agent 实现了完整的 ReAct 循环，以下是详细的步骤：
-
-### 步骤 1：接收入站消息
-
-Agent 监听消息总线的 `inbound` 主题，接收用户输入。
+### 步骤1：接收入站消息
+Agent 启动后会订阅消息总线的 `inbound` 主题，持续监听并接收用户输入消息。
 
 ```go
 // core/agent/agent.go 第 81-103 行
@@ -88,9 +83,8 @@ type InboundMessage struct {
 }
 ```
 
-### 步骤 2：获取或创建会话
-
-每个对话都有一个独立的会话（Session），存储消息历史。
+### 步骤2：获取或创建会话
+每个对话都对应一个独立的会话（Session）对象，用于存储完整的消息历史和会话状态。
 
 ```go
 func (a *Agent) handleMessage(ctx context.Context, msg bus.InboundMessage) {
@@ -117,9 +111,8 @@ func (a *Agent) handleMessage(ctx context.Context, msg bus.InboundMessage) {
 }
 ```
 
-### 步骤 3：准备工具定义
-
-获取所有注册的工具，转换为 LLM 能理解的格式。
+### 步骤3：准备工具定义
+从工具注册表获取所有已注册的工具，转换为 LLM 能够识别的标准化格式。
 
 ```go
 // 获取所有工具定义（按字母顺序）
@@ -142,9 +135,8 @@ toolDefs := a.toolRegistry.ListDefinitions()
 }
 ```
 
-### 步骤 4：调用 LLM
-
-将会话历史和工具定义发送给 LLM。
+### 步骤4：调用大模型（LLM）
+将会话历史和可用工具定义发送给 LLM 进行推理。
 
 ```go
 // 获取 Provider
@@ -164,11 +156,10 @@ response, err := provider.Chat(
 )
 ```
 
-### 步骤 5：处理 LLM 响应
+### 步骤5：处理 LLM 响应
+LLM 的响应通常分为两种类型：
 
-LLM 可能返回两种结果：
-
-#### 情况 A：文本响应（无工具调用）
+#### 情况A：直接文本响应（无工具调用）
 
 ```go
 if len(response.ToolCalls) == 0 {
@@ -190,7 +181,7 @@ if len(response.ToolCalls) == 0 {
 }
 ```
 
-#### 情况 B：工具调用
+#### 情况B：工具调用请求
 
 ```go
 if len(response.ToolCalls) > 0 {
@@ -227,11 +218,10 @@ if len(response.ToolCalls) > 0 {
 }
 ```
 
-### 步骤 6：循环迭代
-
-重复步骤 4-5，直到：
-- LLM 返回文本响应（无工具调用）
-- 达到最大迭代次数（默认 25 次）
+### 步骤6：循环迭代
+重复执行步骤4-5，直到满足以下任一终止条件：
+- LLM 返回直接文本响应（无工具调用需求）
+- 达到最大迭代次数限制（默认25次，防止无限循环）
 
 ```go
 const MaxToolIterations = 25
@@ -254,9 +244,8 @@ if iteration >= MaxToolIterations {
 
 ## 核心代码解析
 
-### Agent 结构体
-
-参见 `core/agent/agent.go` 第 20-31 行：
+### Agent 结构体定义
+核心结构体定义参见 `core/agent/agent.go` 第20-31行：
 
 ```go
 type Agent struct {
@@ -272,9 +261,9 @@ type Agent struct {
 }
 ```
 
-**所有依赖都通过构造函数注入**，Agent 不创建任何依赖。
+**所有依赖均通过构造函数注入**，Agent 自身不创建任何依赖对象，完全符合依赖注入的最佳实践。
 
-### 工具执行逻辑
+### 工具执行逻辑实现
 
 ```go
 func (a *Agent) executeTool(ctx context.Context, toolCall providers.ToolCall) *tools.ToolResult {
@@ -302,9 +291,9 @@ func (a *Agent) executeTool(ctx context.Context, toolCall providers.ToolCall) *t
 }
 ```
 
-**关键设计**：工具返回 `ToolResult`，包含两个通道：
-- `ForLLM`：总是发送给 LLM 作为上下文
-- `ForUser`：可选，立即显示给用户
+**核心设计亮点**：工具返回的 `ToolResult` 采用双通道设计：
+- `ForLLM`：内容总是发送给 LLM 作为推理上下文
+- `ForUser`：可选内容，会立即展示给终端用户
 
 ### 消息历史管理
 
@@ -323,13 +312,13 @@ Assistant: 北京今天天气晴朗，温度 15°C...
 - 知道之前调用了哪些工具
 - 基于工具结果进行推理
 
-## 关键设计决策
+## 核心设计决策解析
 
-### 决策 1：为什么使用消息总线？
+### 决策1：为什么采用消息总线架构？
 
-**问题**：CLI 如何与 Agent 通信？
+**核心问题**：CLI 与 Agent 之间如何实现通信？
 
-**方案 A**：直接调用
+**方案A：直接调用模式**
 ```go
 cli.OnUserInput(func(input string) {
     response := agent.Process(input)
@@ -337,7 +326,7 @@ cli.OnUserInput(func(input string) {
 })
 ```
 
-**方案 B**：消息总线（实际采用）
+**方案B：消息总线模式（最终采用）**
 ```go
 // CLI
 cli.OnUserInput(func(input string) {
@@ -354,23 +343,23 @@ bus.Subscribe("inbound").OnMessage(func(msg InboundMessage) {
 })
 ```
 
-**为什么选择方案 B？**
-1. **解耦**：CLI 和 Agent 互不依赖，可以独立测试
-2. **可扩展**：可以轻松添加 HTTP、WebSocket 等其他通道
-3. **异步**：Agent 可以异步处理消息，不阻塞 CLI
-4. **多订阅者**：多个组件可以监听同一主题（如日志记录、监控）
+**为什么最终选择方案B？**
+1. **完全解耦**：CLI 和 Agent 互不依赖，可独立进行单元测试
+2. **高可扩展**：可以无缝添加 HTTP、WebSocket 等其他输入输出通道
+3. **异步处理**：Agent 可以异步处理消息，不会阻塞 CLI 交互
+4. **多订阅者支持**：多个组件可以同时监听同一主题（如日志记录、监控系统等）
 
-### 决策 2：为什么会话与 Agent 分离？
+### 决策2：为什么会话管理与 Agent 分离？
 
 **Session** 是独立的包（`core/session/`），不是 Agent 的内部状态。
 
-**优势**：
-1. **单一职责**：Agent 负责循环逻辑，Session 负责状态管理
-2. **可测试性**：可以独立测试 Session 的线程安全性
-3. **可替换性**：可以替换 SessionStore（内存 → Redis → 数据库）
-4. **可复用性**：其他组件也可以使用 Session（如历史查询、分析）
+**核心优势**：
+1. **单一职责原则**：Agent 专注于推理循环逻辑，Session 专注于会话状态管理
+2. **高可测试性**：可以独立测试 Session 模块的线程安全性
+3. **高可替换性**：可以无缝替换 SessionStore 实现（内存 → Redis → 数据库）
+4. **高可复用性**：其他组件也可以直接使用 Session 模块（如历史查询、数据分析等）
 
-### 决策 3：工具定义为什么按字母顺序？
+### 决策3：工具定义为什么要按字母顺序排序？
 
 参见 `core/tools/registry.go` 第 47-50 行注释：
 
@@ -385,7 +374,7 @@ bus.Subscribe("inbound").OnMessage(func(msg InboundMessage) {
 - 按字母顺序排序，保证每次顺序一致
 - LLM 可以重用缓存，显著提升性能
 
-### 决策 4：为什么有最大迭代次数限制？
+### 决策4：为什么要设置最大迭代次数限制？
 
 ```go
 const DefaultMaxToolIterations = 25
@@ -401,9 +390,9 @@ const DefaultMaxToolIterations = 25
 - 复杂任务：5-10 次迭代
 - 异常情况：如果达到 25 次，说明出现了问题
 
-## 错误处理和安全机制
+## 错误处理与安全机制
 
-### 1. 工具执行错误
+### 1. 工具执行错误处理
 
 ```go
 result, err := tool.Execute(ctx, args)
@@ -418,7 +407,7 @@ if err != nil {
 
 **设计**：不中断循环，将错误返回给 LLM，让 LLM 决定如何处理。
 
-### 2. Provider 错误
+### 2. LLM Provider 错误处理
 
 ```go
 response, err := provider.Chat(ctx, ...)
@@ -434,7 +423,7 @@ if err != nil {
 
 **设计**：记录日志，向用户返回友好的错误消息。
 
-### 3. Context 取消
+### 3. 上下文取消与优雅关闭
 
 ```go
 func (a *Agent) Start(ctx context.Context) {
@@ -452,13 +441,13 @@ func (a *Agent) Start(ctx context.Context) {
 
 **设计**：支持优雅关闭，通过 `context.Context` 传递取消信号。
 
-### 4. 线程安全
+### 4. 并发线程安全保障
 
 - **Session**：使用 `sync.RWMutex` 保护消息历史
 - **ToolRegistry**：使用 `sync.RWMutex` 保护工具映射
 - **Bus**：使用 `sync.RWMutex` 保护订阅者列表
 
-## ReAct 循环流程图
+## ReAct 循环可视化流程图
 
 ```mermaid
 flowchart TD
@@ -520,13 +509,12 @@ flowchart TD
 ```
 
 ### 流程图说明
+- **绿色节点**：开始/结束/成功状态
+- **黄色节点**：核心操作（LLM 调用）
+- **蓝色节点**：工具执行操作
+- **橙色节点**：关键决策分支点
 
-- **绿色**：开始/结束/成功节点
-- **黄色**：关键操作（调用 LLM）
-- **蓝色**：工具执行
-- **橙色**：重要决策点
-
-### 典型执行路径
+### 典型执行路径示例
 
 **简单问答**（无工具调用）：
 ```

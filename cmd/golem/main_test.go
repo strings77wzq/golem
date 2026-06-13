@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"io"
@@ -253,5 +254,107 @@ func TestOpenAgentSessionStoreCreatesDatabase(t *testing.T) {
 	}
 	if loaded.ID != saved.ID {
 		t.Fatalf("loaded session ID = %q, want %q", loaded.ID, saved.ID)
+	}
+}
+
+func TestChoosePreset(t *testing.T) {
+	t.Run("valid choice", func(t *testing.T) {
+		reader := bufio.NewReader(strings.NewReader("2\n"))
+		preset, err := choosePreset(reader)
+		if err != nil {
+			t.Fatalf("choosePreset failed: %v", err)
+		}
+		if preset.vendor != "openai" {
+			t.Errorf("expected vendor 'openai', got %q", preset.vendor)
+		}
+	})
+
+	t.Run("second choice", func(t *testing.T) {
+		reader := bufio.NewReader(strings.NewReader("3\n"))
+		preset, err := choosePreset(reader)
+		if err != nil {
+			t.Fatalf("choosePreset failed: %v", err)
+		}
+		if preset.vendor != "anthropic" {
+			t.Errorf("expected vendor 'anthropic', got %q", preset.vendor)
+		}
+	})
+
+	t.Run("invalid then valid", func(t *testing.T) {
+		reader := bufio.NewReader(strings.NewReader("0\n99\n4\n"))
+		preset, err := choosePreset(reader)
+		if err != nil {
+			t.Fatalf("choosePreset failed: %v", err)
+		}
+		if preset.vendor != "deepseek" {
+			t.Errorf("expected vendor 'deepseek', got %q", preset.vendor)
+		}
+	})
+}
+
+func TestReadLine(t *testing.T) {
+	t.Run("simple line", func(t *testing.T) {
+		reader := bufio.NewReader(strings.NewReader("hello\n"))
+		line, err := readLine(reader)
+		if err != nil {
+			t.Fatalf("readLine failed: %v", err)
+		}
+		if line != "hello" {
+			t.Errorf("expected 'hello', got %q", line)
+		}
+	})
+
+	t.Run("line with spaces", func(t *testing.T) {
+		reader := bufio.NewReader(strings.NewReader("hello world\n"))
+		line, err := readLine(reader)
+		if err != nil {
+			t.Fatalf("readLine failed: %v", err)
+		}
+		if line != "hello world" {
+			t.Errorf("expected 'hello world', got %q", line)
+		}
+	})
+
+	t.Run("empty line", func(t *testing.T) {
+		reader := bufio.NewReader(strings.NewReader("\n"))
+		line, err := readLine(reader)
+		if err != nil {
+			t.Fatalf("readLine failed: %v", err)
+		}
+		if line != "" {
+			t.Errorf("expected empty string, got %q", line)
+		}
+	})
+}
+
+func TestProviderPresets(t *testing.T) {
+	if len(providerPresets) != 8 {
+		t.Errorf("expected 8 provider presets, got %d", len(providerPresets))
+	}
+
+	for i, preset := range providerPresets {
+		if preset.label == "" {
+			t.Errorf("preset %d has empty label", i)
+		}
+		if preset.vendor == "" {
+			t.Errorf("preset %d has empty vendor", i)
+		}
+		if preset.model == "" {
+			t.Errorf("preset %d has empty model", i)
+		}
+	}
+}
+
+func TestEnsureConfigDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "subdir", "config.json")
+
+	if err := ensureConfigDir(configPath); err != nil {
+		t.Fatalf("ensureConfigDir failed: %v", err)
+	}
+
+	dir := filepath.Dir(configPath)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		t.Errorf("expected directory %q to exist", dir)
 	}
 }

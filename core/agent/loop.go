@@ -81,6 +81,13 @@ func (a *Agent) processMessage(
 	model := a.config.Agents.Defaults.ModelName
 	toolDefs := a.toolRegistry.ListDefinitions()
 
+	// Hook: before message processing
+	if a.hooks != nil && a.hooks.BeforeMessage != nil {
+		if err := a.hooks.BeforeMessage(ctx, msg.SessionID, msg.Content); err != nil {
+			a.logger.Error("before_message hook failed", err)
+		}
+	}
+
 	// Guard against infinite loops if the LLM repeatedly calls tools without converging.
 	// Default maxToolIterations=25 prevents runaway agents while allowing complex tasks.
 	for i := 0; i < a.maxToolIterations; i++ {
@@ -93,11 +100,28 @@ func (a *Agent) processMessage(
 			return "", nil, err
 		}
 
+		// Hook: before LLM call
+		if a.hooks != nil && a.hooks.BeforeLLM != nil {
+			if err := a.hooks.BeforeLLM(ctx, contextMsgs); err != nil {
+				a.logger.Error("before_llm hook failed", err)
+			}
+		}
+
 		resp, streamed, err := a.invokeProvider(ctx, provider, contextMsgs, toolDefs, modelName, streamFinal, onToken, msg.SessionID, emit)
 		if err != nil {
 			a.logger.Error("LLM chat failed", err)
+			if a.hooks != nil && a.hooks.OnError != nil {
+				a.hooks.OnError(ctx, err)
+			}
 			a.emitError(msg.SessionID, fmt.Sprintf("LLM error: %v", err), emit)
 			return "", nil, err
+		}
+
+		// Hook: after LLM call
+		if a.hooks != nil && a.hooks.AfterLLM != nil {
+			if err := a.hooks.AfterLLM(ctx, resp); err != nil {
+				a.logger.Error("after_llm hook failed", err)
+			}
 		}
 
 		if len(resp.ToolCalls) == 0 {
@@ -139,6 +163,14 @@ func (a *Agent) processMessage(
 					Usage:     tokenUsage,
 				})
 			}
+
+			// Hook: after message processing (success)
+			if a.hooks != nil && a.hooks.AfterMessage != nil {
+				if err := a.hooks.AfterMessage(ctx, msg.SessionID, resp.Content); err != nil {
+					a.logger.Error("after_message hook failed", err)
+				}
+			}
+
 			return resp.Content, tokenUsage, nil
 		}
 
@@ -156,6 +188,13 @@ func (a *Agent) processMessage(
 		for i, tc := range resp.ToolCalls {
 			i, tc := i, tc // capture loop variables
 			wg.Go(func() error {
+				// Hook: before tool execution
+				if a.hooks != nil && a.hooks.BeforeTool != nil {
+					if err := a.hooks.BeforeTool(ctx, tc); err != nil {
+						a.logger.Error("before_tool hook failed", err)
+					}
+				}
+
 				tool, found := a.toolRegistry.Get(tc.Name)
 				if !found {
 					errors[i] = fmt.Errorf("tool %q not found", tc.Name)
@@ -165,6 +204,14 @@ func (a *Agent) processMessage(
 				result, err := tool.Execute(ctx, tc.Arguments)
 				results[i] = result
 				errors[i] = err
+
+				// Hook: after tool execution
+				if a.hooks != nil && a.hooks.AfterTool != nil {
+					if hookErr := a.hooks.AfterTool(ctx, tc, result); hookErr != nil {
+						a.logger.Error("after_tool hook failed", hookErr)
+					}
+				}
+
 				return nil
 			})
 		}
@@ -223,6 +270,14 @@ func (a *Agent) processMessage(
 			Done:      true,
 		})
 	}
+
+	// Hook: after message processing
+	if a.hooks != nil && a.hooks.AfterMessage != nil {
+		if err := a.hooks.AfterMessage(ctx, msg.SessionID, "max tool iterations reached"); err != nil {
+			a.logger.Error("after_message hook failed", err)
+		}
+	}
+
 	return "max tool iterations reached", nil, nil
 }
 

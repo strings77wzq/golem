@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and discussions
+    url: https://github.com/strings77wzq/golem/discussions
+    about: Ask questions and discuss ideas.
+  - name: Security reports
+    url: https://github.com/strings77wzq/golem/security/advisories/new
+    about: Please report security vulnerabilities privately.

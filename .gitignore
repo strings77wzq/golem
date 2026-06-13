@@ -1,6 +1,6 @@
 # Binaries
 build/
-/unlimitedclaw
+/golem
 *.exe
 *.dll
 *.so
@@ -31,3 +31,9 @@ vendor/
 
 # Go build cache
 .cache/
+
+# AI tool state (not for public repos)
+.omc/
+.omx/
+.opencode/
+.claude/

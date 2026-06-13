@@ -4,12 +4,12 @@ import "encoding/json"
 
 // Update represents a Telegram API update
 type Update struct {
-	UpdateID int        `json:"update_id"`
-	Message  *TGMessage `json:"message,omitempty"`
+	UpdateID int      `json:"update_id"`
+	Message  *Message `json:"message,omitempty"`
 }
 
-// TGMessage represents a Telegram message
-type TGMessage struct {
+// Message represents a Telegram message
+type Message struct {
 	MessageID int    `json:"message_id"`
 	From      *User  `json:"from,omitempty"`
 	Chat      Chat   `json:"chat"`

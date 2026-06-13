@@ -46,6 +46,7 @@ type Agent struct {
 	systemPrompt      string
 	maxToolIterations int
 	tracker           *usage.Tracker
+	hooks             *Hooks
 }
 
 // Option is a functional option for configuring Agent
@@ -69,6 +70,13 @@ func WithSystemPrompt(prompt string) Option {
 func WithTracker(tracker *usage.Tracker) Option {
 	return func(a *Agent) {
 		a.tracker = tracker
+	}
+}
+
+// WithHooks sets lifecycle hooks for the agent loop.
+func WithHooks(hooks *Hooks) Option {
+	return func(a *Agent) {
+		a.hooks = hooks
 	}
 }
 
