@@ -8,6 +8,7 @@ package agent
 import (
 	"context"
 
+	golemctx "github.com/strings77wzq/golem/core/context"
 	"github.com/strings77wzq/golem/core/bus"
 	"github.com/strings77wzq/golem/core/config"
 	"github.com/strings77wzq/golem/core/providers"
@@ -41,6 +42,7 @@ type Agent struct {
 	providerFactory   *providers.Factory
 	sessionStore      session.SessionStore
 	historyManager    *session.HistoryManager
+	contextManager    *golemctx.Manager
 	logger            logger.Logger
 	config            *config.Config
 	systemPrompt      string
@@ -91,12 +93,18 @@ func New(
 	cfg *config.Config,
 	opts ...Option,
 ) *Agent {
+	totalTokens := cfg.Agents.Defaults.MaxTokens
+	if totalTokens <= 0 {
+		totalTokens = 8192
+	}
+
 	a := &Agent{
 		bus:               b,
 		toolRegistry:      registry,
 		providerFactory:   factory,
 		sessionStore:      store,
 		historyManager:    history,
+		contextManager:    golemctx.NewManager(totalTokens, cfg.Agents.Defaults.SystemPrompt),
 		logger:            log,
 		config:            cfg,
 		systemPrompt:      cfg.Agents.Defaults.SystemPrompt,

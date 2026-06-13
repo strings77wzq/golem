@@ -91,7 +91,7 @@ func (a *Agent) processMessage(
 	// Guard against infinite loops if the LLM repeatedly calls tools without converging.
 	// Default maxToolIterations=25 prevents runaway agents while allowing complex tasks.
 	for i := 0; i < a.maxToolIterations; i++ {
-		contextMsgs := a.historyManager.GetContextWindow(sess.GetMessages())
+		contextMsgs := a.contextManager.BuildContext(sess, toolDefs, "")
 
 		provider, modelName, err := a.providerFactory.GetProviderForModel(model)
 		if err != nil {
