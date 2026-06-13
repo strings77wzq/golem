@@ -34,6 +34,7 @@ type Runner interface {
 type MessageHandler interface {
 	HandleMessage(ctx context.Context, sessionID string, message string) (string, error)
 	HandleMessageStream(ctx context.Context, sessionID string, message string, tokens chan<- string) error
+	HandleMessageStreamWithProgress(ctx context.Context, sessionID string, message string, tokens chan<- string, progress chan<- bus.OutboundMessage) error
 }
 
 // Agent is the core orchestrator that runs the ReAct loop

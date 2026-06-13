@@ -52,6 +52,41 @@ func (a *Agent) HandleMessageStream(ctx context.Context, sessionID string, messa
 	return err
 }
 
+func (a *Agent) HandleMessageStreamWithProgress(ctx context.Context, sessionID string, message string, tokens chan<- string, progress chan<- bus.OutboundMessage) error {
+	defer close(tokens)
+	streamed := false
+
+	emitFunc := func(out bus.OutboundMessage) {
+		if out.Role == bus.RoleProgress {
+			// Send progress to progress channel
+			select {
+			case progress <- out:
+			default:
+			}
+		} else {
+			// Send tokens to token channel
+			if out.TokenDelta != "" {
+				streamed = true
+				tokens <- out.TokenDelta
+			}
+		}
+	}
+
+	content, _, err := a.processMessage(ctx, bus.InboundMessage{
+		SessionID: sessionID,
+		Content:   message,
+		Role:      bus.RoleUser,
+	}, true, func(token string) {
+		streamed = true
+		tokens <- token
+	}, emitFunc)
+
+	if err == nil && !streamed && content != "" {
+		tokens <- content
+	}
+	return err
+}
+
 func (a *Agent) processMessage(
 	ctx context.Context,
 	msg bus.InboundMessage,
@@ -387,10 +422,10 @@ func (a *Agent) processWithPlan(
 	// Step 1: Decompose into plan
 	if emit != nil {
 		emit(bus.OutboundMessage{
-			SessionID: msg.SessionID,
-			Content:   "[Planning] Decomposing task into steps...",
-			Role:      bus.RoleAssistant,
-			Done:      false,
+			SessionID:    msg.SessionID,
+			Content:      "分解任务中...",
+			Role:         bus.RoleProgress,
+			ProgressType: bus.ProgressPlanStart,
 		})
 	}
 
@@ -402,19 +437,16 @@ func (a *Agent) processWithPlan(
 
 	AgentPlanSteps.Set(float64(len(plan.Steps)))
 
+	// Emit plan steps
 	if emit != nil {
-		emit(bus.OutboundMessage{
-			SessionID: msg.SessionID,
-			Content:   fmt.Sprintf("[Plan] %s (%d steps)", plan.Goal, len(plan.Steps)),
-			Role:      bus.RoleAssistant,
-			Done:      false,
-		})
 		for i, step := range plan.Steps {
 			emit(bus.OutboundMessage{
-				SessionID: msg.SessionID,
-				Content:   fmt.Sprintf("[Step %d/%d] %s", i+1, len(plan.Steps), step.Description),
-				Role:      bus.RoleAssistant,
-				Done:      false,
+				SessionID:    msg.SessionID,
+				Content:      step.Description,
+				Role:         bus.RoleProgress,
+				ProgressType: bus.ProgressPlanStep,
+				StepCurrent:  i + 1,
+				StepTotal:    len(plan.Steps),
 			})
 		}
 	}
@@ -430,12 +462,15 @@ func (a *Agent) processWithPlan(
 		}
 
 		step.Status = planner.StepRunning
+
 		if emit != nil {
 			emit(bus.OutboundMessage{
-				SessionID: msg.SessionID,
-				Content:   fmt.Sprintf("[Executing] Step %s: %s", step.ID, step.Description),
-				Role:      bus.RoleAssistant,
-				Done:      false,
+				SessionID:    msg.SessionID,
+				Content:      step.Description,
+				Role:         bus.RoleProgress,
+				ProgressType: bus.ProgressStepStart,
+				StepCurrent:  a.getStepIndex(plan, step.ID) + 1,
+				StepTotal:    len(plan.Steps),
 			})
 		}
 
@@ -443,7 +478,7 @@ func (a *Agent) processWithPlan(
 		stepTools := a.toolSelector.Select(step.Description, step.ToolHints, 8)
 
 		// Execute via mini ReAct loop (max 5 iterations per step)
-		stepResult := a.executeStep(ctx, sess, step, stepTools, model, 5)
+		stepResult := a.executeStep(ctx, sess, step, stepTools, model, 5, msg.SessionID, emit)
 
 		step.Result = stepResult
 		step.Status = planner.StepDone
@@ -456,10 +491,12 @@ func (a *Agent) processWithPlan(
 
 			if emit != nil {
 				emit(bus.OutboundMessage{
-					SessionID: msg.SessionID,
-					Content:   fmt.Sprintf("[Step %s] Failed: %s. Revising plan...", step.ID, reflection.Reason),
-					Role:      bus.RoleAssistant,
-					Done:      false,
+					SessionID:    msg.SessionID,
+					Content:      reflection.Reason,
+					Role:         bus.RoleProgress,
+					ProgressType: bus.ProgressStepFailed,
+					StepCurrent:  a.getStepIndex(plan, step.ID) + 1,
+					StepTotal:    len(plan.Steps),
 				})
 			}
 			plan, err = a.planner.Revise(ctx, plan, step.ID, stepResult)
@@ -472,10 +509,12 @@ func (a *Agent) processWithPlan(
 
 		if emit != nil {
 			emit(bus.OutboundMessage{
-				SessionID: msg.SessionID,
-				Content:   fmt.Sprintf("[Step %s] Done", step.ID),
-				Role:      bus.RoleAssistant,
-				Done:      false,
+				SessionID:    msg.SessionID,
+				Content:      step.Description,
+				Role:         bus.RoleProgress,
+				ProgressType: bus.ProgressStepDone,
+				StepCurrent:  a.getStepIndex(plan, step.ID) + 1,
+				StepTotal:    len(plan.Steps),
 			})
 		}
 
@@ -487,14 +526,24 @@ func (a *Agent) processWithPlan(
 
 	if emit != nil {
 		emit(bus.OutboundMessage{
-			SessionID: msg.SessionID,
-			Content:   fmt.Sprintf("[Plan Complete] %s", plan.Progress()),
-			Role:      bus.RoleAssistant,
-			Done:      true,
+			SessionID:    msg.SessionID,
+			Content:      plan.Progress(),
+			Role:         bus.RoleProgress,
+			ProgressType: bus.ProgressPlanDone,
 		})
 	}
 
 	return lastResponse, nil, nil
+}
+
+// getStepIndex returns the 0-based index of a step by ID.
+func (a *Agent) getStepIndex(plan *planner.Plan, stepID string) int {
+	for i, step := range plan.Steps {
+		if step.ID == stepID {
+			return i
+		}
+	}
+	return 0
 }
 
 // executeStep runs a mini ReAct loop for a single plan step.
@@ -505,6 +554,8 @@ func (a *Agent) executeStep(
 	toolDefs []tools.ToolDefinition,
 	model string,
 	maxIter int,
+	sessionID string,
+	emit func(bus.OutboundMessage),
 ) string {
 	stepPrompt := fmt.Sprintf("Execute this step: %s\nExpected outcome: %s", step.Description, step.ExpectedOut)
 	sess.AddMessage(providers.Message{Role: providers.RoleUser, Content: stepPrompt})
@@ -540,6 +591,18 @@ func (a *Agent) executeStep(
 		for _, tc := range resp.ToolCalls {
 			AgentToolCalls.Inc()
 			toolStart := time.Now()
+
+			// Emit tool call progress
+			if emit != nil {
+				emit(bus.OutboundMessage{
+					SessionID:    sessionID,
+					Content:      tc.Name,
+					Role:         bus.RoleProgress,
+					ProgressType: bus.ProgressToolCall,
+					ToolName:     tc.Name,
+				})
+			}
+
 			tool, found := a.toolRegistry.Get(tc.Name)
 			if !found {
 				continue
@@ -553,6 +616,20 @@ func (a *Agent) executeStep(
 			toolResult := ""
 			if result != nil {
 				toolResult = result.ForLLM
+				// Emit tool result progress (truncated for display)
+				if emit != nil && result.ForUser != "" {
+					summary := result.ForUser
+					if len(summary) > 100 {
+						summary = summary[:97] + "..."
+					}
+					emit(bus.OutboundMessage{
+						SessionID:    sessionID,
+						Content:      summary,
+						Role:         bus.RoleProgress,
+						ProgressType: bus.ProgressToolResult,
+						ToolName:     tc.Name,
+					})
+				}
 			}
 			sess.AddMessage(providers.Message{Role: providers.RoleTool, Content: toolResult, ToolCallID: tc.ID})
 			lastContent = toolResult
