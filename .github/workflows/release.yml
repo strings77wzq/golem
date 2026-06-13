@@ -4,44 +4,26 @@ on:
   push:
     tags: ['v*']
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25'
 
-      - name: Build all platforms
-        run: |
-          mkdir -p build
-          platforms=("linux/amd64" "linux/arm64" "darwin/amd64" "darwin/arm64" "windows/amd64" "windows/arm64")
-          for platform in "${platforms[@]}"; do
-            GOOS="${platform%/*}"
-            GOARCH="${platform#*/}"
-            output="build/golem-${GOOS}-${GOARCH}"
-            if [ "$GOOS" = "windows" ]; then
-              output="${output}.exe"
-            fi
-            echo "Building ${GOOS}/${GOARCH}..."
-            CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" go build \
-              -trimpath \
-              -ldflags "-s -w -X main.version=${{ github.ref_name }}" \
-              -o "$output" ./cmd/golem
-          done
-          ls -la build/
-
-      - name: Extract release notes for this version
-        run: |
-          awk '/^## \[/{count++} count==1{print} count==2{exit}' CHANGELOG.md > /tmp/release_notes.md
-          echo "--- Release notes ---"
-          cat /tmp/release_notes.md
-
-      - name: Create release and upload assets
-        uses: softprops/action-gh-release@v2
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
         with:
-          body_path: /tmp/release_notes.md
-          files: build/golem-*
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
