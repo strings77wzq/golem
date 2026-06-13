@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/strings77wzq/golem/core/agent"
@@ -21,44 +20,18 @@ import (
 
 // runAgentOneShot sends a single message and prints the response.
 func runAgentOneShot(ag *agent.Agent, b bus.Bus, message string, existingSessionID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	go ag.Start(ctx)
-
 	sessionID := existingSessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()
 	}
-	outCh := b.Subscribe(agent.TopicOutbound)
-	defer b.Unsubscribe(agent.TopicOutbound, outCh)
 
-	b.Publish(agent.TopicInbound, bus.InboundMessage{
-		SessionID: sessionID,
-		Content:   message,
-		Role:      bus.RoleUser,
-	})
-
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("timeout waiting for response")
-		case raw := <-outCh:
-			outMsg, ok := raw.(bus.OutboundMessage)
-			if !ok {
-				continue
-			}
-			if outMsg.SessionID != sessionID {
-				continue
-			}
-			fmt.Print(outMsg.Content)
-			if outMsg.Done {
-				printUsage(outMsg.Usage)
-				fmt.Println()
-				return nil
-			}
-		}
+	response, err := ag.HandleMessage(context.Background(), sessionID, message)
+	if err != nil {
+		return err
 	}
+	fmt.Print(response)
+	fmt.Println()
+	return nil
 }
 
 // runAgentInteractive runs the agent in plain interactive mode (no TUI).
