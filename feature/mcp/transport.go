@@ -21,7 +21,7 @@ type StdioTransport struct {
 	stderr io.ReadCloser
 
 	scanner *bufio.Scanner
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	started bool
 	closed  bool
 }
@@ -126,12 +126,16 @@ func (t *StdioTransport) SendNotification(notification *JSONRPCNotification) err
 }
 
 func (t *StdioTransport) Receive() (*JSONRPCResponse, error) {
+	t.mu.RLock()
 	if !t.started {
+		t.mu.RUnlock()
 		return nil, fmt.Errorf("transport not started")
 	}
 	if t.closed {
+		t.mu.RUnlock()
 		return nil, fmt.Errorf("transport is closed")
 	}
+	t.mu.RUnlock()
 
 	if !t.scanner.Scan() {
 		if err := t.scanner.Err(); err != nil {
