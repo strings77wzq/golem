@@ -251,7 +251,6 @@ func newGatewayCommand() *cobra.Command {
 
 			if cfg.Gateway.RateLimitRPS > 0 {
 				secCfg.EnableRateLimit = true
-				secCfg.EnableRateLimit = true
 				secCfg.RateLimitRPS = float64(cfg.Gateway.RateLimitRPS)
 			}
 			if cfg.Gateway.RateLimitBurst > 0 {

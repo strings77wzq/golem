@@ -60,7 +60,10 @@ config:
     idle_timeout: 120
 
 secrets:
-  openai_api_key: "changeme"
+  # Reference an existing Kubernetes Secret instead of embedding keys here.
+  # Create one with: kubectl create secret generic golem-secrets --from-literal=openai-api-key=sk-...
+  existingSecret: ""
+  openai_api_key: ""
 
 nodeSelector: {}
 

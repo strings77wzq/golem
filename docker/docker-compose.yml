@@ -5,8 +5,8 @@ services:
       dockerfile: docker/Dockerfile
     command: ["agent", "-m", "${AGENT_MESSAGE:-Hello}"]
     environment:
-      - UNLIMITEDCLAW_PROVIDER=${UNLIMITEDCLAW_PROVIDER:-openai}
-      - UNLIMITEDCLAW_MODEL=${UNLIMITEDCLAW_MODEL:-gpt-4o}
+      - GOLEM_PROVIDER=${GOLEM_PROVIDER:-openai}
+      - GOLEM_MODEL=${GOLEM_MODEL:-gpt-4o}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     volumes:
@@ -23,8 +23,8 @@ services:
     ports:
       - "18790:18790"
     environment:
-      - UNLIMITEDCLAW_PROVIDER=${UNLIMITEDCLAW_PROVIDER:-openai}
-      - UNLIMITEDCLAW_MODEL=${UNLIMITEDCLAW_MODEL:-gpt-4o}
+      - GOLEM_PROVIDER=${GOLEM_PROVIDER:-openai}
+      - GOLEM_MODEL=${GOLEM_MODEL:-gpt-4o}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     volumes:
