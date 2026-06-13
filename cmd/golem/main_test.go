@@ -328,7 +328,7 @@ func TestReadLine(t *testing.T) {
 }
 
 func TestProviderPresets(t *testing.T) {
-	if len(providerPresets) != 8 {
+	if len(providerPresets) != 9 {
 		t.Errorf("expected 9 provider presets, got %d", len(providerPresets))
 	}
 
