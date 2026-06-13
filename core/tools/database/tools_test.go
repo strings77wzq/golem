@@ -2,7 +2,9 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/strings77wzq/golem/core/database"
@@ -177,5 +179,63 @@ func TestToolNames(t *testing.T) {
 		if tt.tool.Name() != tt.name {
 			t.Errorf("tool Name() = %q, want %q", tt.tool.Name(), tt.name)
 		}
+	}
+}
+
+func TestSQLQueryToolTruncation(t *testing.T) {
+	reg := setupTestDB(t)
+	// Insert 60 rows to trigger truncation
+	driver, _ := reg.GetSQL("test")
+	for i := 0; i < 60; i++ {
+		_, err := driver.Execute(context.Background(),
+			"INSERT INTO users (name, email) VALUES (?, ?)",
+			fmt.Sprintf("user%d", i), fmt.Sprintf("user%d@example.com", i))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	tool := NewSQLQueryToolWithMaxRows(reg, 50)
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"sql": "SELECT * FROM users ORDER BY id",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Errorf("unexpected error: %s", result.ForLLM)
+	}
+	// Should mention truncation
+	if !strings.Contains(result.ForLLM, "showing") {
+		t.Error("expected truncation notice in result")
+	}
+}
+
+func TestSQLQueryToolSummary(t *testing.T) {
+	reg := setupTestDB(t)
+	// Insert 150 rows to trigger summary
+	driver, _ := reg.GetSQL("test")
+	for i := 0; i < 150; i++ {
+		_, err := driver.Execute(context.Background(),
+			"INSERT INTO users (name, email) VALUES (?, ?)",
+			fmt.Sprintf("user%d", i), fmt.Sprintf("user%d@example.com", i))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	tool := NewSQLQueryTool(reg)
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"sql": "SELECT * FROM users",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Should show summary, not raw rows
+	if !strings.Contains(result.ForLLM, "Large result set") {
+		t.Error("expected summary for large result set")
+	}
+	if !strings.Contains(result.ForLLM, "152 rows") {
+		t.Errorf("expected total row count, got: %s", result.ForLLM[:100])
 	}
 }

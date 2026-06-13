@@ -11,6 +11,7 @@ import (
 	golemctx "github.com/strings77wzq/golem/core/context"
 	"github.com/strings77wzq/golem/core/bus"
 	"github.com/strings77wzq/golem/core/config"
+	"github.com/strings77wzq/golem/core/planner"
 	"github.com/strings77wzq/golem/core/providers"
 	"github.com/strings77wzq/golem/core/session"
 	"github.com/strings77wzq/golem/core/tools"
@@ -43,12 +44,16 @@ type Agent struct {
 	sessionStore      session.SessionStore
 	historyManager    *session.HistoryManager
 	contextManager    *golemctx.Manager
+	planner           *planner.Planner
+	toolSelector      *ToolSelector
+	reflector         *Reflector
 	logger            logger.Logger
 	config            *config.Config
 	systemPrompt      string
 	maxToolIterations int
 	tracker           *usage.Tracker
 	hooks             *Hooks
+	planEnabled       bool
 }
 
 // Option is a functional option for configuring Agent
@@ -79,6 +84,16 @@ func WithTracker(tracker *usage.Tracker) Option {
 func WithHooks(hooks *Hooks) Option {
 	return func(a *Agent) {
 		a.hooks = hooks
+	}
+}
+
+// WithPlanner enables planning mode for complex tasks.
+func WithPlanner(llm providers.LLMProvider, model string) Option {
+	return func(a *Agent) {
+		a.planner = planner.NewPlanner(llm, model)
+		a.toolSelector = NewToolSelector(a.toolRegistry)
+		a.reflector = NewReflector()
+		a.planEnabled = true
 	}
 }
 

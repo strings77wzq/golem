@@ -3,9 +3,11 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/strings77wzq/golem/core/bus"
+	"github.com/strings77wzq/golem/core/planner"
 	"github.com/strings77wzq/golem/core/providers"
 	"github.com/strings77wzq/golem/core/session"
 	"github.com/strings77wzq/golem/core/tools"
@@ -92,6 +94,11 @@ func (a *Agent) processMessage(
 		if err := a.hooks.BeforeMessage(ctx, msg.SessionID, msg.Content); err != nil {
 			a.logger.Error("before_message hook failed", err)
 		}
+	}
+
+	// Planning mode: decompose complex tasks
+	if a.planEnabled && a.planner != nil && a.isComplexTask(msg.Content) {
+		return a.processWithPlan(ctx, msg, sess, model, toolDefs, streamFinal, onToken, emit)
 	}
 
 	// Guard against infinite loops if the LLM repeatedly calls tools without converging.
@@ -348,4 +355,327 @@ func (a *Agent) wrapTokenEmitter(sessionID string, emit func(bus.OutboundMessage
 			})
 		}
 	}
+}
+
+// isComplexTask determines if a message should use planning mode.
+func (a *Agent) isComplexTask(message string) bool {
+	complexKeywords := []string{"plan", "deploy", "migrate", "setup", "configure",
+		"build and", "first", "then", "finally", "step by step",
+		"create a", "set up", "install and"}
+	lower := strings.ToLower(message)
+	for _, kw := range complexKeywords {
+		if strings.Contains(lower, kw) {
+			return true
+		}
+	}
+	return len(message) > 150
+}
+
+// processWithPlan executes a message using the planner.
+func (a *Agent) processWithPlan(
+	ctx context.Context,
+	msg bus.InboundMessage,
+	sess *session.Session,
+	model string,
+	toolDefs []tools.ToolDefinition,
+	streamFinal bool,
+	onToken func(string),
+	emit func(bus.OutboundMessage),
+) (string, *bus.TokenUsage, error) {
+	startTime := time.Now()
+
+	// Step 1: Decompose into plan
+	if emit != nil {
+		emit(bus.OutboundMessage{
+			SessionID: msg.SessionID,
+			Content:   "[Planning] Decomposing task into steps...",
+			Role:      bus.RoleAssistant,
+			Done:      false,
+		})
+	}
+
+	plan, err := a.planner.Decompose(ctx, msg.Content, toolDefs)
+	if err != nil {
+		a.logger.Error("planner decompose failed", err)
+		return a.processMessageFallback(ctx, msg, sess, model, toolDefs, streamFinal, onToken, emit)
+	}
+
+	AgentPlanSteps.Set(float64(len(plan.Steps)))
+
+	if emit != nil {
+		emit(bus.OutboundMessage{
+			SessionID: msg.SessionID,
+			Content:   fmt.Sprintf("[Plan] %s (%d steps)", plan.Goal, len(plan.Steps)),
+			Role:      bus.RoleAssistant,
+			Done:      false,
+		})
+		for i, step := range plan.Steps {
+			emit(bus.OutboundMessage{
+				SessionID: msg.SessionID,
+				Content:   fmt.Sprintf("[Step %d/%d] %s", i+1, len(plan.Steps), step.Description),
+				Role:      bus.RoleAssistant,
+				Done:      false,
+			})
+		}
+	}
+
+	// Step 2: Execute each step
+	plan.MarkRunning()
+	var lastResponse string
+
+	for a.planner.ShouldContinue(plan) {
+		step := plan.NextPendingStep()
+		if step == nil {
+			break
+		}
+
+		step.Status = planner.StepRunning
+		if emit != nil {
+			emit(bus.OutboundMessage{
+				SessionID: msg.SessionID,
+				Content:   fmt.Sprintf("[Executing] Step %s: %s", step.ID, step.Description),
+				Role:      bus.RoleAssistant,
+				Done:      false,
+			})
+		}
+
+		// Select tools for this step
+		stepTools := a.toolSelector.Select(step.Description, step.ToolHints, 8)
+
+		// Execute via mini ReAct loop (max 5 iterations per step)
+		stepResult := a.executeStep(ctx, sess, step, stepTools, model, 5)
+
+		step.Result = stepResult
+		step.Status = planner.StepDone
+
+		// Reflect on result
+		reflection := a.reflector.Evaluate(step, stepResult, nil)
+		if !reflection.Success && reflection.ShouldRevise {
+			step.Status = planner.StepFailed
+			step.Error = reflection.Reason
+
+			if emit != nil {
+				emit(bus.OutboundMessage{
+					SessionID: msg.SessionID,
+					Content:   fmt.Sprintf("[Step %s] Failed: %s. Revising plan...", step.ID, reflection.Reason),
+					Role:      bus.RoleAssistant,
+					Done:      false,
+				})
+			}
+			plan, err = a.planner.Revise(ctx, plan, step.ID, stepResult)
+			if err != nil {
+				a.logger.Error("planner revise failed", err)
+			}
+			AgentPlanRevisions.Inc()
+			continue
+		}
+
+		if emit != nil {
+			emit(bus.OutboundMessage{
+				SessionID: msg.SessionID,
+				Content:   fmt.Sprintf("[Step %s] Done", step.ID),
+				Role:      bus.RoleAssistant,
+				Done:      false,
+			})
+		}
+
+		lastResponse = stepResult
+	}
+
+	plan.MarkComplete()
+	AgentPlanDuration.Observe(time.Since(startTime).Seconds())
+
+	if emit != nil {
+		emit(bus.OutboundMessage{
+			SessionID: msg.SessionID,
+			Content:   fmt.Sprintf("[Plan Complete] %s", plan.Progress()),
+			Role:      bus.RoleAssistant,
+			Done:      true,
+		})
+	}
+
+	return lastResponse, nil, nil
+}
+
+// executeStep runs a mini ReAct loop for a single plan step.
+func (a *Agent) executeStep(
+	ctx context.Context,
+	sess *session.Session,
+	step *planner.Step,
+	toolDefs []tools.ToolDefinition,
+	model string,
+	maxIter int,
+) string {
+	stepPrompt := fmt.Sprintf("Execute this step: %s\nExpected outcome: %s", step.Description, step.ExpectedOut)
+	sess.AddMessage(providers.Message{Role: providers.RoleUser, Content: stepPrompt})
+
+	var lastContent string
+	for i := 0; i < maxIter; i++ {
+		contextMsgs := a.contextManager.BuildContext(sess, toolDefs, "")
+		provider, modelName, err := a.providerFactory.GetProviderForModel(model)
+		if err != nil {
+			return fmt.Sprintf("Error: %v", err)
+		}
+
+		AgentLLMCalls.Inc()
+		llmStart := time.Now()
+		resp, err := provider.Chat(ctx, contextMsgs, toolDefs, modelName, nil)
+		AgentLLMLatency.Observe(time.Since(llmStart).Seconds())
+
+		if err != nil {
+			return fmt.Sprintf("LLM error: %v", err)
+		}
+
+		AgentLLMTokens.Add(int64(resp.Usage.TotalTokens))
+
+		if len(resp.ToolCalls) == 0 {
+			lastContent = resp.Content
+			sess.AddMessage(providers.Message{Role: providers.RoleAssistant, Content: resp.Content})
+			break
+		}
+
+		sess.AddMessage(providers.Message{Role: providers.RoleAssistant, Content: resp.Content, ToolCalls: resp.ToolCalls})
+
+		// Execute tools
+		for _, tc := range resp.ToolCalls {
+			AgentToolCalls.Inc()
+			toolStart := time.Now()
+			tool, found := a.toolRegistry.Get(tc.Name)
+			if !found {
+				continue
+			}
+			result, err := tool.Execute(ctx, tc.Arguments)
+			AgentToolLatency.Observe(time.Since(toolStart).Seconds())
+			if err != nil {
+				AgentToolErrors.Inc()
+			}
+
+			toolResult := ""
+			if result != nil {
+				toolResult = result.ForLLM
+			}
+			sess.AddMessage(providers.Message{Role: providers.RoleTool, Content: toolResult, ToolCallID: tc.ID})
+			lastContent = toolResult
+		}
+	}
+
+	return lastContent
+}
+
+// processMessageFallback is the regular ReAct loop (used when planning fails).
+func (a *Agent) processMessageFallback(
+	ctx context.Context,
+	msg bus.InboundMessage,
+	sess *session.Session,
+	model string,
+	toolDefs []tools.ToolDefinition,
+	streamFinal bool,
+	onToken func(string),
+	emit func(bus.OutboundMessage),
+) (string, *bus.TokenUsage, error) {
+	// This is the original ReAct loop logic
+	for i := 0; i < a.maxToolIterations; i++ {
+		contextMsgs := a.contextManager.BuildContext(sess, toolDefs, "")
+
+		provider, modelName, err := a.providerFactory.GetProviderForModel(model)
+		if err != nil {
+			a.emitError(msg.SessionID, fmt.Sprintf("failed to get provider: %v", err), emit)
+			return "", nil, err
+		}
+
+		AgentLLMCalls.Inc()
+		llmStart := time.Now()
+		resp, streamed, err := a.invokeProvider(ctx, provider, contextMsgs, toolDefs, modelName, streamFinal, onToken, msg.SessionID, emit)
+		AgentLLMLatency.Observe(time.Since(llmStart).Seconds())
+
+		if err != nil {
+			AgentLLMErrors.Inc()
+			a.emitError(msg.SessionID, fmt.Sprintf("LLM error: %v", err), emit)
+			return "", nil, err
+		}
+
+		AgentLLMTokens.Add(int64(resp.Usage.TotalTokens))
+
+		if len(resp.ToolCalls) == 0 {
+			sess.AddMessage(providers.Message{Role: providers.RoleAssistant, Content: resp.Content})
+			if err := a.sessionStore.Save(sess); err != nil {
+				a.logger.Error("failed to save session", err)
+			}
+
+			tokenUsage := &bus.TokenUsage{
+				PromptTokens:     resp.Usage.PromptTokens,
+				CompletionTokens: resp.Usage.CompletionTokens,
+				TotalTokens:      resp.Usage.TotalTokens,
+			}
+
+			if emit != nil {
+				finalContent := resp.Content
+				if streamed {
+					finalContent = ""
+				}
+				emit(bus.OutboundMessage{
+					SessionID: msg.SessionID,
+					Content:   finalContent,
+					Role:      bus.RoleAssistant,
+					Done:      true,
+					Usage:     tokenUsage,
+				})
+			}
+
+			return resp.Content, tokenUsage, nil
+		}
+
+		sess.AddMessage(providers.Message{Role: providers.RoleAssistant, Content: resp.Content, ToolCalls: resp.ToolCalls})
+
+		var wg errgroup.Group
+		results := make([]*tools.ToolResult, len(resp.ToolCalls))
+		errors := make([]error, len(resp.ToolCalls))
+
+		for i, tc := range resp.ToolCalls {
+			i, tc := i, tc
+			wg.Go(func() error {
+				AgentToolCalls.Inc()
+				toolStart := time.Now()
+				tool, found := a.toolRegistry.Get(tc.Name)
+				if !found {
+					errors[i] = fmt.Errorf("tool %q not found", tc.Name)
+					AgentToolErrors.Inc()
+					return nil
+				}
+				result, err := tool.Execute(ctx, tc.Arguments)
+				AgentToolLatency.Observe(time.Since(toolStart).Seconds())
+				results[i] = result
+				errors[i] = err
+				if err != nil {
+					AgentToolErrors.Inc()
+				}
+				return nil
+			})
+		}
+
+		if err := wg.Wait(); err != nil {
+			a.logger.Error("tool execution failed", err)
+		}
+
+		for i, tc := range resp.ToolCalls {
+			if errors[i] != nil {
+				sess.AddMessage(providers.Message{Role: providers.RoleTool, Content: fmt.Sprintf("tool error: %v", errors[i]), ToolCallID: tc.ID})
+				continue
+			}
+			result := results[i]
+			if result == nil {
+				continue
+			}
+			sess.AddMessage(providers.Message{Role: providers.RoleTool, Content: result.ForLLM, ToolCallID: tc.ID})
+			if result.ForUser != "" && !result.Silent && emit != nil {
+				emit(bus.OutboundMessage{SessionID: msg.SessionID, Content: result.ForUser, Role: bus.RoleTool, Done: false})
+			}
+		}
+
+		if err := a.sessionStore.Save(sess); err != nil {
+			a.logger.Error("failed to save session", err)
+		}
+	}
+
+	return "max tool iterations reached", nil, nil
 }
