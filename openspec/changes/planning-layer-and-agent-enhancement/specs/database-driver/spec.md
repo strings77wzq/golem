@@ -1,136 +1,131 @@
-# Spec: Database Driver Abstraction
+# Spec: Database Drivers — 按类型分层
 
-## [S1] Driver Interface
+## [S1] 驱动架构决策
 
-All database types implement the `Driver` interface:
+**决策：不使用统一 Driver 接口。按数据库类型分层。**
 
+```
+SQL 层: SQLite, MySQL, PostgreSQL
+  → 共用 database/sql 接口
+  → 各自实现 driver/sql/driver.Driver
+
+NoSQL 层: Redis
+  → 专用 go-redis 接口
+
+VectorDB 层: Qdrant, Milvus
+  → 专用 HTTP/gRPC 接口
+```
+
+## [S2] SQL 数据库
+
+所有 SQL 数据库通过 `database/sql` 标准接口连接。
+
+### SQLite
+- 驱动: `modernc.org/sqlite` (纯 Go，无 CGO)
+- 连接: `sql.Open("sqlite", "~/.golem/data.db")`
+- Schema 查询: `sqlite_master` 表
+
+### MySQL
+- 驱动: `github.com/go-sql-driver/mysql` (纯 Go)
+- 连接: `sql.Open("mysql", "user:pass@tcp(host:port)/db")`
+- Schema 查询: `INFORMATION_SCHEMA`
+
+### PostgreSQL
+- 驱动: `github.com/lib/pq` 或 `github.com/jackc/pgx` (纯 Go)
+- 连接: `sql.Open("postgres", "postgres://user:pass@host:port/db?sslmode=disable")`
+- Schema 查询: `information_schema`
+
+### SQL 共用能力
 ```go
-type Driver interface {
-    Name() string
-    Connect(ctx context.Context, config Config) error
-    Close() error
-    Query(ctx context.Context, sql string, args ...interface{}) ([]Row, error)
-    Execute(ctx context.Context, sql string, args ...interface{}) (Result, error)
-    GetSchema(ctx context.Context) (string, error)
-    Ping(ctx context.Context) error
+type SQLDriver struct {
+    db     *sql.DB
+    name   string
+    schema *SchemaCache
 }
+
+func (d *SQLDriver) Query(ctx, sql, args) ([]Row, error)      // SELECT
+func (d *SQLDriver) Execute(ctx, sql, args) (Result, error)    // INSERT/UPDATE/DELETE
+func (d *SQLDriver) GetSchema(ctx) (string, error)             // Schema introspection
+func (d *SQLDriver) Ping(ctx) error                            // 连接检查
+func (d *SQLDriver) Close() error                              // 关闭连接
 ```
 
-## [S2] SQLite Driver
+## [S3] Redis
 
-Pure Go implementation via `modernc.org/sqlite`.
+专用驱动，不用 SQL 接口。
 
-**Config:**
 ```go
-Config{Type: "sqlite", DSN: "~/.golem/data.db"}
+type RedisDriver struct {
+    client *redis.Client
+    name   string
+}
+
+func (d *RedisDriver) Get(ctx, key) (string, error)
+func (d *RedisDriver) Set(ctx, key, value, ttl) error
+func (d *RedisDriver) Del(ctx, keys ...string) (int64, error)
+func (d *RedisDriver) Keys(ctx, pattern) ([]string, error)
+func (d *RedisDriver) HGetAll(ctx, key) (map[string]string, error)
+func (d *RedisDriver) LRange(ctx, key, start, stop) ([]string, error)
+func (d *RedisDriver) Info(ctx) (string, error)
+func (d *RedisDriver) GetSchema(ctx) (string, error)  // 返回 key patterns
+func (d *RedisDriver) Ping(ctx) error
+func (d *RedisDriver) Close() error
 ```
 
-**Features:**
-- Auto-create database file if not exists
-- WAL mode for concurrent reads
-- Foreign keys enabled by default
-- Schema introspection via `sqlite_master`
+## [S4] VectorDB
 
-## [S3] MySQL Driver
+专用驱动，各 DB 独立实现。
 
-Uses `go-sql-driver/mysql` (already in Go ecosystem, pure Go).
-
-**Config:**
+### Qdrant
 ```go
-Config{Type: "mysql", Host: "localhost", Port: 3306, User: "root", Password: "***", Database: "myapp"}
+type QdrantDriver struct {
+    host   string
+    port   int
+    client *http.Client
+}
+
+func (d *QdrantDriver) Search(ctx, collection, query, topK) ([]SearchResult, error)
+func (d *QdrantDriver) Insert(ctx, collection, id, vector, payload) error
+func (d *QdrantDriver) Delete(ctx, collection, id) error
+func (d *QdrantDriver) Collections(ctx) ([]string, error)
+func (d *QdrantDriver) GetSchema(ctx) (string, error)  // collection info
+func (d *QdrantDriver) Ping(ctx) error
+func (d *QdrantDriver) Close() error
 ```
 
-**DSN format:** `user:password@tcp(host:port)/database`
-
-**Features:**
-- Connection pooling (max 10 connections)
-- Query timeout (5 seconds default)
-- Schema introspection via `INFORMATION_SCHEMA`
-
-## [S4] PostgreSQL Driver
-
-Uses `lib/pq` or `pgx` (pure Go).
-
-**Config:**
-```go
-Config{Type: "postgres", Host: "localhost", Port: 5432, User: "postgres", Password: "***", Database: "myapp"}
-```
-
-**DSN format:** `postgres://user:password@host:port/database?sslmode=disable`
-
-**Features:**
-- Connection pooling
-- Schema introspection via `information_schema`
-- Support for JSON/JSONB columns
-
-## [S5] Redis Driver
-
-Uses `go-redis/redis` (pure Go).
-
-**Config:**
-```go
-Config{Type: "redis", Host: "localhost", Port: 6379, Password: "***"}
-```
-
-**Operations:**
-- `GET key` → value
-- `SET key value` → OK
-- `DEL key` → count
-- `KEYS pattern` → list
-- `HGETALL hash` → map
-- `LRANGE list 0 -1` → list
-- `INFO` → server info
-
-**Schema:** No traditional schema. GetSchema returns "Redis key-value store" with key patterns.
-
-## [S6] Vector DB Driver
-
-Support for Qdrant, Milvus, or pgvector.
-
-**Config (Qdrant):**
-```go
-Config{Type: "qdrant", Host: "localhost", Port: 6333, Options: map[string]string{"collection": "documents"}}
-```
-
-**Operations:**
-- `search query top_k` → semantic search results
-- `insert id text vector` → add vector
-- `delete id` → remove vector
-- `collections` → list collections
-
-**Schema:** Returns collection info with vector dimensions and point count.
-
-## [S7] Driver Registry
+## [S5] 驱动注册表
 
 ```go
 type Registry struct {
-    drivers map[string]Driver
-    configs map[string]Config
+    sqlDrivers    map[string]*SQLDriver
+    redisDrivers  map[string]*RedisDriver
+    qdrantDrivers map[string]*QdrantDriver
 }
 
 func NewRegistry() *Registry
 
-// Register adds a driver for a database type.
-func (r *Registry) Register(name string, driver Driver) error
+// SQL 数据库
+func (r *Registry) RegisterSQL(name string, driver *SQLDriver) error
+func (r *Registry) GetSQL(name string) (*SQLDriver, error)
 
-// Connect connects to a database using the given config.
-func (r *Registry) Connect(ctx context.Context, name string, config Config) error
+// Redis
+func (r *Registry) RegisterRedis(name string, driver *RedisDriver) error
+func (r *Registry) GetRedis(name string) (*RedisDriver, error)
 
-// Get returns a connected driver by name.
-func (r *Registry) Get(name string) (Driver, error)
+// VectorDB
+func (r *Registry) RegisterQdrant(name string, driver *QdrantDriver) error
+func (r *Registry) GetQdrant(name string) (*QdrantDriver, error)
 
-// List returns all connected database names.
+// 通用
 func (r *Registry) List() []string
-
-// Close closes all connections.
 func (r *Registry) Close() error
 ```
 
-## [S8] Safety Rules
+## [S6] 安全规则
 
-- All SQL queries use parameterized arguments (no string interpolation)
-- Read-only operations (SELECT) always allowed
-- Write operations (INSERT/UPDATE/DELETE) require `--allow-writes` flag
-- DELETE requires `--confirm-delete` flag
-- Connection timeout: 5 seconds
-- Query timeout: 5 seconds
+- 所有 SQL 使用参数化查询（防注入）
+- 读操作始终允许
+- 写操作需 `--allow-writes`
+- 删除需 `--confirm-delete`
+- 连接超时: 5 秒
+- 查询超时: 5 秒

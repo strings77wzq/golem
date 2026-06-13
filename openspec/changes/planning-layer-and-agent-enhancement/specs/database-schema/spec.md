@@ -1,79 +1,36 @@
-# Spec: Database Schema
+# Spec: Database Schema — 摘要注入 + 按需详情
 
-## [S1] Schema Discovery (NOT Hardcoded Tables)
+## [S1] Schema 管理决策
 
-The agent does NOT have predefined tables. Instead, it **auto-discovers** whatever schema exists in the connected database.
-
-**Flow:**
-1. Agent connects to database (SQLite/MySQL/PostgreSQL/Redis/VectorDB)
-2. Calls `GetSchema()` to discover all tables
-3. Reads column names, types, constraints, indexes
-4. Injects schema summary into system prompt
-5. Agent generates SQL based on ACTUAL schema
-
-**This means:**
-- Connect to your existing MySQL → agent sees YOUR tables
-- Connect to your existing PostgreSQL → agent sees YOUR schema
-- Connect to SQLite → agent sees whatever tables exist
-
-## [S2] Schema Introspection
-
-The `SchemaManager` reads database metadata dynamically:
-
-### SQL Databases (SQLite, MySQL, PostgreSQL)
-
-Query `INFORMATION_SCHEMA` or equivalent:
-
-```sql
--- Get all tables
-SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';
-
--- Get columns for a table
-SELECT column_name, data_type, is_nullable, column_default
-FROM information_schema.columns
-WHERE table_name = 'users';
-
--- Get primary keys
-SELECT column_name FROM information_schema.key_column_usage
-WHERE table_name = 'users' AND constraint_type = 'PRIMARY KEY';
-
--- Get foreign keys
-SELECT column_name, referenced_table_name, referenced_column_name
-FROM information_schema.key_column_usage
-WHERE table_name = 'orders' AND referenced_table_name IS NOT NULL;
-```
-
-### Redis
-
-Redis has no schema. `GetSchema()` returns:
-```
-Redis key-value store
-Sample keys: user:1001, session:abc, cache:home
-Key patterns: user:*, session:*, cache:*
-```
-
-### Vector DB (Qdrant, Milvus)
-
-```go
-// Qdrant
-GET /collections/{name} → {vectors: {size: 1536, distance: "Cosine"}}
-
-// Milvus
-GET /collections/{name} → {fields: [{name: "text", type: "VARCHAR"}, ...]}
-```
-
-## [S3] Schema Summary Format
-
-The schema is summarized for system prompt injection:
+**决策：路径 2 — 摘要注入 + 按需详情**
 
 ```
-Database: MySQL (myapp)
+默认（注入 system prompt）:
+  表名列表 + 每表列名（~20 tokens/table）
+  Agent 知道"有什么表、有什么列"
+
+按需（agent 调用 sql_schema）:
+  完整 DDL、类型、约束、索引、外键
+  Agent 需要时才获取详细信息
+```
+
+**理由：**
+- 50 张表的完整 schema 会吃掉 5000 tokens，没空间给 history
+- 摘要保证 agent 知道数据库有什么
+- 详情按需获取，节省 token
+
+## [S2] Schema 摘要格式
+
+注入 system prompt 的摘要：
+
+```
+Database: MySQL (production)
 
 Tables:
-- users (id INT PK, name VARCHAR, email VARCHAR UNIQUE, created_at TIMESTAMP)
-- orders (id INT PK, user_id INT FK→users.id, amount DECIMAL, status VARCHAR, created_at TIMESTAMP)
-- products (id INT PK, name VARCHAR, price DECIMAL, category VARCHAR)
-- order_items (id INT PK, order_id INT FK→orders.id, product_id INT FK→products.id, quantity INT)
+- users (id, name, email, role, created_at)
+- orders (id, user_id, total, status, created_at)
+- products (id, name, price, stock, category)
+- order_items (id, order_id, product_id, quantity)
 
 Relationships:
 - orders.user_id → users.id
@@ -81,20 +38,43 @@ Relationships:
 - order_items.product_id → products.id
 ```
 
-**Token cost:** ~50-100 tokens per table (depends on column count). Acceptable.
+**Token 成本：** ~20 tokens per table。50 张表 = 1000 tokens，可接受。
 
-## [S4] Schema Refresh
+## [S3] Schema 详情获取
 
-Schema can change (tables added/dropped/altered). The agent should:
+Agent 调用 `sql_schema` tool 获取详细信息：
 
-1. Cache schema on first read
-2. Re-read schema if SQL query fails with "table doesn't exist"
-3. Provide `sql_refresh_schema` tool to force re-read
-4. Cache TTL: 5 minutes (configurable)
+**请求：** `{"database": "mysql", "table": "orders"}`
 
-## [S5] Multi-Database Schema
+**响应：**
+```
+Table: orders
+Columns:
+- id (INTEGER, PK, AUTO_INCREMENT)
+- user_id (INTEGER, NOT NULL, FK → users.id)
+- total (DECIMAL(10,2), NOT NULL)
+- status (VARCHAR(50), DEFAULT 'pending')
+- created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP)
 
-When multiple databases are connected, schema shows all:
+Indexes:
+- PRIMARY KEY (id)
+- idx_user_id (user_id)
+- idx_status (status)
+
+Row count: 15,234
+```
+
+## [S4] Schema 缓存与刷新
+
+**缓存策略：**
+1. 首次连接时读取 schema，缓存到内存
+2. SQL 查询失败（"table doesn't exist"）→ 自动刷新
+3. 提供 `sql_refresh_schema` tool 强制刷新
+4. 缓存 TTL: 5 分钟（可配置）
+
+## [S5] 多数据库 Schema
+
+多个数据库连接时，摘要显示所有：
 
 ```
 === SQLite (local.db) ===
@@ -109,7 +89,27 @@ When multiple databases are connected, schema shows all:
 - Key patterns: session:*, user:*, product:*
 ```
 
-Agent can query across databases using the `database` parameter:
-```json
-{"database": "mysql", "sql": "SELECT * FROM orders"}
+## [S6] Schema 自动发现
+
+Agent 不需要预定义任何表。连接数据库后自动发现：
+
+```
+1. 连接: sql.Open(driver, dsn)
+2. 查询 metadata:
+   - SQLite: sqlite_master
+   - MySQL: INFORMATION_SCHEMA.TABLES + COLUMNS
+   - PostgreSQL: information_schema.tables + columns
+3. 构建摘要
+4. 注入 system prompt
+```
+
+## [S7] 跨数据库查询
+
+**不支持跨库 SQL JOIN。** 跨数据库查询通过分步执行 + LLM 比较实现：
+
+```
+用户: "比较 MySQL 和 SQLite 的用户数据"
+  → Step 1: sql_query (MySQL) SELECT * FROM users
+  → Step 2: sql_query (SQLite) SELECT * FROM users
+  → Step 3: LLM 比较两个结果集
 ```

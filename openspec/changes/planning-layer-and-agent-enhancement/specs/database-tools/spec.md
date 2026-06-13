@@ -1,161 +1,167 @@
-# Spec: Database Tools
+# Spec: Database Tools — 分层 Tool 设计
 
-## [S1] sql_query Tool
+## [S1] 工具架构决策
 
-Execute SQL queries and return results.
+**决策：路径 B — 分层 Tool 设计**
 
-**Input:**
-```json
-{
-  "sql": "SELECT * FROM articles WHERE status = ? ORDER BY created_at DESC",
-  "args": ["published"]
-}
+不使用统一 Driver 接口。而是按数据库类型分工具：
+
+```
+SQL 数据库 (SQLite/MySQL/PostgreSQL):
+  → sql_query, sql_schema, sql_analyze, sql_insert, sql_update, sql_delete
+  → 底层用 database/sql 统一接口
+
+NoSQL (Redis):
+  → redis_get, redis_set, redis_del, redis_keys, redis_hgetall, redis_lrange, redis_info
+  → 底层用 go-redis 专用接口
+
+VectorDB (Qdrant/Milvus):
+  → vector_search, vector_insert, vector_delete, vector_collections
+  → 底层用各 DB 的 HTTP API
 ```
 
-**Output:**
-```
-| id | title | author_id | status | created_at |
-|----|-------|-----------|--------|------------|
-| 1  | Golem v0.6.0 Release | 1 | published | 2026-06-13 |
-| 2  | Getting Started with Go Agents | 2 | published | 2026-06-12 |
-```
+**理由：**
+- LLM 擅长从 20+ 工具中选 5 个，不擅长把 Redis 伪装成 SQL
+- 每种数据库有最自然的操作方式
+- 扩展新数据库只需要加工具，不改接口
 
-**Safety:**
-- Read-only by default (SELECT only)
-- DELETE requires `--allow-writes` flag + confirmation
-- All queries use parameterized arguments (no string interpolation)
-- Query timeout: 5 seconds
+## [S2] SQL 工具集
 
-## [S2] sql_schema Tool
+### sql_query
+执行 SQL 查询，返回结果。
 
-Return database schema information.
+**Input:** `{"database": "mysql", "sql": "SELECT * FROM users WHERE id = ?", "args": [1]}`
+**Output:** 格式化表格或 JSON 结果
+**Safety:** 只读（SELECT），始终允许
 
-**Input:**
-```json
-{"table": "articles"}  // optional, omit for full schema
-```
+### sql_schema
+返回数据库 schema 信息。
 
-**Output (single table):**
-```
-Table: articles
-Columns:
-- id (INTEGER, PK)
-- author_id (INTEGER, NOT NULL, FK → users.id)
-- title (TEXT, NOT NULL)
-- slug (TEXT, NOT NULL, UNIQUE)
-- content (TEXT, NOT NULL)
-- summary (TEXT)
-- status (TEXT, DEFAULT 'draft')
-- view_count (INTEGER, DEFAULT 0)
-- created_at (DATETIME)
-- updated_at (DATETIME)
-- published_at (DATETIME)
-```
+**Input:** `{"database": "sqlite", "table": "users"}` (table 可选，省略返回全量)
+**Output:** 表结构描述
+**Safety:** 只读，始终允许
 
-**Output (full schema):**
-Returns the complete schema string as defined in database-schema/S4.
+### sql_analyze
+分析表的数据分布。
 
-## [S3] sql_analyze Tool
+**Input:** `{"database": "mysql", "table": "orders"}`
+**Output:** 行数、空值统计、 distinct 值、数值范围
+**Safety:** 只读，始终允许
 
-Analyze data distribution for a table.
+### sql_insert
+插入数据。
 
-**Input:**
-```json
-{"table": "articles"}
-```
+**Input:** `{"database": "sqlite", "table": "users", "values": {"name": "alice", "email": "a@b.com"}}`
+**Safety:** 需 `--allow-writes`
 
-**Output:**
-```
-Table: articles
-- Total rows: 3
-- Columns:
-  - status: 2 published, 1 draft, 0 archived
-  - author_id: 3 distinct values (1, 2, 3)
-  - view_count: min=0, max=0, avg=0
-  - created_at: range 2026-06-12 to 2026-06-13
-  - published_at: 2 non-null, 1 null
-```
+### sql_update
+更新数据。
 
-**Analysis includes:**
-- Row count
-- Null count per column
-- Distinct value count per column
-- For numeric columns: min, max, avg
-- For text columns: min/max length
-- For datetime columns: min/max date
+**Input:** `{"database": "mysql", "table": "users", "values": {"name": "bob"}, "where": "id = ?", "args": [1]}`
+**Safety:** 需 `--allow-writes`，WHERE 必填
 
-## [S4] sql_insert Tool
+### sql_delete
+删除数据。
 
-Insert a new record.
+**Input:** `{"database": "sqlite", "table": "users", "where": "id = ?", "args": [1]}`
+**Safety:** 需 `--allow-writes` + `--confirm-delete`
 
-**Input:**
-```json
-{
-  "table": "articles",
-  "values": {
-    "author_id": 1,
-    "title": "New Article",
-    "slug": "new-article",
-    "content": "Article content...",
-    "status": "draft"
-  }
-}
-```
+### sql_refresh_schema
+强制刷新 schema 缓存。
 
-**Output:**
-```
-Inserted into articles: id=4
-```
+**Input:** `{"database": "mysql"}`
+**Safety:** 只读，始终允许
 
-**Safety:**
-- Requires `--allow-writes` flag
-- Validates column names against schema (prevents injection)
-- Validates value types against column types
-- Returns inserted row ID
+## [S3] Redis 工具集
 
-## [S5] sql_update Tool
+### redis_get
+获取 key 的值。
 
-Update existing records.
+**Input:** `{"database": "redis", "key": "user:1001"}`
+**Safety:** 只读，始终允许
 
-**Input:**
-```json
-{
-  "table": "articles",
-  "values": {"status": "published", "published_at": "2026-06-13"},
-  "where": "id = ?",
-  "args": [1]
-}
-```
+### redis_set
+设置 key-value。
 
-**Output:**
-```
-Updated 1 row in articles
-```
+**Input:** `{"database": "redis", "key": "cache:home", "value": "...", "ttl": 3600}`
+**Safety:** 需 `--allow-writes`
 
-**Safety:**
-- Requires `--allow-writes` flag
-- WHERE clause is mandatory (no mass updates)
-- Validates column names and types
+### redis_del
+删除 key。
 
-## [S6] sql_delete Tool
+**Input:** `{"database": "redis", "key": "cache:old"}`
+**Safety:** 需 `--allow-writes` + `--confirm-delete`
 
-Delete records.
+### redis_keys
+搜索 key 模式。
 
-**Input:**
-```json
-{
-  "table": "comments",
-  "where": "id = ?",
-  "args": [5]
-}
-```
+**Input:** `{"database": "redis", "pattern": "user:*"}`
+**Safety:** 只读，始终允许
 
-**Output:**
-```
-Deleted 1 row from comments
-```
+### redis_hgetall
+获取 hash 的所有字段。
 
-**Safety:**
-- Requires `--allow-writes` flag AND `--confirm-delete` flag
-- WHERE clause is mandatory (no mass deletes)
-- Logs the deletion for audit
+**Input:** `{"database": "redis", "key": "user:1001"}`
+**Safety:** 只读，始终允许
+
+### redis_lrange
+获取 list 范围。
+
+**Input:** `{"database": "redis", "key": "queue:tasks", "start": 0, "stop": -1}`
+**Safety:** 只读，始终允许
+
+### redis_info
+获取 Redis 服务器信息。
+
+**Input:** `{"database": "redis"}`
+**Safety:** 只读，始终允许
+
+## [S4] VectorDB 工具集
+
+### vector_search
+语义搜索。
+
+**Input:** `{"database": "qdrant", "collection": "documents", "query": "machine learning", "top_k": 5}`
+**Output:** 相似文档列表 + 相似度分数
+**Safety:** 只读，始终允许
+
+### vector_insert
+插入向量。
+
+**Input:** `{"database": "qdrant", "collection": "documents", "id": "doc-1", "text": "...", "metadata": {...}}`
+**Safety:** 需 `--allow-writes`
+
+### vector_delete
+删除向量。
+
+**Input:** `{"database": "qdrant", "collection": "documents", "id": "doc-1"}`
+**Safety:** 需 `--allow-writes` + `--confirm-delete`
+
+### vector_collections
+列出所有 collection。
+
+**Input:** `{"database": "qdrant"}`
+**Safety:** 只读，始终允许
+
+## [S5] 安全分级总表
+
+| 工具 | 始终允许 | --allow-writes | --confirm-delete |
+|------|---------|----------------|-----------------|
+| sql_query | ✅ | | |
+| sql_schema | ✅ | | |
+| sql_analyze | ✅ | | |
+| sql_refresh_schema | ✅ | | |
+| sql_insert | | ✅ | |
+| sql_update | | ✅ | |
+| sql_delete | | | ✅ |
+| redis_get | ✅ | | |
+| redis_keys | ✅ | | |
+| redis_hgetall | ✅ | | |
+| redis_lrange | ✅ | | |
+| redis_info | ✅ | | |
+| redis_set | | ✅ | |
+| redis_del | | | ✅ |
+| vector_search | ✅ | | |
+| vector_collections | ✅ | | |
+| vector_insert | | ✅ | |
+| vector_delete | | | ✅ |

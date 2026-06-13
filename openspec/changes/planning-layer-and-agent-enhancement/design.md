@@ -253,14 +253,35 @@ How does the agent know which database to query?
 - Pro: Safe
 - Con: Very limited
 
-**Decision: Tiered safety.**
-- Read-only operations (ps, get, logs, describe): always allowed
-- Write operations (build, apply, scale): require `--allow-infra` flag
-- Destructive operations (delete, rm): require `--allow-infra` AND `--confirm-destructive`
+**Option C: Advisory mode (决策)** — Agent generates commands, shows to user, user confirms before execution.
+- Pro: Safe + useful
+- Con: Extra interaction step
+
+**Decision: Option C + tiered safety.**
+- Read-only operations: always allowed (no confirmation)
+- Write operations: require `--allow-infra` flag
+- Destructive operations: require `--allow-infra` AND `--confirm-destructive`
+- Agent always shows the command before executing (advisory mode)
+
+### D4. Product Positioning
+
+**决策：AI 助手（顾问角色）**
+
+Golem 不是一个"自动操作"的 agent，而是一个"理解 + 建议 + 受控执行"的 agent。
+
+| 能力 | 角色 | 安全级别 |
+|---|---|---|
+| 理解 schema | Agent 自动读取，注入 prompt | 无风险 |
+| 生成 SQL | Agent 根据 schema 生成，展示给用户 | 无风险 |
+| 分析数据 | Agent 执行 SELECT 分析 | 只读，安全 |
+| 执行写操作 | Agent 生成 SQL，用户确认后执行 | 需确认 |
+| Docker/K8s | Agent 生成命令，用户确认后执行 | 需确认 |
+
+**核心理念：Agent 是"顾问"，不是"操作员"。**
 
 ## Risks
 
-- **Multi-database complexity**: 5 database drivers × tools = significant code. Mitigation: start with SQLite + MySQL, add others incrementally.
-- **Infrastructure safety**: Docker/K8s commands can be destructive. Mitigation: tiered safety with explicit flags.
+- **Multi-database complexity**: 5 database types × tools = significant code. Mitigation: start with SQLite + MySQL, add others incrementally.
+- **Infrastructure safety**: Docker/K8s commands can be destructive. Mitigation: advisory mode + tiered safety.
 - **Connection management**: Multiple database connections consume resources. Mitigation: lazy connection + connection pool + cleanup on shutdown.
-- **Token overhead**: Multiple database schemas in system prompt. Mitigation: inject only default database schema, others on request.
+- **Token overhead**: Multiple database schemas in system prompt. Mitigation: inject summary only, details on demand.

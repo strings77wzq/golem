@@ -115,6 +115,47 @@ Execute command in container.
 
 **Safety:** Requires `--allow-infra` flag.
 
+### docker_push
+
+Push image to registry.
+
+**Input:**
+```json
+{
+  "action": "push",
+  "tag": "golem:latest",
+  "registry": "ghcr.io/strings77wzq"
+}
+```
+
+**Output:**
+```
+Pushed golem:latest to ghcr.io/strings77wzq/golem:latest
+```
+
+**Safety:** Requires `--allow-infra` flag.
+
+### docker_images
+
+List local images.
+
+**Input:**
+```json
+{
+  "action": "images",
+  "filter": "dangling=true"
+}
+```
+
+**Output:**
+```
+| REPOSITORY | TAG | IMAGE ID | CREATED | SIZE |
+|-----------|-----|----------|---------|------|
+| golem | latest | abc123 | 2 hours ago | 15MB |
+```
+
+**Safety:** Always allowed (read-only).
+
 ## [S2] Kubernetes Tools
 
 ### k8s_get
@@ -293,7 +334,9 @@ Rollback to previous version.
 |-----------|---------------|---------------|----------------------|
 | docker ps | ✅ | | |
 | docker logs | ✅ | | |
+| docker images | ✅ | | |
 | docker build | | ✅ | |
+| docker push | | ✅ | |
 | docker run | | ✅ | |
 | docker stop | | ✅ | |
 | docker exec | | ✅ | |
@@ -307,3 +350,14 @@ Rollback to previous version.
 | helm install | | ✅ | |
 | helm upgrade | | ✅ | |
 | helm rollback | | ✅ | |
+| redis_get | ✅ | | |
+| redis_keys | ✅ | | |
+| redis_hgetall | ✅ | | |
+| redis_lrange | ✅ | | |
+| redis_info | ✅ | | |
+| redis_set | | ✅ | |
+| redis_del | | | ✅ |
+| vector_search | ✅ | | |
+| vector_collections | ✅ | | |
+| vector_insert | | ✅ | |
+| vector_delete | | | ✅ |
