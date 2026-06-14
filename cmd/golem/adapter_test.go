@@ -6,11 +6,12 @@ import (
 
 	"github.com/strings77wzq/golem/core/tools"
 	"github.com/strings77wzq/golem/foundation/logger"
+	"github.com/strings77wzq/golem/internal/wiring"
 )
 
 func TestLoadSkillsDefault(t *testing.T) {
 	log := logger.New(logger.DefaultOptions())
-	registry := loadSkills(log, "", "")
+	registry := wiring.LoadSkills(log, "", "")
 	if registry.Count() == 0 {
 		t.Error("expected built-in skills to be registered")
 	}
@@ -18,7 +19,7 @@ func TestLoadSkillsDefault(t *testing.T) {
 
 func TestLoadSkillsFilter(t *testing.T) {
 	log := logger.New(logger.DefaultOptions())
-	registry := loadSkills(log, "", "summarize")
+	registry := wiring.LoadSkills(log, "", "summarize")
 	if registry.Count() != 1 {
 		t.Errorf("expected 1 filtered skill, got %d", registry.Count())
 	}
@@ -26,8 +27,8 @@ func TestLoadSkillsFilter(t *testing.T) {
 
 func TestBuildSystemPromptEmpty(t *testing.T) {
 	log := logger.New(logger.DefaultOptions())
-	registry := loadSkills(log, "", "")
-	prompt := buildSystemPrompt("base prompt", registry)
+	registry := wiring.LoadSkills(log, "", "")
+	prompt := wiring.BuildSystemPrompt("base prompt", registry)
 	if prompt == "" {
 		t.Error("expected non-empty prompt")
 	}
@@ -35,8 +36,8 @@ func TestBuildSystemPromptEmpty(t *testing.T) {
 
 func TestBuildSystemPromptWithSkills(t *testing.T) {
 	log := logger.New(logger.DefaultOptions())
-	registry := loadSkills(log, "", "summarize")
-	prompt := buildSystemPrompt("base prompt", registry)
+	registry := wiring.LoadSkills(log, "", "summarize")
+	prompt := wiring.BuildSystemPrompt("base prompt", registry)
 	if prompt == "" {
 		t.Error("expected non-empty prompt")
 	}

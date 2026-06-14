@@ -14,6 +14,7 @@ import (
 	"github.com/strings77wzq/golem/core/config"
 	"github.com/strings77wzq/golem/core/providers"
 	"github.com/strings77wzq/golem/core/session"
+	"github.com/strings77wzq/golem/internal/wiring"
 )
 
 func executeRootCommand(t *testing.T, args ...string) (string, string, error) {
@@ -132,7 +133,7 @@ func TestListModelNames(t *testing.T) {
 }
 
 func TestBuildToolRegistry(t *testing.T) {
-	registry := buildToolRegistry(t.TempDir())
+	registry := wiring.BuildToolRegistry(t.TempDir())
 	defs := registry.ListDefinitions()
 	if len(defs) != 5 {
 		t.Fatalf("expected 5 tool definitions, got %d", len(defs))
@@ -147,7 +148,7 @@ func TestBuildToolRegistry(t *testing.T) {
 }
 
 func TestRegisterProviders(t *testing.T) {
-	factory := registerProviders(newTestConfig())
+	factory := wiring.RegisterProviders(newTestConfig())
 
 	for _, vendor := range []string{"mock", "openai", "anthropic", "deepseek"} {
 		if _, err := factory.GetProvider(vendor); err != nil {

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/strings77wzq/golem/internal/wiring"
 )
 
 func TestBuildDBToolsCreatesRegistry(t *testing.T) {
@@ -14,7 +16,7 @@ func TestBuildDBToolsCreatesRegistry(t *testing.T) {
 		t.Fatalf("createTestDB: %v", err)
 	}
 
-	dbReg, toolReg := buildDBTools(dbPath)
+	dbReg, toolReg := wiring.BuildDBTools(dbPath)
 	if dbReg == nil {
 		t.Fatal("expected dbRegistry to be non-nil")
 	}
@@ -47,7 +49,7 @@ func TestBuildDBToolsQueryReturnsRealData(t *testing.T) {
 		t.Fatalf("createTestDB: %v", err)
 	}
 
-	_, toolReg := buildDBTools(dbPath)
+	_, toolReg := wiring.BuildDBTools(dbPath)
 	tool, found := toolReg.Get("sql_query")
 	if !found {
 		t.Fatal("sql_query not found")
@@ -68,7 +70,7 @@ func TestBuildDBToolsQueryReturnsRealData(t *testing.T) {
 }
 
 func TestBuildDBToolsEmptyPath(t *testing.T) {
-	dbReg, toolReg := buildDBTools("")
+	dbReg, toolReg := wiring.BuildDBTools("")
 	if dbReg != nil {
 		t.Error("expected nil dbRegistry for empty path")
 	}

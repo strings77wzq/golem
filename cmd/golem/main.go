@@ -17,15 +17,12 @@ import (
 	"github.com/strings77wzq/golem/core/agent"
 	"github.com/strings77wzq/golem/core/bus"
 	"github.com/strings77wzq/golem/core/config"
-	dbcore "github.com/strings77wzq/golem/core/database"
 	"github.com/strings77wzq/golem/core/session"
-	"github.com/strings77wzq/golem/core/tools"
-	dbtools "github.com/strings77wzq/golem/core/tools/database"
-	"github.com/strings77wzq/golem/core/tools/infra"
 	"github.com/strings77wzq/golem/foundation/logger"
 	"github.com/strings77wzq/golem/foundation/term"
 	"github.com/strings77wzq/golem/internal/channels/telegram"
 	"github.com/strings77wzq/golem/internal/gateway"
+	"github.com/strings77wzq/golem/internal/wiring"
 )
 
 var (
@@ -122,14 +119,14 @@ func runAgent(cmd *cobra.Command) error {
 	}
 
 	// Build core registries
-	skillRegistry := loadSkills(log, skillsDir, skillsFilter)
+	skillRegistry := wiring.LoadSkills(log, skillsDir, skillsFilter)
 	b := bus.New()
 	workspace, _ := os.Getwd()
-	registry := buildToolRegistry(workspace)
+	registry := wiring.BuildToolRegistry(workspace)
 
 	// Load database tools
 	if dbFlag != "" {
-		_, dbTools := buildDBTools(dbFlag)
+		_, dbTools := wiring.BuildDBTools(dbFlag)
 		if dbTools != nil {
 			for _, t := range dbTools.ListTools() {
 				registry.Register(t)
@@ -140,9 +137,7 @@ func runAgent(cmd *cobra.Command) error {
 
 	// Load infrastructure tools
 	if infraFlag {
-		registry.Register(infra.NewKubectlTool())
-		registry.Register(infra.NewDockerTool())
-		registry.Register(infra.NewHelmTool())
+		wiring.RegisterInfraTools(registry)
 		log.Info("loaded infrastructure tools", "tools", 3)
 	}
 
@@ -157,7 +152,7 @@ func runAgent(cmd *cobra.Command) error {
 		return err
 	}
 
-	factory := registerProviders(cfg)
+	factory := wiring.RegisterProviders(cfg)
 
 	store, err := openAgentSessionStore(cmd)
 	if err != nil {
@@ -172,7 +167,7 @@ func runAgent(cmd *cobra.Command) error {
 		sessionStore = session.NewMemoryStore()
 	}
 
-	systemPrompt := buildSystemPrompt(cfg.Agents.Defaults.SystemPrompt, skillRegistry)
+	systemPrompt := wiring.BuildSystemPrompt(cfg.Agents.Defaults.SystemPrompt, skillRegistry)
 	history := session.NewHistoryManager(cfg.Agents.Defaults.MaxTokens)
 	ag := agent.New(b, registry, factory, sessionStore, history, log, cfg, agent.WithSystemPrompt(systemPrompt))
 
@@ -249,8 +244,8 @@ func newGatewayCommand() *cobra.Command {
 
 			b := bus.New()
 			workspace, _ := os.Getwd()
-			registry := buildToolRegistry(workspace)
-			factory := registerProviders(cfg)
+			registry := wiring.BuildToolRegistry(workspace)
+			factory := wiring.RegisterProviders(cfg)
 			log := logger.New(logger.DefaultOptions())
 
 			store, err := openAgentSessionStore(cmd)
@@ -400,30 +395,6 @@ func listModelNames(cfg *config.Config) string {
 func mustGetString(cmd *cobra.Command, name string) string {
 	v, _ := cmd.Flags().GetString(name)
 	return v
-}
-
-// buildDBTools creates database tools from a database path.
-func buildDBTools(dbPath string) (*dbcore.Registry, *tools.Registry) {
-	if dbPath == "" {
-		return nil, nil
-	}
-
-	dbRegistry := dbcore.NewRegistry()
-	driverName := "default"
-	driver := dbcore.NewSQLiteDriver(driverName, dbPath)
-	if err := driver.Connect(context.Background()); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to connect to database %s: %v\n", dbPath, err)
-		return nil, nil
-	}
-	dbRegistry.RegisterSQL(driverName, driver)
-	dbRegistry.SetDefault(driverName)
-
-	toolRegistry := tools.NewRegistry()
-	toolRegistry.Register(dbtools.NewSQLQueryTool(dbRegistry))
-	toolRegistry.Register(dbtools.NewSQLSchemaTool(dbRegistry))
-	toolRegistry.Register(dbtools.NewSQLAnalyzeTool(dbRegistry))
-
-	return dbRegistry, toolRegistry
 }
 
 func main() {
