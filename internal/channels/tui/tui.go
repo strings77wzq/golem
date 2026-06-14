@@ -225,6 +225,18 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.atBottom = true
 			return m, nil
 		}
+	case tea.KeyCtrlU:
+		if m.ready {
+			m.viewport.HalfPageUp()
+			m.atBottom = m.viewport.AtBottom()
+			return m, nil
+		}
+	case tea.KeyCtrlD:
+		if m.ready {
+			m.viewport.HalfPageDown()
+			m.atBottom = m.viewport.AtBottom()
+			return m, nil
+		}
 	}
 
 	switch msg.Type {
