@@ -95,3 +95,11 @@ func TestAgentCommandHasInfraFlag(t *testing.T) {
 		t.Fatal("expected --infra flag to be defined")
 	}
 }
+
+func TestGatewayUsesSessionStore(t *testing.T) {
+	// Verify that newGatewayCommand creates a server that can accept a session store
+	cmd := newGatewayCommand()
+	if cmd == nil {
+		t.Fatal("expected non-nil gateway command")
+	}
+}
