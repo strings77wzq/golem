@@ -42,6 +42,13 @@ type ExecTool struct {
 	allowList    []string
 	denyList     []string
 	allowShell   bool
+	validator    CommandValidator
+}
+
+// CommandValidator is an optional interface for custom command validation.
+// If set, it is called after the built-in security checks.
+type CommandValidator interface {
+	ValidateCommand(cmd string) error
 }
 
 type Option func(*ExecTool)
@@ -75,6 +82,13 @@ func WithDenyList(commands []string) Option {
 func WithAllowShell() Option {
 	return func(t *ExecTool) {
 		t.allowShell = true
+	}
+}
+
+// WithValidator adds a custom command validator that runs after built-in security checks.
+func WithValidator(v CommandValidator) Option {
+	return func(t *ExecTool) {
+		t.validator = v
 	}
 }
 
@@ -344,6 +358,14 @@ func (t *ExecTool) checkSecurity(command string) (bool, string) {
 		}
 	case SecurityModeDenylist:
 	}
+
+	// Custom validator (if set)
+	if t.validator != nil {
+		if err := t.validator.ValidateCommand(command); err != nil {
+			return true, fmt.Sprintf("custom validation failed: %v", err)
+		}
+	}
+
 	return false, ""
 }
 

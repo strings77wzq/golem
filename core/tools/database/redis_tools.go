@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/strings77wzq/golem/core/database"
 	"github.com/strings77wzq/golem/core/tools"
@@ -86,17 +87,15 @@ func (t *RedisSetTool) Execute(ctx context.Context, args map[string]interface{})
 		return &tools.ToolResult{ForLLM: fmt.Sprintf("Error: %v", err), IsError: true}, nil
 	}
 
-	var ttl int64
-	if t, ok := args["ttl"].(float64); ok {
-		ttl = int64(t)
+	var ttl time.Duration
+	if t, ok := args["ttl"].(float64); ok && t > 0 {
+		ttl = time.Duration(t) * time.Second
 	}
 
-	err = driver.Set(ctx, key, value, 0)
+	err = driver.Set(ctx, key, value, ttl)
 	if err != nil {
 		return &tools.ToolResult{ForLLM: fmt.Sprintf("Error: %v", err), IsError: true}, nil
 	}
-
-	_ = ttl // TODO: implement TTL
 	return &tools.ToolResult{ForLLM: "OK", ForUser: fmt.Sprintf("Set %s", key)}, nil
 }
 
