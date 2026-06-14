@@ -381,7 +381,12 @@ func (m Model) buildTranscript() string {
 			b.WriteString(assistantStyle.Render("AI:  "))
 			b.WriteString(msg.content)
 		case roleProgress:
-			b.WriteString(msg.content)
+			// Check if content contains a Markdown table
+			if isMarkdownTable(msg.content) {
+				b.WriteString(renderTable(msg.content))
+			} else {
+				b.WriteString(msg.content)
+			}
 		}
 		b.WriteString("\n")
 	}
