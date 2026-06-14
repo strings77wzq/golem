@@ -282,9 +282,24 @@ func (a *Agent) processMessage(
 		// Process results in order (but execution was parallel)
 		for i, tc := range resp.ToolCalls {
 			if errors[i] != nil {
+				// Build informative error message for LLM
+				errMsg := fmt.Sprintf("Tool %q failed: %v", tc.Name, errors[i])
+				
+				// Add available tools hint if tool not found
+				if strings.Contains(errors[i].Error(), "not found") {
+					var available []string
+					for _, t := range a.toolRegistry.ListTools() {
+						available = append(available, t.Name())
+					}
+					if len(available) > 0 {
+						errMsg += fmt.Sprintf("\nAvailable tools: %s", strings.Join(available, ", "))
+					}
+					errMsg += "\nPlease try a different tool."
+				}
+				
 				sess.AddMessage(providers.Message{
 					Role:       providers.RoleTool,
-					Content:    fmt.Sprintf("tool execution error: %v", errors[i]),
+					Content:    errMsg,
 					ToolCallID: tc.ID,
 				})
 				continue
