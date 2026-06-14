@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/strings77wzq/golem/core/database"
+	"github.com/strings77wzq/golem/core/security"
 	"github.com/strings77wzq/golem/core/tools"
 )
 
@@ -18,18 +19,24 @@ const (
 
 // SQLQueryTool executes SQL queries on a database.
 type SQLQueryTool struct {
-	registry *database.Registry
-	maxRows  int
+	registry  *database.Registry
+	maxRows   int
+	permLevel security.PermissionLevel
 }
 
-// NewSQLQueryTool creates a new SQL query tool.
+// NewSQLQueryTool creates a new SQL query tool (read-only by default).
 func NewSQLQueryTool(registry *database.Registry) *SQLQueryTool {
-	return &SQLQueryTool{registry: registry, maxRows: defaultMaxRows}
+	return &SQLQueryTool{registry: registry, maxRows: defaultMaxRows, permLevel: security.PermRead}
 }
 
 // NewSQLQueryToolWithMaxRows creates a SQL query tool with custom max rows.
 func NewSQLQueryToolWithMaxRows(registry *database.Registry, maxRows int) *SQLQueryTool {
-	return &SQLQueryTool{registry: registry, maxRows: maxRows}
+	return &SQLQueryTool{registry: registry, maxRows: maxRows, permLevel: security.PermRead}
+}
+
+// NewSQLQueryToolWithPermission creates a SQL query tool with custom permission level.
+func NewSQLQueryToolWithPermission(registry *database.Registry, permLevel security.PermissionLevel) *SQLQueryTool {
+	return &SQLQueryTool{registry: registry, maxRows: defaultMaxRows, permLevel: permLevel}
 }
 
 func (t *SQLQueryTool) Name() string        { return "sql_query" }
@@ -50,14 +57,28 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 		return &tools.ToolResult{ForLLM: "Error: sql parameter is required", IsError: true}, nil
 	}
 
-	// Safety: only allow SELECT
-	trimmed := strings.TrimSpace(strings.ToUpper(sqlQuery))
-	if !strings.HasPrefix(trimmed, "SELECT") {
+	// Security gate: classify operation and check permissions
+	opLevel := classifyOperation(sqlQuery)
+	checker := security.NewPermissionChecker(t.permLevel)
+	if err := checker.Check(opLevel, dbName, sqlQuery); err != nil {
 		return &tools.ToolResult{
-			ForLLM:  "Error: only SELECT queries are allowed by default. Use --allow-writes for INSERT/UPDATE/DELETE.",
-			ForUser: "Write operations require --allow-writes flag",
+			ForLLM:  fmt.Sprintf("Security: %v", err),
+			ForUser: "Operation not permitted",
 			IsError: true,
 		}, nil
+	}
+
+	// Quality gate: check WHERE clause for write operations
+	if opLevel >= security.PermWrite {
+		gate := security.NewQualityGate()
+		gateResult := gate.CheckSQL(ctx, sqlQuery, 0)
+		if !gateResult.Passed {
+			return &tools.ToolResult{
+				ForLLM:  fmt.Sprintf("Safety check failed: %v", gateResult.Warnings),
+				ForUser: "Operation blocked by safety gate",
+				IsError: true,
+			}, nil
+		}
 	}
 
 	driver, err := t.registry.GetSQL(dbName)
@@ -66,38 +87,72 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 	}
 
 	queryArgs := t.parseArgs(args)
-	rows, err := driver.Query(ctx, sqlQuery, queryArgs...)
-	if err != nil {
-		return &tools.ToolResult{ForLLM: fmt.Sprintf("Query error: %v", err), IsError: true}, nil
-	}
 
-	if len(rows) == 0 {
-		return &tools.ToolResult{ForLLM: "Query returned 0 rows.", ForUser: "No results found."}, nil
-	}
+	// For read operations, use Query
+	if opLevel <= security.PermRead {
+		rows, err := driver.Query(ctx, sqlQuery, queryArgs...)
+		if err != nil {
+			return &tools.ToolResult{ForLLM: fmt.Sprintf("Query error: %v", err), IsError: true}, nil
+		}
 
-	totalRows := len(rows)
+		if len(rows) == 0 {
+			return &tools.ToolResult{ForLLM: "Query returned 0 rows.", ForUser: "No results found."}, nil
+		}
 
-	// Smart aggregation for large result sets
-	if totalRows > summaryThreshold {
-		summary := t.formatSummary(rows, totalRows, sqlQuery)
+		totalRows := len(rows)
+
+		// Smart aggregation for large result sets
+		if totalRows > summaryThreshold {
+			summary := t.formatSummary(rows, totalRows, sqlQuery)
+			return &tools.ToolResult{
+				ForLLM:  summary,
+				ForUser: fmt.Sprintf("Found %d rows (showing summary)", totalRows),
+			}, nil
+		}
+
+		// Truncate if over maxRows
+		truncated := false
+		if totalRows > t.maxRows {
+			rows = rows[:t.maxRows]
+			truncated = true
+		}
+
+		result := t.formatRows(rows, truncated, totalRows)
 		return &tools.ToolResult{
-			ForLLM:  summary,
-			ForUser: fmt.Sprintf("Found %d rows (showing summary)", totalRows),
+			ForLLM:  result,
+			ForUser: fmt.Sprintf("Found %d rows%s", totalRows, t.truncationNote(truncated, totalRows)),
 		}, nil
 	}
 
-	// Truncate if over maxRows
-	truncated := false
-	if totalRows > t.maxRows {
-		rows = rows[:t.maxRows]
-		truncated = true
+	// For write operations, use Execute
+	res, err := driver.Execute(ctx, sqlQuery, queryArgs...)
+	if err != nil {
+		return &tools.ToolResult{ForLLM: fmt.Sprintf("Execute error: %v", err), IsError: true}, nil
 	}
 
-	result := t.formatRows(rows, truncated, totalRows)
 	return &tools.ToolResult{
-		ForLLM:  result,
-		ForUser: fmt.Sprintf("Found %d rows%s", totalRows, t.truncationNote(truncated, totalRows)),
+		ForLLM:  fmt.Sprintf("OK: %d rows affected", res.RowsAffected),
+		ForUser: fmt.Sprintf("Executed: %d rows affected", res.RowsAffected),
 	}, nil
+}
+
+// classifyOperation determines the permission level needed for a SQL operation.
+func classifyOperation(sql string) security.PermissionLevel {
+	upper := strings.TrimSpace(strings.ToUpper(sql))
+	switch {
+	case strings.HasPrefix(upper, "SELECT"):
+		return security.PermRead
+	case strings.HasPrefix(upper, "INSERT"):
+		return security.PermWrite
+	case strings.HasPrefix(upper, "UPDATE"):
+		return security.PermWrite
+	case strings.HasPrefix(upper, "DELETE"):
+		return security.PermDelete
+	case strings.HasPrefix(upper, "DROP"), strings.HasPrefix(upper, "ALTER"), strings.HasPrefix(upper, "TRUNCATE"):
+		return security.PermAdmin
+	default:
+		return security.PermAdmin
+	}
 }
 
 func (t *SQLQueryTool) getDefaultDB(args map[string]interface{}) string {

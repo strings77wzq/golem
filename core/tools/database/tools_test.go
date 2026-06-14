@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/strings77wzq/golem/core/database"
+	"github.com/strings77wzq/golem/core/security"
 )
 
 func setupTestDB(t *testing.T) *database.Registry {
@@ -237,5 +238,110 @@ func TestSQLQueryToolSummary(t *testing.T) {
 	}
 	if !strings.Contains(result.ForLLM, "152 rows") {
 		t.Errorf("expected total row count, got: %s", result.ForLLM[:100])
+	}
+}
+
+func TestSQLQueryToolSecurityGateWriteBlocked(t *testing.T) {
+	reg := setupTestDB(t)
+	tool := NewSQLQueryTool(reg)
+
+	// DELETE without permission should be blocked
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"sql": "DELETE FROM users WHERE id = 1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError {
+		t.Error("expected error for DELETE operation")
+	}
+	if !strings.Contains(result.ForLLM, "Security") && !strings.Contains(result.ForLLM, "permissions") {
+		t.Errorf("expected security error message, got: %s", result.ForLLM)
+	}
+}
+
+func TestSQLQueryToolSecurityGateUpdateWithoutWhere(t *testing.T) {
+	reg := setupTestDB(t)
+	tool := NewSQLQueryTool(reg)
+
+	// UPDATE without WHERE should be blocked
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"sql": "UPDATE users SET name = 'hacked'",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError {
+		t.Error("expected error for UPDATE without WHERE")
+	}
+}
+
+func TestSQLQueryToolSecurityGateSelectAllowed(t *testing.T) {
+	reg := setupTestDB(t)
+	tool := NewSQLQueryTool(reg)
+
+	// SELECT should always be allowed
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"sql": "SELECT * FROM users WHERE id = 1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Errorf("unexpected error for SELECT: %s", result.ForLLM)
+	}
+}
+
+func TestSQLQueryToolSecurityGateDropBlocked(t *testing.T) {
+	reg := setupTestDB(t)
+	tool := NewSQLQueryTool(reg)
+
+	// DROP TABLE should be blocked
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"sql": "DROP TABLE users",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError {
+		t.Error("expected error for DROP TABLE")
+	}
+}
+
+func TestSQLQueryToolWithWritePermission(t *testing.T) {
+	reg := setupTestDB(t)
+	tool := NewSQLQueryToolWithPermission(reg, security.PermWrite)
+
+	// INSERT should be allowed with write permission
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"sql": "INSERT INTO users (name, email) VALUES ('test', 'test@example.com')",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Errorf("unexpected error for INSERT with write permission: %s", result.ForLLM)
+	}
+	if !strings.Contains(result.ForLLM, "rows affected") {
+		t.Errorf("expected rows affected message, got: %s", result.ForLLM)
+	}
+}
+
+func TestSQLQueryToolWithWritePermissionUpdateWithoutWhere(t *testing.T) {
+	reg := setupTestDB(t)
+	tool := NewSQLQueryToolWithPermission(reg, security.PermWrite)
+
+	// UPDATE without WHERE should be blocked even with write permission
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"sql": "UPDATE users SET name = 'hacked'",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError {
+		t.Error("expected error for UPDATE without WHERE")
+	}
+	if !strings.Contains(result.ForLLM, "Safety") && !strings.Contains(result.ForLLM, "WHERE") {
+		t.Errorf("expected safety error about WHERE clause, got: %s", result.ForLLM)
 	}
 }
