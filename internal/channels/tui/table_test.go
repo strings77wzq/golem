@@ -83,3 +83,26 @@ func TestIsMarkdownTable(t *testing.T) {
 		t.Error("expected false for empty string")
 	}
 }
+
+func TestRenderTableRowCount(t *testing.T) {
+	input := "| id | name |\n|----|------|\n| 1 | Alice |\n| 2 | Bob |"
+	output := renderTable(input)
+	// Should show "(3 rows)" — header + 2 data rows
+	if !strings.Contains(output, "(3 rows)") {
+		t.Errorf("expected '(3 rows)' in output, got:\n%s", output)
+	}
+}
+
+func TestRenderTableRowCountTruncated(t *testing.T) {
+	// Create table with >20 rows to trigger truncation
+	var sb strings.Builder
+	sb.WriteString("| id | name |\n|----|------|\n")
+	for i := 0; i < 25; i++ {
+		sb.WriteString("| 1 | data |\n")
+	}
+	output := renderTable(sb.String())
+	// Should show "(showing 20 of 26 rows)" — 1 header + 25 data = 26 total, show 20
+	if !strings.Contains(output, "showing 20 of 26 rows") {
+		t.Errorf("expected '(showing 20 of 26 rows)' in output, got:\n%s", output)
+	}
+}

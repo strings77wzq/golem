@@ -90,6 +90,23 @@ curl http://localhost:18790/v1/chat/completions \
 - **VectorDB** — vector_search, vector_insert, vector_delete (Qdrant)
 - **Multi-database** — query across SQLite + MySQL + PostgreSQL simultaneously
 
+### MCP Server
+- **Expose tools via MCP** — other agents (Claude Code, Cursor, OpenClaw) can call your tools
+- **stdio transport** — connect via stdin/stdout JSON-RPC
+- **Real tools** — not stubs. SQL queries, file ops, exec — all functional
+- **Read-only mode** — expose only read operations for safety
+
+```bash
+# Start MCP server with database
+golem mcp-server --db ./mydata.db
+
+# Expose specific tools
+golem mcp-server --db ./mydata.db --tools sql_query,sql_schema
+
+# Read-only mode (no exec, no file_write)
+golem mcp-server --db ./mydata.db --read-only
+```
+
 ### Infrastructure Operations
 - **Docker** — build, run, stop, ps, logs, exec, push, images
 - **Kubernetes** — get, apply, delete, describe, logs, scale
@@ -152,15 +169,44 @@ golem gateway    # HTTP API on :18790
 # Connect to SQLite
 golem agent --db ./mydata.db -m "What tables exist?"
 
-# Connect to MySQL
-golem agent --db "mysql://user:pass@localhost:3306/mydb" -m "Show me the schema"
-
 # Query data
 golem agent --db ./mydata.db -m "SELECT * FROM users WHERE role = 'admin'"
 
 # Analyze table
 golem agent --db ./mydata.db -m "Analyze the orders table"
+
+# Create demo database
+golem demo-db .golem-demo.db
+
+# Analyze demo database
+golem agent --db .golem-demo.db -m "Analyze this database and suggest optimizations"
 ```
+
+---
+
+## MCP Server
+
+Golem can act as an MCP (Model Context Protocol) server, exposing its tools to other AI agents:
+
+```bash
+# Start MCP server
+golem mcp-server --db ./mydata.db
+
+# Connect from Claude Code / Cursor / OpenClaw
+# Add to your MCP config:
+{
+  "command": "golem",
+  "args": ["mcp-server", "--db", "./mydata.db"]
+}
+```
+
+Available tools via MCP:
+- `sql_query` — Execute SQL SELECT queries
+- `sql_schema` — Get database schema information
+- `sql_analyze` — Analyze table data distribution
+- `exec` — Execute shell commands (disabled in read-only mode)
+- `file_read` / `file_write` — File operations
+- `web_search` — Search the web
 
 ---
 
@@ -193,6 +239,31 @@ User Request → Planner → Tool Selector → Agent Loop → LLM + Tools → Re
 
 ---
 
+## Project Structure
+
+```
+golem/
+├── cmd/golem/         # CLI entry point and composition root
+├── core/              # Domain logic
+│   ├── agent/         # Agent loop (ReAct)
+│   ├── tools/         # Tool implementations
+│   ├── database/      # Database drivers
+│   ├── providers/     # LLM providers
+│   └── session/       # Session management
+├── feature/           # Optional features (wired via CLI flags)
+│   ├── mcp/           # MCP client + server
+│   ├── rag/           # RAG pipeline
+│   ├── skills/        # Skill registry
+│   └── memory/        # Long-term memory
+├── internal/          # Internal adapters
+│   ├── channels/      # CLI, TUI, Telegram
+│   ├── gateway/       # HTTP gateway
+│   └── metrics/       # Prometheus metrics
+└── foundation/        # Infrastructure primitives
+```
+
+---
+
 ## Testing
 
 ```bash
@@ -200,6 +271,12 @@ go test ./...                                    # 38 packages
 go test -race ./...                              # race detector
 go test -coverprofile=coverage.out ./...         # coverage
 ```
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 

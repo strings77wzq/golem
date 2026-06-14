@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -162,9 +163,10 @@ func renderTable(raw string) string {
 	// Row count
 	sb.WriteString("(")
 	if truncated {
-		sb.WriteString("showing ")
+		sb.WriteString(fmt.Sprintf("showing %d of %d rows", len(showRows), totalRows))
+	} else {
+		sb.WriteString(fmt.Sprintf("%d rows", totalRows))
 	}
-	sb.WriteString(strings.Replace(string(rune('0'+totalRows)), string(rune('0'+totalRows)), "", -1))
 	sb.WriteString(")")
 
 	return sb.String()

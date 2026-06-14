@@ -17,7 +17,10 @@ import (
 	"github.com/strings77wzq/golem/core/agent"
 	"github.com/strings77wzq/golem/core/bus"
 	"github.com/strings77wzq/golem/core/config"
+	dbcore "github.com/strings77wzq/golem/core/database"
 	"github.com/strings77wzq/golem/core/session"
+	"github.com/strings77wzq/golem/core/tools"
+	dbtools "github.com/strings77wzq/golem/core/tools/database"
 	"github.com/strings77wzq/golem/foundation/logger"
 	"github.com/strings77wzq/golem/foundation/term"
 	"github.com/strings77wzq/golem/internal/channels/telegram"
@@ -87,6 +90,7 @@ func newAgentCommand() *cobra.Command {
 	cmd.Flags().String("mcp", "", "MCP servers configuration: JSON array of server configs")
 	cmd.Flags().String("memory", "", "Memory file path or JSON config for long-term memory")
 	cmd.Flags().String("telegram", "", "Telegram bot token or JSON config for Telegram channel")
+	cmd.Flags().String("db", "", "Database path (SQLite) for SQL tools")
 	return cmd
 }
 
@@ -98,6 +102,7 @@ func runAgent(cmd *cobra.Command) error {
 	noTUI, _ := cmd.Flags().GetBool("no-tui")
 	skillsDir, _ := cmd.Flags().GetString("skills-dir")
 	skillsFilter, _ := cmd.Flags().GetString("skills")
+	dbFlag, _ := cmd.Flags().GetString("db")
 
 	cfg, err := loadConfig(cmd)
 	if err != nil {
@@ -118,6 +123,17 @@ func runAgent(cmd *cobra.Command) error {
 	b := bus.New()
 	workspace, _ := os.Getwd()
 	registry := buildToolRegistry(workspace)
+
+	// Load database tools
+	if dbFlag != "" {
+		_, dbTools := buildDBTools(dbFlag)
+		if dbTools != nil {
+			for _, t := range dbTools.ListTools() {
+				registry.Register(t)
+			}
+			log.Info("loaded database tools", "db", dbFlag, "tools", dbTools.Count())
+		}
+	}
 
 	// Load feature tools
 	if err := loadRAGTools(cmd.Context(), cfg, mustGetString(cmd, "rag"), registry); err != nil {
@@ -359,6 +375,30 @@ func listModelNames(cfg *config.Config) string {
 func mustGetString(cmd *cobra.Command, name string) string {
 	v, _ := cmd.Flags().GetString(name)
 	return v
+}
+
+// buildDBTools creates database tools from a database path.
+func buildDBTools(dbPath string) (*dbcore.Registry, *tools.Registry) {
+	if dbPath == "" {
+		return nil, nil
+	}
+
+	dbRegistry := dbcore.NewRegistry()
+	driverName := "default"
+	driver := dbcore.NewSQLiteDriver(driverName, dbPath)
+	if err := driver.Connect(context.Background()); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to connect to database %s: %v\n", dbPath, err)
+		return nil, nil
+	}
+	dbRegistry.RegisterSQL(driverName, driver)
+	dbRegistry.SetDefault(driverName)
+
+	toolRegistry := tools.NewRegistry()
+	toolRegistry.Register(dbtools.NewSQLQueryTool(dbRegistry))
+	toolRegistry.Register(dbtools.NewSQLSchemaTool(dbRegistry))
+	toolRegistry.Register(dbtools.NewSQLAnalyzeTool(dbRegistry))
+
+	return dbRegistry, toolRegistry
 }
 
 func main() {

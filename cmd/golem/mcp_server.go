@@ -9,7 +9,12 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+	dbcore "github.com/strings77wzq/golem/core/database"
 	"github.com/strings77wzq/golem/core/tools"
+	dbtools "github.com/strings77wzq/golem/core/tools/database"
+	toolexec "github.com/strings77wzq/golem/core/tools/exec"
+	"github.com/strings77wzq/golem/core/tools/fileops"
+	"github.com/strings77wzq/golem/core/tools/websearch"
 	"github.com/strings77wzq/golem/feature/mcp"
 )
 
@@ -62,65 +67,53 @@ func buildMCPTools(dbPath string, readOnly bool, toolsFilter string) *tools.Regi
 			allowedTools[strings.TrimSpace(name)] = true
 		}
 	}
+	acceptAll := len(allowedTools) == 0
 
-	// Database tools are always available if dbPath is set
+	// Database tools
 	if dbPath != "" {
-		// SQLite driver will be initialized when tools are called
-		// For now, register tool stubs that will connect on first use
-		if len(allowedTools) == 0 || allowedTools["sql_query"] {
-			registry.Register(newMCPTool("sql_query", "Execute SQL SELECT query and return results"))
-		}
-		if len(allowedTools) == 0 || allowedTools["sql_schema"] {
-			registry.Register(newMCPTool("sql_schema", "Get database schema information"))
-		}
-		if len(allowedTools) == 0 || allowedTools["sql_analyze"] {
-			registry.Register(newMCPTool("sql_analyze", "Analyze data distribution for a table"))
+		dbRegistry := dbcore.NewRegistry()
+
+		driverName := "default"
+		driver := dbcore.NewSQLiteDriver(driverName, dbPath)
+		if err := driver.Connect(context.Background()); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to connect to database %s: %v\n", dbPath, err)
+		} else {
+			dbRegistry.RegisterSQL(driverName, driver)
+			dbRegistry.SetDefault(driverName)
+
+			if acceptAll || allowedTools["sql_query"] {
+				registry.Register(dbtools.NewSQLQueryTool(dbRegistry))
+			}
+			if acceptAll || allowedTools["sql_schema"] {
+				registry.Register(dbtools.NewSQLSchemaTool(dbRegistry))
+			}
+			if acceptAll || allowedTools["sql_analyze"] {
+				registry.Register(dbtools.NewSQLAnalyzeTool(dbRegistry))
+			}
 		}
 	}
 
 	// Non-database tools
-	if len(allowedTools) == 0 || allowedTools["exec"] {
+	workspace, err := os.Getwd()
+	if err != nil {
+		workspace = "."
+	}
+	if acceptAll || allowedTools["exec"] {
 		if !readOnly {
-			registry.Register(newMCPTool("exec", "Execute a shell command"))
+			registry.Register(toolexec.New(workspace))
 		}
 	}
-	if len(allowedTools) == 0 || allowedTools["file_read"] {
-		registry.Register(newMCPTool("file_read", "Read file contents"))
+	if acceptAll || allowedTools["file_read"] {
+		registry.Register(fileops.NewFileReadTool(workspace))
 	}
-	if len(allowedTools) == 0 || allowedTools["file_write"] {
+	if acceptAll || allowedTools["file_write"] {
 		if !readOnly {
-			registry.Register(newMCPTool("file_write", "Write content to a file"))
+			registry.Register(fileops.NewFileWriteTool(workspace))
 		}
 	}
-	if len(allowedTools) == 0 || allowedTools["web_search"] {
-		registry.Register(newMCPTool("web_search", "Search the web"))
+	if acceptAll || allowedTools["web_search"] {
+		registry.Register(websearch.New())
 	}
 
 	return registry
-}
-
-// mcpTool is a simple tool implementation for MCP server
-type mcpTool struct {
-	name        string
-	description string
-}
-
-func newMCPTool(name, description string) *mcpTool {
-	return &mcpTool{name: name, description: description}
-}
-
-func (t *mcpTool) Name() string        { return t.name }
-func (t *mcpTool) Description() string { return t.description }
-func (t *mcpTool) Parameters() []tools.ToolParameter {
-	return []tools.ToolParameter{
-		{Name: "input", Type: "string", Description: "Input for the tool", Required: true},
-	}
-}
-
-func (t *mcpTool) Execute(ctx context.Context, args map[string]interface{}) (*tools.ToolResult, error) {
-	input, _ := args["input"].(string)
-	return &tools.ToolResult{
-		ForLLM:  fmt.Sprintf("Tool %s executed with input: %s", t.name, input),
-		ForUser: fmt.Sprintf("Executed %s", t.name),
-	}, nil
 }
