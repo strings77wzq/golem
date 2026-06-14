@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestRegistrySQL(t *testing.T) {
@@ -237,5 +238,114 @@ func TestConfigJSON(t *testing.T) {
 	}
 	if cfg.Port != 3306 {
 		t.Errorf("Port = %d, want 3306", cfg.Port)
+	}
+}
+
+func TestPostgresDriverInterface(t *testing.T) {
+	driver := NewPostgresDriver("test-pg", "postgres://localhost:5432/test")
+	var _ SQLDriver = driver
+	if driver.Name() != "test-pg" {
+		t.Errorf("Name = %q, want test-pg", driver.Name())
+	}
+}
+
+func TestPostgresDriverNotConnected(t *testing.T) {
+	driver := NewPostgresDriver("test-pg", "postgres://localhost:5432/test")
+	ctx := context.Background()
+
+	_, err := driver.Query(ctx, "SELECT 1")
+	if err == nil {
+		t.Error("expected error for disconnected driver")
+	}
+
+	_, err = driver.Execute(ctx, "INSERT INTO test VALUES (1)")
+	if err == nil {
+		t.Error("expected error for disconnected driver")
+	}
+
+	_, err = driver.GetSchema(ctx)
+	if err == nil {
+		t.Error("expected error for disconnected driver")
+	}
+
+	_, err = driver.GetSchemaForTable(ctx, "test")
+	if err == nil {
+		t.Error("expected error for disconnected driver")
+	}
+
+	err = driver.Ping(ctx)
+	if err == nil {
+		t.Error("expected error for disconnected driver")
+	}
+}
+
+func TestMySQLDriverInterface(t *testing.T) {
+	driver := NewMySQLDriver("test-mysql", "root:pass@tcp(localhost:3306)/test")
+	var _ SQLDriver = driver
+	if driver.Name() != "test-mysql" {
+		t.Errorf("Name = %q, want test-mysql", driver.Name())
+	}
+}
+
+func TestMySQLDriverNotConnected(t *testing.T) {
+	driver := NewMySQLDriver("test-mysql", "root:pass@tcp(localhost:3306)/test")
+	ctx := context.Background()
+
+	_, err := driver.Query(ctx, "SELECT 1")
+	if err == nil {
+		t.Error("expected error for disconnected driver")
+	}
+
+	_, err = driver.Execute(ctx, "INSERT INTO test VALUES (1)")
+	if err == nil {
+		t.Error("expected error for disconnected driver")
+	}
+
+	_, err = driver.GetSchema(ctx)
+	if err == nil {
+		t.Error("expected error for disconnected driver")
+	}
+
+	err = driver.Ping(ctx)
+	if err == nil {
+		t.Error("expected error for disconnected driver")
+	}
+}
+
+func TestRedisDriverInterface(t *testing.T) {
+	driver := NewRedisDriver("test-redis")
+	var _ RedisDriver = driver
+	if driver.Name() != "test-redis" {
+		t.Errorf("Name = %q, want test-redis", driver.Name())
+	}
+}
+
+func TestRedisDriverNotConnected(t *testing.T) {
+	driver := NewRedisDriver("test-redis")
+	ctx := context.Background()
+
+	_, err := driver.Get(ctx, "key")
+	if err == nil {
+		t.Error("expected error for disconnected driver")
+	}
+
+	err = driver.Set(ctx, "key", "value", time.Second)
+	if err == nil {
+		t.Error("expected error for disconnected driver")
+	}
+
+	_, err = driver.Del(ctx, "key")
+	if err == nil {
+		t.Error("expected error for disconnected driver")
+	}
+
+	_, err = driver.Keys(ctx, "*")
+	if err == nil {
+		t.Error("expected error for disconnected driver")
+	}
+
+	err = driver.Ping(ctx)
+	if err == nil {
+		t.Error("expected error for disconnected driver")
 	}
 }
