@@ -116,7 +116,6 @@ type Histogram struct {
 	counts  []atomic.Int64 // one per bucket + inf
 	sum     atomic.Uint64  // float64 bits
 	count   atomic.Int64
-	mu      sync.Mutex
 }
 
 // NewHistogram creates a new histogram metric with the given buckets.

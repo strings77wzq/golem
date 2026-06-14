@@ -56,7 +56,7 @@ func (d *RedisDriverImpl) Connect(ctx context.Context, cfg Config) error {
 // Get retrieves a value by key.
 func (d *RedisDriverImpl) Get(ctx context.Context, key string) (string, error) {
 	if d.client == nil {
-		return "", fmt.Errorf("Redis not connected")
+		return "", fmt.Errorf("redis: not connected")
 	}
 	val, err := d.client.Get(ctx, key).Result()
 	if err != nil {
@@ -68,7 +68,7 @@ func (d *RedisDriverImpl) Get(ctx context.Context, key string) (string, error) {
 // Set sets a key-value pair with optional TTL.
 func (d *RedisDriverImpl) Set(ctx context.Context, key string, value string, ttl time.Duration) error {
 	if d.client == nil {
-		return fmt.Errorf("Redis not connected")
+		return fmt.Errorf("redis: not connected")
 	}
 	return d.client.Set(ctx, key, value, ttl).Err()
 }
@@ -76,7 +76,7 @@ func (d *RedisDriverImpl) Set(ctx context.Context, key string, value string, ttl
 // Del deletes one or more keys.
 func (d *RedisDriverImpl) Del(ctx context.Context, keys ...string) (int64, error) {
 	if d.client == nil {
-		return 0, fmt.Errorf("Redis not connected")
+		return 0, fmt.Errorf("redis: not connected")
 	}
 	return d.client.Del(ctx, keys...).Result()
 }
@@ -84,7 +84,7 @@ func (d *RedisDriverImpl) Del(ctx context.Context, keys ...string) (int64, error
 // Keys returns keys matching a pattern.
 func (d *RedisDriverImpl) Keys(ctx context.Context, pattern string) ([]string, error) {
 	if d.client == nil {
-		return nil, fmt.Errorf("Redis not connected")
+		return nil, fmt.Errorf("redis: not connected")
 	}
 	return d.client.Keys(ctx, pattern).Result()
 }
@@ -92,7 +92,7 @@ func (d *RedisDriverImpl) Keys(ctx context.Context, pattern string) ([]string, e
 // HGetAll returns all fields of a hash.
 func (d *RedisDriverImpl) HGetAll(ctx context.Context, key string) (map[string]string, error) {
 	if d.client == nil {
-		return nil, fmt.Errorf("Redis not connected")
+		return nil, fmt.Errorf("redis: not connected")
 	}
 	return d.client.HGetAll(ctx, key).Result()
 }
@@ -100,7 +100,7 @@ func (d *RedisDriverImpl) HGetAll(ctx context.Context, key string) (map[string]s
 // LRange returns a range of elements from a list.
 func (d *RedisDriverImpl) LRange(ctx context.Context, key string, start, stop int64) ([]string, error) {
 	if d.client == nil {
-		return nil, fmt.Errorf("Redis not connected")
+		return nil, fmt.Errorf("redis: not connected")
 	}
 	return d.client.LRange(ctx, key, start, stop).Result()
 }
@@ -108,7 +108,7 @@ func (d *RedisDriverImpl) LRange(ctx context.Context, key string, start, stop in
 // Info returns Redis server information.
 func (d *RedisDriverImpl) Info(ctx context.Context) (string, error) {
 	if d.client == nil {
-		return "", fmt.Errorf("Redis not connected")
+		return "", fmt.Errorf("redis: not connected")
 	}
 	return d.client.Info(ctx).Result()
 }
@@ -116,7 +116,7 @@ func (d *RedisDriverImpl) Info(ctx context.Context) (string, error) {
 // GetSchema returns a description of the Redis data.
 func (d *RedisDriverImpl) GetSchema(ctx context.Context) (string, error) {
 	if d.client == nil {
-		return "", fmt.Errorf("Redis not connected")
+		return "", fmt.Errorf("redis: not connected")
 	}
 
 	// Get sample keys to understand data patterns
@@ -168,7 +168,7 @@ func (d *RedisDriverImpl) GetSchema(ctx context.Context) (string, error) {
 // Ping checks the connection.
 func (d *RedisDriverImpl) Ping(ctx context.Context) error {
 	if d.client == nil {
-		return fmt.Errorf("Redis not connected")
+		return fmt.Errorf("redis: not connected")
 	}
 	return d.client.Ping(ctx).Err()
 }

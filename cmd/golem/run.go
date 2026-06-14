@@ -13,9 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/strings77wzq/golem/core/agent"
 	"github.com/strings77wzq/golem/core/bus"
-	"github.com/strings77wzq/golem/foundation/logger"
 	"github.com/strings77wzq/golem/internal/channels/tui"
-	"github.com/strings77wzq/golem/internal/gateway"
 )
 
 // runAgentOneShot sends a single message and prints the response.
@@ -107,18 +105,6 @@ func runAgentTUI(ag *agent.Agent, sessionID string) error {
 		sessionID = uuid.New().String()
 	}
 	return tui.Run(ctx, sessionID, ag)
-}
-
-// runGateway starts the HTTP gateway server.
-func runGateway(cfg *gateway.ServerConfig, secCfg *gateway.SecurityConfig, ag *agent.Agent, log logger.Logger) error {
-	server := gateway.NewServerWithSecurity(*cfg, *secCfg, ag, log)
-
-	log.Info("starting gateway server",
-		"addr", cfg.Addr,
-		"auth_enabled", secCfg.EnableAuth,
-		"rate_limit_enabled", secCfg.EnableRateLimit,
-	)
-	return server.Start()
 }
 
 func printUsage(u *bus.TokenUsage) {

@@ -14,7 +14,6 @@ type MockProvider struct {
 	mu           sync.Mutex
 	responses    []*LLMResponse
 	responseIdx  int
-	streamDelay  int
 	CallCount    int
 	LastMessages []Message
 	LastModel    string

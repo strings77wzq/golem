@@ -24,16 +24,6 @@ func (m *mockTool) Execute(ctx context.Context, args map[string]interface{}) (*t
 	return &tools.ToolResult{ForLLM: m.result, ForUser: m.result}, nil
 }
 
-func newTestServer(toolList []tools.Tool) (*Server, *bytes.Buffer) {
-	var output bytes.Buffer
-	input := bytes.NewBuffer(nil)
-	reg := tools.NewRegistry()
-	for _, t := range toolList {
-		reg.Register(t)
-	}
-	return NewServer(input, &output, reg), &output
-}
-
 func writeRequest(t *testing.T, input *bytes.Buffer, req interface{}) {
 	data, _ := json.Marshal(req)
 	data = append(data, '\n')

@@ -64,7 +64,7 @@ func (r *Registry) RegisterRedis(name string, driver RedisDriver) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, exists := r.redisDrivers[name]; exists {
-		return fmt.Errorf("Redis driver %q already registered", name)
+		return fmt.Errorf("redis driver %q already registered", name)
 	}
 	r.redisDrivers[name] = driver
 	return nil
@@ -76,7 +76,7 @@ func (r *Registry) GetRedis(name string) (RedisDriver, error) {
 	defer r.mu.RUnlock()
 	driver, ok := r.redisDrivers[name]
 	if !ok {
-		return nil, fmt.Errorf("Redis driver %q not found", name)
+		return nil, fmt.Errorf("redis driver %q not found", name)
 	}
 	return driver, nil
 }

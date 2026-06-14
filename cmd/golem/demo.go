@@ -150,7 +150,3 @@ func createDemoDB(path string) error {
 	fmt.Printf("  Database: %s\n", path)
 	return nil
 }
-
-func initDemoDB(path string) error {
-	return createDemoDB(path)
-}
