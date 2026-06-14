@@ -121,7 +121,7 @@ func TestNewTestConfig(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("expected non-nil config")
 	}
-	if cfg.Agents.Defaults.ModelName != "mock" {
-		t.Errorf("expected model 'mock', got %q", cfg.Agents.Defaults.ModelName)
+	if cfg.Agents.Defaults.ModelName != "mock/echo" {
+		t.Errorf("expected model 'mock/echo', got %q", cfg.Agents.Defaults.ModelName)
 	}
 }

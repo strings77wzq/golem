@@ -83,9 +83,9 @@ func writeConfigFile(t *testing.T, path string, cfg *config.Config) {
 
 func newTestConfig() *config.Config {
 	return &config.Config{
-		Agents: config.AgentConfig{Defaults: config.AgentDefaults{ModelName: "mock", MaxTokens: 256, SystemPrompt: "test"}},
+		Agents: config.AgentConfig{Defaults: config.AgentDefaults{ModelName: "mock/echo", MaxTokens: 256, SystemPrompt: "test"}},
 		ModelList: []config.ModelEntry{
-			{ModelName: "mock", Model: "mock/echo", APIKey: ""},
+			{ModelName: "mock/echo", Model: "mock/echo", APIKey: ""},
 			{ModelName: "gpt4", Model: "openai/gpt-4o", APIKey: "sk-openai", APIBase: "https://api.openai.example/v1"},
 			{ModelName: "claude", Model: "anthropic/claude-sonnet-4", APIKey: "sk-anthropic", APIBase: "https://api.anthropic.example"},
 			{ModelName: "deepseek", Model: "deepseek/deepseek-chat", APIKey: "sk-deepseek"},
@@ -126,7 +126,7 @@ func TestUnknownCommand(t *testing.T) {
 
 func TestListModelNames(t *testing.T) {
 	got := listModelNames(newTestConfig())
-	want := "mock, gpt4, claude, deepseek"
+	want := "mock/echo, gpt4, claude, deepseek"
 	if got != want {
 		t.Fatalf("listModelNames() = %q, want %q", got, want)
 	}
@@ -196,8 +196,8 @@ func TestLoadConfigReadsCustomFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfig failed: %v", err)
 	}
-	if cfg.Agents.Defaults.ModelName != "mock" {
-		t.Fatalf("default model = %q, want mock", cfg.Agents.Defaults.ModelName)
+	if cfg.Agents.Defaults.ModelName != "mock/echo" {
+		t.Fatalf("default model = %q, want mock/echo", cfg.Agents.Defaults.ModelName)
 	}
 }
 
