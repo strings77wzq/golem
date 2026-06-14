@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/strings77wzq/golem/core/bus"
 )
 
 type mockHandler struct {
@@ -15,6 +16,15 @@ type mockHandler struct {
 
 func (m *mockHandler) HandleMessageStream(_ context.Context, _ string, _ string, out chan<- string) error {
 	defer close(out)
+	for _, t := range m.tokens {
+		out <- t
+	}
+	return m.err
+}
+
+func (m *mockHandler) HandleMessageStreamWithProgress(_ context.Context, _ string, _ string, out chan<- string, progress chan<- bus.OutboundMessage) error {
+	defer close(out)
+	defer close(progress)
 	for _, t := range m.tokens {
 		out <- t
 	}
