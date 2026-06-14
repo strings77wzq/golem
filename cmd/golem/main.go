@@ -48,6 +48,7 @@ func NewRootCommand() *cobra.Command {
 		newStatusCommand(),
 		newSessionCommand(),
 		newInitCommand(),
+		newMCPServerCommand(),
 	)
 
 	return cmd
