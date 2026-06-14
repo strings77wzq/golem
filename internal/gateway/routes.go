@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/strings77wzq/golem/core/session"
+	"github.com/strings77wzq/golem/internal/metrics"
 )
 
 type healthResponse struct {
@@ -42,6 +43,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/chat/stream", s.handleChatStream)
 	s.mux.HandleFunc("GET /api/sessions/{id}/export", s.handleSessionExport)
 	s.mux.HandleFunc("POST /api/sessions/import", s.handleSessionImport)
+	s.mux.HandleFunc("GET /metrics", s.handleMetrics)
 
 	// OpenAI-compatible API
 	s.registerOpenAICompatRoutes()
@@ -239,4 +241,9 @@ func (s *Server) handleSessionImport(w http.ResponseWriter, r *http.Request) {
 		"session_id": sess.ID,
 		"status":     "imported",
 	})
+}
+
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	metrics.Handler(metrics.DefaultRegistry).ServeHTTP(w, r)
 }

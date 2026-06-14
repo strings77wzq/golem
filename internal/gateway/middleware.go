@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/strings77wzq/golem/foundation/logger"
+	"github.com/strings77wzq/golem/internal/metrics"
 )
 
 type Middleware func(http.Handler) http.Handler
@@ -154,4 +155,8 @@ func RequestIDMiddleware() Middleware {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func MetricsMiddleware() Middleware {
+	return metrics.MetricsMiddleware(metrics.DefaultRegistry)
 }

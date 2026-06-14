@@ -21,6 +21,7 @@ import (
 	"github.com/strings77wzq/golem/core/session"
 	"github.com/strings77wzq/golem/core/tools"
 	dbtools "github.com/strings77wzq/golem/core/tools/database"
+	"github.com/strings77wzq/golem/core/tools/infra"
 	"github.com/strings77wzq/golem/foundation/logger"
 	"github.com/strings77wzq/golem/foundation/term"
 	"github.com/strings77wzq/golem/internal/channels/telegram"
@@ -91,6 +92,7 @@ func newAgentCommand() *cobra.Command {
 	cmd.Flags().String("memory", "", "Memory file path or JSON config for long-term memory")
 	cmd.Flags().String("telegram", "", "Telegram bot token or JSON config for Telegram channel")
 	cmd.Flags().String("db", "", "Database path (SQLite) for SQL tools")
+	cmd.Flags().Bool("infra", false, "Enable infrastructure tools (kubectl, docker, helm)")
 	return cmd
 }
 
@@ -103,6 +105,7 @@ func runAgent(cmd *cobra.Command) error {
 	skillsDir, _ := cmd.Flags().GetString("skills-dir")
 	skillsFilter, _ := cmd.Flags().GetString("skills")
 	dbFlag, _ := cmd.Flags().GetString("db")
+	infraFlag, _ := cmd.Flags().GetBool("infra")
 
 	cfg, err := loadConfig(cmd)
 	if err != nil {
@@ -133,6 +136,14 @@ func runAgent(cmd *cobra.Command) error {
 			}
 			log.Info("loaded database tools", "db", dbFlag, "tools", dbTools.Count())
 		}
+	}
+
+	// Load infrastructure tools
+	if infraFlag {
+		registry.Register(infra.NewKubectlTool())
+		registry.Register(infra.NewDockerTool())
+		registry.Register(infra.NewHelmTool())
+		log.Info("loaded infrastructure tools", "tools", 3)
 	}
 
 	// Load feature tools

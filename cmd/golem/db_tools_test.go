@@ -87,3 +87,11 @@ func TestAgentCommandHasDBFlag(t *testing.T) {
 		t.Errorf("expected default empty string, got %q", flag.DefValue)
 	}
 }
+
+func TestAgentCommandHasInfraFlag(t *testing.T) {
+	cmd := newAgentCommand()
+	flag := cmd.Flags().Lookup("infra")
+	if flag == nil {
+		t.Fatal("expected --infra flag to be defined")
+	}
+}
