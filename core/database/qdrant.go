@@ -44,14 +44,79 @@ func (d *QdrantDriver) baseURL() string {
 }
 
 // Search performs a semantic search.
+// The query string is used as a payload filter match (text search).
+// For true vector similarity, use SearchWithVector.
 func (d *QdrantDriver) Search(ctx context.Context, collection string, query string, topK int) ([]SearchResult, error) {
-	// For Qdrant, we need a vector to search. Since we don't have embeddings here,
-	// we'll use a text-based search approach via the scroll API.
-	// In practice, the caller should provide a vector or use an embedding service.
+	// Try the search endpoint first (works if collection has a payload index)
+	url := fmt.Sprintf("%s/collections/%s/points/search", d.baseURL(), collection)
+
+	// Build a must-match filter on the payload text fields
+	filter := map[string]interface{}{
+		"must": []map[string]interface{}{
+			{
+				"match": map[string]interface{}{
+					"any": []string{query},
+				},
+			},
+		},
+	}
+
+	body := map[string]interface{}{
+		"limit":        uint32(topK),
+		"with_payload": true,
+		"filter":       filter,
+	}
+	jsonData, _ := json.Marshal(body)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := d.client.Do(req)
+	if err != nil {
+		// Fallback to scroll if search endpoint fails
+		return d.searchFallback(ctx, collection, query, topK)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		// Fallback to scroll if search returns error
+		return d.searchFallback(ctx, collection, query, topK)
+	}
+
+	var result struct {
+		Result []struct {
+			ID      string                 `json:"id"`
+			Score   float64                `json:"score"`
+			Payload map[string]interface{} `json:"payload"`
+		} `json:"result"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+
+	var searchResults []SearchResult
+	for _, point := range result.Result {
+		searchResults = append(searchResults, SearchResult{
+			ID:       point.ID,
+			Score:    point.Score,
+			Metadata: point.Payload,
+		})
+	}
+
+	return searchResults, nil
+}
+
+// searchFallback uses scroll API when search endpoint is unavailable.
+// Returns results without real similarity scoring.
+func (d *QdrantDriver) searchFallback(ctx context.Context, collection string, query string, topK int) ([]SearchResult, error) {
 	url := fmt.Sprintf("%s/collections/%s/points/scroll", d.baseURL(), collection)
 
 	body := map[string]interface{}{
-		"limit":  uint32(topK),
+		"limit":        uint32(topK),
 		"with_payload": true,
 	}
 	jsonData, _ := json.Marshal(body)
@@ -64,13 +129,13 @@ func (d *QdrantDriver) Search(ctx context.Context, collection string, query stri
 
 	resp, err := d.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("search failed: %w", err)
+		return nil, fmt.Errorf("scroll search failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("search returned status %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("scroll returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result struct {
@@ -88,9 +153,78 @@ func (d *QdrantDriver) Search(ctx context.Context, collection string, query stri
 
 	var searchResults []SearchResult
 	for _, point := range result.Result.Points {
+		// Check if payload contains the query text (simple text matching)
+		if d.payloadMatches(point.Payload, query) {
+			searchResults = append(searchResults, SearchResult{
+				ID:       point.ID,
+				Score:    0.5, // Partial score for text match without vector similarity
+				Metadata: point.Payload,
+			})
+		}
+	}
+
+	return searchResults, nil
+}
+
+// payloadMatches checks if any payload value contains the query text.
+func (d *QdrantDriver) payloadMatches(payload map[string]interface{}, query string) bool {
+	queryLower := strings.ToLower(query)
+	for _, v := range payload {
+		if s, ok := v.(string); ok {
+			if strings.Contains(strings.ToLower(s), queryLower) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// SearchWithVector performs true vector similarity search.
+// The caller must provide the embedding vector.
+func (d *QdrantDriver) SearchWithVector(ctx context.Context, collection string, vector []float32, topK int) ([]SearchResult, error) {
+	url := fmt.Sprintf("%s/collections/%s/points/search", d.baseURL(), collection)
+
+	body := map[string]interface{}{
+		"vector":       vector,
+		"limit":        uint32(topK),
+		"with_payload": true,
+	}
+	jsonData, _ := json.Marshal(body)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := d.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("vector search failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("vector search returned status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var result struct {
+		Result []struct {
+			ID      string                 `json:"id"`
+			Score   float64                `json:"score"`
+			Payload map[string]interface{} `json:"payload"`
+		} `json:"result"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+
+	var searchResults []SearchResult
+	for _, point := range result.Result {
 		searchResults = append(searchResults, SearchResult{
 			ID:       point.ID,
-			Score:    1.0, // Scroll doesn't provide scores
+			Score:    point.Score,
 			Metadata: point.Payload,
 		})
 	}
@@ -212,7 +346,6 @@ func (d *QdrantDriver) GetSchema(ctx context.Context) (string, error) {
 	sb.WriteString("Qdrant Vector Database\n\nCollections:\n")
 
 	for _, name := range collections {
-		// Get collection info
 		url := fmt.Sprintf("%s/collections/%s", d.baseURL(), name)
 		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 		if err != nil {
