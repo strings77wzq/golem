@@ -8,15 +8,15 @@ import (
 )
 
 // Compressor handles message compression and truncation to fit within
-// a token budget. It uses a three-stage strategy:
+// a token budget. It uses a three-stage strategy with tool chain preservation:
 //
 //  1. Keep recent messages untouched (preserves conversation continuity)
 //  2. Truncate oversized tool outputs in middle messages
-//  3. Drop oldest messages if still over budget
+//  3. Drop oldest messages if still over budget, preserving tool chains atomically
 type Compressor struct {
-	MaxToolOutput     int  // max tokens per tool output (default 2000)
-	KeepRecent        int  // number of recent messages to never compress (default 4)
-	TruncateThreshold int  // truncate tool outputs larger than this (default 1000)
+	MaxToolOutput     int
+	KeepRecent        int
+	TruncateThreshold int
 }
 
 // NewCompressor creates a compressor with default settings.
@@ -30,13 +30,9 @@ func NewCompressor() *Compressor {
 
 // NewCompressorWithConfig creates a compressor with custom settings.
 func NewCompressorWithConfig(maxToolOutput, truncateThreshold int) *Compressor {
-	keepRecent := 4
-	if truncateThreshold > 0 {
-		keepRecent = 4
-	}
 	return &Compressor{
 		MaxToolOutput:     maxToolOutput,
-		KeepRecent:        keepRecent,
+		KeepRecent:        4,
 		TruncateThreshold: truncateThreshold,
 	}
 }
@@ -72,7 +68,7 @@ func (c *Compressor) Compress(
 	// Stage 2: Truncate tool outputs in old messages
 	compressed := c.truncateToolOutputs(old, tokenFunc)
 
-	// Stage 3: If still over budget, drop oldest messages
+	// Stage 3: If still over budget, drop oldest messages preserving tool chains
 	result := c.fitToBudget(compressed, recent, budget, tokenFunc)
 
 	return result
@@ -95,14 +91,12 @@ func (c *Compressor) truncateToolOutputs(
 
 // truncateContent shortens content to fit within token limit.
 func (c *Compressor) truncateContent(content string, maxTokens int) string {
-	// Rough estimate: 4 chars per token for ASCII
 	maxChars := maxTokens * 4
 	if len(content) <= maxChars {
 		return content
 	}
 
 	truncated := content[:maxChars]
-	// Find last newline to avoid cutting mid-line
 	if idx := strings.LastIndex(truncated, "\n"); idx > maxChars/2 {
 		truncated = truncated[:idx]
 	}
@@ -110,9 +104,64 @@ func (c *Compressor) truncateContent(content string, maxTokens int) string {
 	return truncated + fmt.Sprintf("\n... [truncated, %d tokens remaining]", maxTokens)
 }
 
-// fitToBudget drops oldest messages until everything fits.
-// Preserves tool message chains: if a tool message is kept, its preceding
-// assistant message with tool_calls must also be kept.
+// toolBatch represents an atomic unit: one assistant message with tool_calls
+// and all its corresponding tool result messages.
+type toolBatch struct {
+	assistantIdx int
+	toolIndices  []int
+	totalTokens  int
+}
+
+// identifyToolBatches scans messages and groups them into atomic batches.
+// A batch is: assistant(tool_calls=[A,B]) + tool(A) + tool(B)
+func (c *Compressor) identifyToolBatches(messages []providers.Message, tokenFunc func(providers.Message) int) []toolBatch {
+	var batches []toolBatch
+
+	// Build a map from ToolCallID to its index for fast lookup
+	toolCallIDs := make(map[string]int) // ToolCallID → message index
+	for i, msg := range messages {
+		if msg.Role == providers.RoleTool && msg.ToolCallID != "" {
+			toolCallIDs[msg.ToolCallID] = i
+		}
+	}
+
+	for i, msg := range messages {
+		if msg.Role != providers.RoleAssistant || len(msg.ToolCalls) == 0 {
+			continue
+		}
+
+		batch := toolBatch{assistantIdx: i, totalTokens: tokenFunc(msg)}
+		for _, tc := range msg.ToolCalls {
+			if idx, ok := toolCallIDs[tc.ID]; ok {
+				batch.toolIndices = append(batch.toolIndices, idx)
+				batch.totalTokens += tokenFunc(messages[idx])
+			}
+		}
+
+		if len(batch.toolIndices) > 0 {
+			batches = append(batches, batch)
+		}
+	}
+
+	return batches
+}
+
+// isInBatch checks if a message index belongs to any identified batch.
+func isInBatch(idx int, batches []toolBatch) (batchIdx int, ok bool) {
+	for bi, batch := range batches {
+		if batch.assistantIdx == idx {
+			return bi, true
+		}
+		for _, ti := range batch.toolIndices {
+			if ti == idx {
+				return bi, true
+			}
+		}
+	}
+	return -1, false
+}
+
+// fitToBudget drops oldest messages until everything fits, preserving tool chains.
 func (c *Compressor) fitToBudget(
 	compressed []providers.Message,
 	recent []providers.Message,
@@ -127,13 +176,29 @@ func (c *Compressor) fitToBudget(
 		used += tokenFunc(msg)
 	}
 
-	// Build set of message indices already in result
+	// Find where recent messages start in the compressed array
 	recentStart := len(compressed)
-	if len(recent) > 0 {
-		// Find where recent messages came from in compressed
+	if len(recent) > 0 && len(compressed) > 0 {
+		// Use the last message's content to find the boundary
+		lastRecent := recent[0]
 		for i := len(compressed) - 1; i >= 0; i-- {
-			if len(recent) > 0 && compressed[i].Content == recent[0].Content {
+			if compressed[i].Content == lastRecent.Content &&
+				compressed[i].Role == lastRecent.Role {
 				recentStart = i
+				break
+			}
+		}
+	}
+
+	// Identify tool batches in old messages
+	batches := c.identifyToolBatches(compressed, tokenFunc)
+
+	// Track which batches are already included in result
+	includedBatches := make(map[int]bool)
+	for bi, batch := range batches {
+		for _, idx := range batch.toolIndices {
+			if idx >= recentStart {
+				includedBatches[bi] = true
 				break
 			}
 		}
@@ -142,36 +207,49 @@ func (c *Compressor) fitToBudget(
 	// Add compressed messages from newest to oldest
 	for i := len(compressed) - 1; i >= 0; i-- {
 		if i >= recentStart {
-			continue // already in result
+			continue
 		}
 
 		msg := compressed[i]
 
-		// If this is a tool message, check if its preceding assistant message is included
-		if msg.Role == providers.RoleTool {
-			// Find the preceding assistant message with tool_calls
-			hasPredecessor := false
-			for j := i - 1; j >= 0; j-- {
-				if compressed[j].Role == providers.RoleAssistant && len(compressed[j].ToolCalls) > 0 {
-					// Check if this assistant message is already in result
-					for _, r := range result {
-						if r.Content == compressed[j].Content && len(r.ToolCalls) > 0 {
-							hasPredecessor = true
-							break
-						}
-					}
-					break
-				}
-			}
-			if !hasPredecessor {
-				// Skip this tool message to avoid breaking the chain
+		// Check if this message is part of a batch
+		batchIdx, inBatch := isInBatch(i, batches)
+		if inBatch {
+			batch := batches[batchIdx]
+
+			// If batch is already included, skip
+			if includedBatches[batchIdx] {
 				continue
 			}
+
+			// Try to fit the entire batch
+			if used+batch.totalTokens <= budget {
+				// Fit the batch in order: assistant first, then tools
+				result = append([]providers.Message{compressed[batch.assistantIdx]}, result...)
+				used += tokenFunc(compressed[batch.assistantIdx])
+
+				for _, ti := range batch.toolIndices {
+					result = append([]providers.Message{compressed[ti]}, result...)
+					used += tokenFunc(compressed[ti])
+				}
+				includedBatches[batchIdx] = true
+			} else {
+				// Can't fit batch - drop entire batch
+				// Add a summary of the assistant message instead
+				summary := c.makeSummary(compressed[batch.assistantIdx])
+				summaryTokens := tokenFunc(providers.Message{Role: providers.RoleAssistant, Content: summary})
+				if used+summaryTokens <= budget {
+					result = append([]providers.Message{{Role: providers.RoleAssistant, Content: summary}}, result...)
+					used += summaryTokens
+				}
+				includedBatches[batchIdx] = true
+			}
+			continue
 		}
 
+		// Not part of a batch - handle normally
 		msgTokens := tokenFunc(msg)
 		if used+msgTokens > budget {
-			// Can't fit this message, try to fit a summary
 			summary := c.makeSummary(msg)
 			summaryTokens := tokenFunc(providers.Message{Role: providers.RoleAssistant, Content: summary})
 			if used+summaryTokens <= budget {

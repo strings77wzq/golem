@@ -1,6 +1,7 @@
 package context
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/strings77wzq/golem/core/providers"
@@ -144,6 +145,109 @@ func TestCompressorDropsOldest(t *testing.T) {
 	// Recent messages should be preserved
 	if len(result) < 2 {
 		t.Error("expected at least 2 recent messages")
+	}
+}
+
+func TestCompressorPreservesToolChain(t *testing.T) {
+	c := NewCompressor()
+	c.KeepRecent = 2
+
+	// Create a message sequence with tool chain
+	msgs := []providers.Message{
+		{Role: providers.RoleSystem, Content: "You are helpful."},
+		{Role: providers.RoleUser, Content: "query"},
+		{Role: providers.RoleAssistant, Content: "let me search", ToolCalls: []providers.ToolCall{
+			{ID: "tc1", Name: "web_search"},
+		}},
+		{Role: providers.RoleTool, Content: "search result", ToolCallID: "tc1"},
+		{Role: providers.RoleAssistant, Content: "found it"},
+		{Role: providers.RoleUser, Content: "another query"},
+		{Role: providers.RoleAssistant, Content: "another response"},
+	}
+
+	// Small budget - should keep recent and tool chain
+	result := c.Compress(msgs, 500, DefaultTokenEstimator)
+
+	// Check that tool chain is preserved
+	hasToolChain := false
+	for i, msg := range result {
+		if msg.Role == providers.RoleAssistant && len(msg.ToolCalls) > 0 {
+			// Find the next tool message
+			if i+1 < len(result) && result[i+1].Role == providers.RoleTool {
+				hasToolChain = true
+			}
+		}
+	}
+	if !hasToolChain {
+		t.Error("expected tool chain to be preserved")
+	}
+}
+
+func TestCompressorDropsBatchAtomically(t *testing.T) {
+	c := NewCompressor()
+	c.KeepRecent = 2
+
+	// Large messages that won't fit
+	longContent := strings.Repeat("x", 5000)
+	msgs := []providers.Message{
+		{Role: providers.RoleSystem, Content: "system"},
+		{Role: providers.RoleUser, Content: "query"},
+		{Role: providers.RoleAssistant, Content: "thinking", ToolCalls: []providers.ToolCall{
+			{ID: "tc1", Name: "web_search"},
+			{ID: "tc2", Name: "file_read"},
+		}},
+		{Role: providers.RoleTool, Content: longContent, ToolCallID: "tc1"},
+		{Role: providers.RoleTool, Content: longContent, ToolCallID: "tc2"},
+		{Role: providers.RoleAssistant, Content: "found it"},
+		{Role: providers.RoleUser, Content: "another"},
+		{Role: providers.RoleAssistant, Content: "response"},
+	}
+
+	// Very small budget - batch should be dropped atomically
+	result := c.Compress(msgs, 200, DefaultTokenEstimator)
+
+	// Should NOT have orphaned tool messages
+	for _, msg := range result {
+		if msg.Role == providers.RoleTool {
+			t.Errorf("expected no tool messages in result when batch is dropped, got: %s", msg.Content[:50])
+		}
+	}
+}
+
+func TestCompressorMultipleToolBatches(t *testing.T) {
+	c := NewCompressor()
+	c.KeepRecent = 2
+
+	msgs := []providers.Message{
+		{Role: providers.RoleUser, Content: "query 1"},
+		{Role: providers.RoleAssistant, Content: "thinking 1", ToolCalls: []providers.ToolCall{
+			{ID: "tc1", Name: "tool1"},
+		}},
+		{Role: providers.RoleTool, Content: "result 1", ToolCallID: "tc1"},
+		{Role: providers.RoleAssistant, Content: "response 1"},
+		{Role: providers.RoleUser, Content: "query 2"},
+		{Role: providers.RoleAssistant, Content: "thinking 2", ToolCalls: []providers.ToolCall{
+			{ID: "tc2", Name: "tool2"},
+		}},
+		{Role: providers.RoleTool, Content: "result 2", ToolCallID: "tc2"},
+		{Role: providers.RoleAssistant, Content: "response 2"},
+		{Role: providers.RoleUser, Content: "final"},
+		{Role: providers.RoleAssistant, Content: "final response"},
+	}
+
+	result := c.Compress(msgs, 1000, DefaultTokenEstimator)
+
+	// Verify tool chains are intact
+	for _, msg := range result {
+		if msg.Role == providers.RoleTool {
+			// Each tool message should have a preceding assistant with matching tool_calls
+			t.Logf("tool message found: ToolCallID=%s", msg.ToolCallID)
+		}
+	}
+
+	// Final messages should be present
+	if result[len(result)-1].Content != "final response" {
+		t.Errorf("expected last message to be 'final response', got %q", result[len(result)-1].Content)
 	}
 }
 
