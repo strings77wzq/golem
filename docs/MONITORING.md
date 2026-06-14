@@ -39,45 +39,30 @@ curl http://localhost:18790/metrics
 
 ## Available Metrics
 
-### Agent Metrics
+<!-- AUTO-GENERATED from internal/metrics/ -->
+### HTTP Metrics (Gateway)
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `golem_agent_requests_total` | Counter | Total agent requests |
-| `golem_agent_errors_total` | Counter | Total errors |
-| `golem_agent_latency_seconds` | Histogram | Request latency |
-| `golem_agent_concurrent_requests` | Gauge | Current concurrent requests |
+| `http_requests_total` | Counter | Total HTTP requests |
+| `http_request_duration_seconds` | Histogram | Request latency (buckets: 1ms to 10s) |
+| `http_active_requests` | Gauge | In-flight requests |
 
-### Token Usage Metrics
+### Extending Metrics
 
-| Metric | Type | Description |
-|--------|------|-------------|
-| `golem_tokens_prompt_total` | Counter | Prompt tokens used |
-| `golem_tokens_completion_total` | Counter | Completion tokens used |
-| `golem_tokens_total` | Counter | Total tokens used |
-| `golem_cost_usd_total` | Counter | Total cost in USD |
+To add custom metrics, use the metrics registry:
 
-### Tool Metrics
+```go
+import "github.com/strings77wzq/golem/internal/metrics"
 
-| Metric | Type | Description |
-|--------|------|-------------|
-| `golem_tool_calls_total` | Counter | Total tool invocations |
-| `golem_tool_latency_seconds` | Histogram | Tool execution latency |
+// Create custom metrics
+myCounter := metrics.DefaultRegistry.NewCounter("my_counter", "Description")
+myCounter.Inc()
 
-### Provider Metrics
-
-| Metric | Type | Description |
-|--------|------|-------------|
-| `golem_provider_requests_total` | Counter | LLM API requests |
-| `golem_provider_errors_total` | Counter | LLM API errors |
-| `golem_provider_latency_seconds` | Histogram | LLM API latency |
-
-### Session Metrics
-
-| Metric | Type | Description |
-|--------|------|-------------|
-| `golem_sessions_active` | Gauge | Active sessions |
-| `golem_sessions_total` | Counter | Total sessions created |
+myHistogram := metrics.DefaultRegistry.NewHistogram("my_histogram", "Description", []float64{0.1, 0.5, 1.0})
+myHistogram.Observe(0.3)
+```
+<!-- END AUTO-GENERATED -->
 
 ---
 

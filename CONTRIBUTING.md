@@ -24,6 +24,38 @@ make build
 go test ./...
 ```
 
+## Available Commands
+
+<!-- AUTO-GENERATED from Makefile -->
+| Command | Description |
+|---------|-------------|
+| `make build` | Build binary to `build/golem` (pure Go, CGO_ENABLED=0) |
+| `make build-all` | Cross-compile for linux/darwin amd64/arm64 |
+| `make test` | Run all tests with race detection |
+| `make lint` | Run golangci-lint (if installed) |
+| `make deps` | Download and verify dependencies |
+| `make clean` | Remove build artifacts |
+| `make fmt` | Format code with gofmt |
+| `make vet` | Run go vet |
+| `make check` | Full CI check: deps + vet + test |
+<!-- END AUTO-GENERATED -->
+
+## Quick Reference
+
+```bash
+# Build
+CGO_ENABLED=0 go build -ldflags "-s -w" -trimpath -o build/golem ./cmd/golem
+
+# Test
+go test ./...                                    # all packages
+go test -race ./...                              # with race detector
+go test -coverprofile=coverage.out ./...         # with coverage
+
+# First-run setup
+./build/golem init
+./build/golem agent -m "Hello"
+```
+
 ## Development Workflow
 
 1. Fork repository and create a feature branch.

@@ -20,12 +20,20 @@ http://localhost:18790
 
 ## Endpoints
 
+<!-- AUTO-GENERATED from routes.go -->
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check |
+| GET | `/health/providers` | Provider health status |
+| GET | `/metrics` | Prometheus metrics |
 | GET | `/api/version` | API version |
 | POST | `/api/chat` | Non-streaming chat |
 | POST | `/api/chat/stream` | Streaming chat (SSE) |
+| GET | `/api/sessions/{id}/export` | Export session as JSON |
+| POST | `/api/sessions/import` | Import session from JSON |
+| POST | `/v1/chat/completions` | OpenAI-compatible chat |
+| GET | `/v1/models` | List available models |
+<!-- END AUTO-GENERATED -->
 
 ---
 
