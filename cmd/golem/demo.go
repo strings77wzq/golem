@@ -91,44 +91,60 @@ func createDemoDB(path string) error {
 	rng := rand.New(rand.NewSource(42))
 
 	fmt.Print("  Users... ")
+	tx, _ := db.BeginTx(ctx, nil)
+	stmt, _ := tx.PrepareContext(ctx, "INSERT INTO users (name, email, role) VALUES (?, ?, ?)")
 	for i := 0; i < 10000; i++ {
-		db.ExecContext(ctx, "INSERT INTO users (name, email, role) VALUES (?, ?, ?)",
+		stmt.ExecContext(ctx,
 			fmt.Sprintf("user_%d", i),
 			fmt.Sprintf("user_%d@example.com", i),
 			[]string{"user", "admin", "moderator"}[rng.Intn(3)])
 	}
+	stmt.Close()
+	tx.Commit()
 	fmt.Println("10K")
 
 	categories := []string{"electronics", "clothing", "food", "books", "home"}
 	fmt.Print("  Products... ")
+	tx, _ = db.BeginTx(ctx, nil)
+	stmt, _ = tx.PrepareContext(ctx, "INSERT INTO products (name, price, category, stock) VALUES (?, ?, ?, ?)")
 	for i := 0; i < 500; i++ {
-		db.ExecContext(ctx, "INSERT INTO products (name, price, category, stock) VALUES (?, ?, ?, ?)",
+		stmt.ExecContext(ctx,
 			fmt.Sprintf("product_%d", i),
 			float64(rng.Intn(10000))/100.0,
 			categories[rng.Intn(len(categories))],
 			rng.Intn(1000))
 	}
+	stmt.Close()
+	tx.Commit()
 	fmt.Println("500")
 
 	statuses := []string{"pending", "completed", "cancelled", "shipped"}
 	fmt.Print("  Orders... ")
+	tx, _ = db.BeginTx(ctx, nil)
+	stmt, _ = tx.PrepareContext(ctx, "INSERT INTO orders (user_id, total, status, created_at) VALUES (?, ?, ?, ?)")
 	for i := 0; i < 100000; i++ {
-		db.ExecContext(ctx, "INSERT INTO orders (user_id, total, status, created_at) VALUES (?, ?, ?, ?)",
+		stmt.ExecContext(ctx,
 			rng.Intn(10000)+1,
 			float64(rng.Intn(50000))/100.0,
 			statuses[rng.Intn(len(statuses))],
 			time.Now().Add(-time.Duration(rng.Intn(365*2*24)) * time.Hour))
 	}
+	stmt.Close()
+	tx.Commit()
 	fmt.Println("100K")
 
 	fmt.Print("  Order items... ")
+	tx, _ = db.BeginTx(ctx, nil)
+	stmt, _ = tx.PrepareContext(ctx, "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)")
 	for i := 0; i < 300000; i++ {
-		db.ExecContext(ctx, "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)",
+		stmt.ExecContext(ctx,
 			rng.Intn(100000)+1,
 			rng.Intn(500)+1,
 			rng.Intn(10)+1,
 			float64(rng.Intn(10000))/100.0)
 	}
+	stmt.Close()
+	tx.Commit()
 	fmt.Println("300K")
 
 	fmt.Printf("  Database: %s\n", path)
