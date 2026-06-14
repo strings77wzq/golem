@@ -499,3 +499,239 @@ func TestRecallUpdatesAccessedAt(t *testing.T) {
 		t.Error("Expected AccessedAt to be updated after Recall")
 	}
 }
+
+func TestGetTopByRelevance(t *testing.T) {
+	mem := NewInMemoryStore()
+	ctx := context.Background()
+
+	entry1 := NewEntry("low relevance", "tag1")
+	entry1.Importance = 0.1
+	entry2 := NewEntry("high relevance", "tag1", "tag2", "tag3")
+	entry2.Importance = 1.0
+
+	if err := mem.Store(ctx, entry1); err != nil {
+		t.Fatalf("Store failed: %v", err)
+	}
+	if err := mem.Store(ctx, entry2); err != nil {
+		t.Fatalf("Store failed: %v", err)
+	}
+
+	results, err := mem.GetTopByRelevance(ctx, 10)
+	if err != nil {
+		t.Fatalf("GetTopByRelevance failed: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 results, got %d", len(results))
+	}
+
+	// entry2 should rank higher due to higher importance and more tags
+	if results[0].ID != entry2.ID {
+		t.Errorf("Expected entry2 first, got %s", results[0].ID)
+	}
+}
+
+func TestGetTopByRelevanceLimit(t *testing.T) {
+	mem := NewInMemoryStore()
+	ctx := context.Background()
+
+	for i := 0; i < 5; i++ {
+		entry := NewEntry("test entry", "test")
+		if err := mem.Store(ctx, entry); err != nil {
+			t.Fatalf("Store failed: %v", err)
+		}
+	}
+
+	results, err := mem.GetTopByRelevance(ctx, 3)
+	if err != nil {
+		t.Fatalf("GetTopByRelevance failed: %v", err)
+	}
+
+	if len(results) != 3 {
+		t.Errorf("Expected 3 results, got %d", len(results))
+	}
+}
+
+func TestCleanup(t *testing.T) {
+	mem := NewInMemoryStore()
+	ctx := context.Background()
+
+	// High importance entry (should survive)
+	high := NewEntry("important", "tag1")
+	high.Importance = 1.0
+	if err := mem.Store(ctx, high); err != nil {
+		t.Fatalf("Store failed: %v", err)
+	}
+
+	// Low importance entry (should be cleaned up)
+	low := NewEntry("unimportant", "tag2")
+	low.Importance = 0.1
+	low.AccessedAt = time.Now().Add(-1000 * time.Hour) // Very old
+	if err := mem.Store(ctx, low); err != nil {
+		t.Fatalf("Store failed: %v", err)
+	}
+
+	deleted, err := mem.Cleanup(ctx, 0.5)
+	if err != nil {
+		t.Fatalf("Cleanup failed: %v", err)
+	}
+
+	if deleted != 1 {
+		t.Errorf("Expected 1 deleted, got %d", deleted)
+	}
+
+	results, err := mem.List(ctx)
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 entry remaining, got %d", len(results))
+	}
+
+	if results[0].ID != high.ID {
+		t.Error("Expected high-importance entry to survive cleanup")
+	}
+}
+
+func TestCleanupPreservesHighImportance(t *testing.T) {
+	mem := NewInMemoryStore()
+	ctx := context.Background()
+
+	// Entry with importance >= 0.9 should never be deleted
+	entry := NewEntry("critical", "tag1")
+	entry.Importance = 0.9
+	entry.AccessedAt = time.Now().Add(-1000 * time.Hour)
+	if err := mem.Store(ctx, entry); err != nil {
+		t.Fatalf("Store failed: %v", err)
+	}
+
+	deleted, err := mem.Cleanup(ctx, 0.0) // threshold 0 = delete everything below
+	if err != nil {
+		t.Fatalf("Cleanup failed: %v", err)
+	}
+
+	if deleted != 0 {
+		t.Errorf("Expected 0 deleted (importance >= 0.9 preserved), got %d", deleted)
+	}
+}
+
+func TestFileMemoryRecall(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "memory.json")
+	ctx := context.Background()
+
+	mem, err := NewFileMemory(filePath)
+	if err != nil {
+		t.Fatalf("NewFileMemory failed: %v", err)
+	}
+
+	entry1 := NewEntry("golang concurrency patterns", "golang", "concurrency")
+	entry2 := NewEntry("python data science", "python", "data")
+	if err := mem.Store(ctx, entry1); err != nil {
+		t.Fatalf("Store failed: %v", err)
+	}
+	if err := mem.Store(ctx, entry2); err != nil {
+		t.Fatalf("Store failed: %v", err)
+	}
+
+	results, err := mem.Recall(ctx, "golang", 10)
+	if err != nil {
+		t.Fatalf("Recall failed: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(results))
+	}
+
+	if results[0].ID != entry1.ID {
+		t.Errorf("Expected entry1, got %s", results[0].ID)
+	}
+}
+
+func TestFileMemoryRecallEmptyQuery(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "memory.json")
+	ctx := context.Background()
+
+	mem, err := NewFileMemory(filePath)
+	if err != nil {
+		t.Fatalf("NewFileMemory failed: %v", err)
+	}
+
+	results, err := mem.Recall(ctx, "", 10)
+	if err != nil {
+		t.Fatalf("Recall failed: %v", err)
+	}
+
+	if results != nil {
+		t.Errorf("Expected nil for empty query, got %d results", len(results))
+	}
+}
+
+func TestFileMemoryForget(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "memory.json")
+	ctx := context.Background()
+
+	mem, err := NewFileMemory(filePath)
+	if err != nil {
+		t.Fatalf("NewFileMemory failed: %v", err)
+	}
+
+	entry := NewEntry("to be forgotten", "temp")
+	if err := mem.Store(ctx, entry); err != nil {
+		t.Fatalf("Store failed: %v", err)
+	}
+
+	if err := mem.Forget(ctx, entry.ID); err != nil {
+		t.Fatalf("Forget failed: %v", err)
+	}
+
+	// Verify persistence
+	mem2, err := NewFileMemory(filePath)
+	if err != nil {
+		t.Fatalf("NewFileMemory failed: %v", err)
+	}
+
+	results, err := mem2.List(ctx)
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(results) != 0 {
+		t.Errorf("Expected 0 entries after forget, got %d", len(results))
+	}
+}
+
+func TestFileMemoryRecallUpdatesAccessedAt(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "memory.json")
+	ctx := context.Background()
+
+	mem, err := NewFileMemory(filePath)
+	if err != nil {
+		t.Fatalf("NewFileMemory failed: %v", err)
+	}
+
+	entry := NewEntry("golang test", "golang")
+	originalAccess := entry.AccessedAt
+	if err := mem.Store(ctx, entry); err != nil {
+		t.Fatalf("Store failed: %v", err)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	results, err := mem.Recall(ctx, "golang", 10)
+	if err != nil {
+		t.Fatalf("Recall failed: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(results))
+	}
+
+	if !results[0].AccessedAt.After(originalAccess) {
+		t.Error("Expected AccessedAt to be updated after Recall")
+	}
+}
