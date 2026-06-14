@@ -251,11 +251,24 @@ func newGatewayCommand() *cobra.Command {
 			workspace, _ := os.Getwd()
 			registry := buildToolRegistry(workspace)
 			factory := registerProviders(cfg)
-			store := session.NewMemoryStore()
-			history := session.NewHistoryManager(cfg.Agents.Defaults.MaxTokens)
 			log := logger.New(logger.DefaultOptions())
 
-			ag := agent.New(b, registry, factory, store, history, log, cfg)
+			store, err := openAgentSessionStore(cmd)
+			if err != nil {
+				log.Warn("SQLite session store unavailable, using in-memory", "err", err)
+				store = nil
+			}
+			var sessionStore session.SessionStore
+			if store != nil {
+				defer store.Close()
+				sessionStore = store
+			} else {
+				sessionStore = session.NewMemoryStore()
+			}
+
+			history := session.NewHistoryManager(cfg.Agents.Defaults.MaxTokens)
+
+			ag := agent.New(b, registry, factory, sessionStore, history, log, cfg)
 
 			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer cancel()
@@ -295,6 +308,7 @@ func newGatewayCommand() *cobra.Command {
 			}
 
 			server := gateway.NewServerWithSecurity(serverCfg, secCfg, ag, log)
+			server.SetSessionStore(sessionStore)
 
 			if cfg.Telegram.Token != "" && cfg.Telegram.Mode == "webhook" {
 				tgCfg := cfg.Telegram
