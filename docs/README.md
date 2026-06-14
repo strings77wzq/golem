@@ -1,57 +1,35 @@
 # Documentation Index
 
-Use this page as the single entrypoint to all docs.
+## Getting Started
 
-## Introduction
+| Document | Description |
+|----------|-------------|
+| [QUICKSTART.md](QUICKSTART.md) | 5-minute setup guide |
+| [FIRST-SUCCESS-DEMO.md](FIRST-SUCCESS-DEMO.md) | Shortest path to first working response |
+| [BEGINNER-LABS.md](BEGINNER-LABS.md) | Hands-on labs (mock provider, local Ollama) |
+| [TUTORIALS.md](TUTORIALS.md) | Progressive learning roadmap |
 
-- Project overview: [`../README.md`](../README.md)
-- Architecture and collaboration rules: [`../AGENTS.md`](../AGENTS.md)
+## Reference
 
-## Quick Start
+| Document | Description |
+|----------|-------------|
+| [CONFIG-REFERENCE.md](CONFIG-REFERENCE.md) | Configuration file format and options |
+| [GATEWAY-API.md](GATEWAY-API.md) | HTTP API endpoints and OpenAI-compatible API |
+| [SECURITY.md](SECURITY.md) | Security best practices and threat model |
+| [TESTING.md](TESTING.md) | Testing guide and coverage expectations |
 
-- 5-minute setup: [`QUICKSTART.md`](./QUICKSTART.md)
-- First success demo: [`FIRST-SUCCESS-DEMO.md`](./FIRST-SUCCESS-DEMO.md)
-- Platform matrix (Linux/Termux focus): [`PLATFORM-MATRIX.md`](./PLATFORM-MATRIX.md)
+## Operations
 
-## Tutorials
+| Document | Description |
+|----------|-------------|
+| [DEPLOY.md](DEPLOY.md) | Deployment procedures |
+| [MONITORING.md](MONITORING.md) | Prometheus metrics and Grafana dashboards |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Common issues and fixes |
 
-- Beginner labs (hands-on): [`BEGINNER-LABS.md`](./BEGINNER-LABS.md)
-- Progressive tutorial roadmap: [`TUTORIALS.md`](./TUTORIALS.md)
-- Study guides (systematic learning): [`study/README.md`](./study/README.md)
+## Learning
 
-## Architecture
-
-- Core architecture learning path: [`study/README.md`](./study/README.md)
-- Config reference: [`CONFIG-REFERENCE.md`](./CONFIG-REFERENCE.md)
-
-## Official Site Planning
-
-- Homepage information architecture: [`SITE-IA.md`](./SITE-IA.md)
-- Module mapping blueprint: [`SITE-MODULE-MAPPING.md`](./SITE-MODULE-MAPPING.md)
-- Bilingual navigation strategy: [`SITE-I18N-NAV.md`](./SITE-I18N-NAV.md)
-- Pages plan (including benchmark/showcase/roadmap): [`SITE-PAGES-PLAN.md`](./SITE-PAGES-PLAN.md)
-- Asset checklist: [`SITE-ASSETS-CHECKLIST.md`](./SITE-ASSETS-CHECKLIST.md)
-
-## Troubleshooting
-
-- First-run troubleshooting ladder: [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md)
-- Security considerations: [`SECURITY.md`](./SECURITY.md)
-
-## Activation & Retention
-
-- First-run activation flow: [`ACTIVATION-FLOW.md`](./ACTIVATION-FLOW.md)
-- First-use workflow pack: [`FIRST-USE-WORKFLOWS.md`](./FIRST-USE-WORKFLOWS.md)
-- Next-step recommendation strategy: [`NEXT-STEP-RECOMMENDATIONS.md`](./NEXT-STEP-RECOMMENDATIONS.md)
-- Retention loops: [`RETENTION-LOOPS.md`](./RETENTION-LOOPS.md)
-
-## Contributing
-
-- Contribution guide: [`../CONTRIBUTING.md`](../CONTRIBUTING.md)
-- Testing guide: [`TESTING.md`](./TESTING.md)
-
-## Growth & Community
-
-- Growth assets plan: [`GROWTH-ASSETS.md`](./GROWTH-ASSETS.md)
-- Proof assets plan: [`PROOF-ASSETS-PLAN.md`](./PROOF-ASSETS-PLAN.md)
-- Release strategy: [`RELEASE-STRATEGY.md`](./RELEASE-STRATEGY.md)
-- Community channels: [`COMMUNITY-CHANNELS.md`](./COMMUNITY-CHANNELS.md)
+| Document | Description |
+|----------|-------------|
+| [study/](study/) | Architecture walkthroughs (7 guides) |
+| [../AGENTS.md](../AGENTS.md) | Project architecture and rules |
+| [../CONTRIBUTING.md](../CONTRIBUTING.md) | How to contribute |
