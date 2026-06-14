@@ -4,7 +4,7 @@ All notable changes to Golem will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.8.0] - 2026-06-14
 
 ### Added
 - Security gates integration: `PermissionChecker` and `QualityGate` wired into SQL tools
@@ -18,6 +18,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Gateway session persistence via SQLite
 - `--db` flag for agent command to connect databases
 - MCP server with real tools (not stubs)
+- Adapter tests for loadSkills, buildSystemPrompt, config parsers
+- PG/MySQL/Redis driver interface tests
+- Memory module coverage: 55.4% → 91.6%
+
+### Fixed
+- TUI table row count display bug
+- MCP server stub tools replaced with real implementations
+- Redis `redis_set` TTL parameter now passed to driver
+- Qdrant search no longer returns hardcoded score 1.0
+- demo-db performance: batch inserts (410K rows in seconds)
+
+### Changed
+- README updated to reflect actual capabilities (removed false claims)
+- Agent `--db` flag wires SQLite tools automatically
+- MCP server `buildMCPTools` uses real `core/tools/database/` tools
 - Memory module tests: coverage 55.4% → 91.6%
 - PG/MySQL/Redis driver interface tests
 
