@@ -22,6 +22,7 @@ type SQLQueryTool struct {
 	registry  *database.Registry
 	maxRows   int
 	permLevel security.PermissionLevel
+	auditFn   func(entry security.AuditEntry)
 }
 
 // NewSQLQueryTool creates a new SQL query tool (read-only by default).
@@ -37,6 +38,11 @@ func NewSQLQueryToolWithMaxRows(registry *database.Registry, maxRows int) *SQLQu
 // NewSQLQueryToolWithPermission creates a SQL query tool with custom permission level.
 func NewSQLQueryToolWithPermission(registry *database.Registry, permLevel security.PermissionLevel) *SQLQueryTool {
 	return &SQLQueryTool{registry: registry, maxRows: defaultMaxRows, permLevel: permLevel}
+}
+
+// SetAuditFunc sets the audit callback function.
+func (t *SQLQueryTool) SetAuditFunc(fn func(entry security.AuditEntry)) {
+	t.auditFn = fn
 }
 
 func (t *SQLQueryTool) Name() string        { return "sql_query" }
@@ -130,8 +136,35 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 		return &tools.ToolResult{ForLLM: fmt.Sprintf("Execute error: %v", err), IsError: true}, nil
 	}
 
+	// Generate rollback SQL for DELETE/UPDATE operations
+	var rollbackSQL string
+	upper := strings.TrimSpace(strings.ToUpper(sqlQuery))
+	if strings.HasPrefix(upper, "DELETE") {
+		rollbackSQL = security.GenerateDeleteRollback(extractTableName(sqlQuery), extractWhereClause(sqlQuery), queryArgs)
+	} else if strings.HasPrefix(upper, "UPDATE") {
+		rollbackSQL = security.GenerateUpdateRollback(extractTableName(sqlQuery), extractSetClause(sqlQuery), extractWhereClause(sqlQuery), nil)
+	}
+
+	// Audit logging
+	if t.auditFn != nil {
+		t.auditFn(security.AuditEntry{
+			Operation:    classifyOpName(sqlQuery),
+			Database:     dbName,
+			Table:        extractTableName(sqlQuery),
+			SQL:          sqlQuery,
+			AffectedRows: res.RowsAffected,
+			RollbackSQL:  rollbackSQL,
+			Status:       "success",
+		})
+	}
+
+	result := fmt.Sprintf("OK: %d rows affected", res.RowsAffected)
+	if rollbackSQL != "" {
+		result += fmt.Sprintf("\nRollback SQL: %s", rollbackSQL)
+	}
+
 	return &tools.ToolResult{
-		ForLLM:  fmt.Sprintf("OK: %d rows affected", res.RowsAffected),
+		ForLLM:  result,
 		ForUser: fmt.Sprintf("Executed: %d rows affected", res.RowsAffected),
 	}, nil
 }
@@ -153,6 +186,73 @@ func classifyOperation(sql string) security.PermissionLevel {
 	default:
 		return security.PermAdmin
 	}
+}
+
+// classifyOpName returns the operation name for audit logging.
+func classifyOpName(sql string) string {
+	upper := strings.TrimSpace(strings.ToUpper(sql))
+	switch {
+	case strings.HasPrefix(upper, "SELECT"):
+		return "SELECT"
+	case strings.HasPrefix(upper, "INSERT"):
+		return "INSERT"
+	case strings.HasPrefix(upper, "UPDATE"):
+		return "UPDATE"
+	case strings.HasPrefix(upper, "DELETE"):
+		return "DELETE"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// extractTableName extracts the table name from a SQL statement.
+func extractTableName(sql string) string {
+	upper := strings.ToUpper(strings.TrimSpace(sql))
+	switch {
+	case strings.HasPrefix(upper, "DELETE FROM"):
+		rest := strings.TrimSpace(sql[11:])
+		parts := strings.Fields(rest)
+		if len(parts) > 0 {
+			return parts[0]
+		}
+	case strings.HasPrefix(upper, "UPDATE"):
+		rest := strings.TrimSpace(sql[6:])
+		parts := strings.Fields(rest)
+		if len(parts) > 0 {
+			return parts[0]
+		}
+	case strings.HasPrefix(upper, "INSERT INTO"):
+		rest := strings.TrimSpace(sql[11:])
+		parts := strings.Fields(rest)
+		if len(parts) > 0 {
+			return parts[0]
+		}
+	}
+	return "unknown"
+}
+
+// extractWhereClause extracts the WHERE clause from a SQL statement.
+func extractWhereClause(sql string) string {
+	upper := strings.ToUpper(sql)
+	idx := strings.Index(upper, "WHERE")
+	if idx < 0 {
+		return "1=1"
+	}
+	return strings.TrimSpace(sql[idx+5:])
+}
+
+// extractSetClause extracts the SET clause from an UPDATE statement.
+func extractSetClause(sql string) string {
+	upper := strings.ToUpper(sql)
+	idx := strings.Index(upper, "SET")
+	if idx < 0 {
+		return ""
+	}
+	whereIdx := strings.Index(upper, "WHERE")
+	if whereIdx < 0 {
+		return strings.TrimSpace(sql[idx+3:])
+	}
+	return strings.TrimSpace(sql[idx+3 : whereIdx])
 }
 
 func (t *SQLQueryTool) getDefaultDB(args map[string]interface{}) string {

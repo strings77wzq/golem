@@ -345,3 +345,57 @@ func TestSQLQueryToolWithWritePermissionUpdateWithoutWhere(t *testing.T) {
 		t.Errorf("expected safety error about WHERE clause, got: %s", result.ForLLM)
 	}
 }
+
+func TestSQLQueryToolRollbackSQL(t *testing.T) {
+	reg := setupTestDB(t)
+	tool := NewSQLQueryToolWithPermission(reg, security.PermDelete)
+
+	// DELETE with WHERE should return rollback SQL
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"sql": "DELETE FROM users WHERE id = 1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Errorf("unexpected error: %s", result.ForLLM)
+	}
+	if !strings.Contains(result.ForLLM, "Rollback SQL") {
+		t.Errorf("expected Rollback SQL in result, got: %s", result.ForLLM)
+	}
+}
+
+func TestSQLQueryToolAuditLogging(t *testing.T) {
+	reg := setupTestDB(t)
+	tool := NewSQLQueryToolWithPermission(reg, security.PermDelete)
+
+	var auditEntry *security.AuditEntry
+	tool.SetAuditFunc(func(entry security.AuditEntry) {
+		auditEntry = &entry
+	})
+
+	// Execute a DELETE
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"sql": "DELETE FROM users WHERE id = 1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Errorf("unexpected error: %s", result.ForLLM)
+	}
+
+	// Verify audit entry was recorded
+	if auditEntry == nil {
+		t.Fatal("expected audit entry to be recorded")
+	}
+	if auditEntry.Operation != "DELETE" {
+		t.Errorf("expected operation DELETE, got %s", auditEntry.Operation)
+	}
+	if auditEntry.Table != "users" {
+		t.Errorf("expected table users, got %s", auditEntry.Table)
+	}
+	if auditEntry.RollbackSQL == "" {
+		t.Error("expected rollback SQL in audit entry")
+	}
+}
