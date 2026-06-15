@@ -38,3 +38,7 @@ vendor/
 .opencode/
 .claude/
 .specs/
+
+# AI agent files
+.mimocode/
+core/tools/think/
