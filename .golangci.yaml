@@ -13,10 +13,9 @@ linters:
     - ineffassign
   disable:
     - depguard
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
+  settings:
+    errcheck:
+      check-type-assertions: true
 
 issues:
   max-issues-per-linter: 0
