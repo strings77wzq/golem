@@ -135,7 +135,7 @@ func TestSession_Fork_ToolCallsPreserved(t *testing.T) {
 		t.Fatal("expected at least 2 messages")
 	}
 	// First message should be system, second should have tool calls
-	if msgs[1].ToolCalls == nil || len(msgs[1].ToolCalls) == 0 {
+	if len(msgs[1].ToolCalls) == 0 {
 		t.Error("expected tool calls preserved in forked session")
 	}
 }
