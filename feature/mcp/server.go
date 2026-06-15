@@ -13,11 +13,11 @@ import (
 
 // Server is an MCP server that exposes tools via stdio JSON-RPC.
 type Server struct {
-	stdin     io.Reader
-	stdout    io.Writer
-	scanner   *bufio.Scanner
-	registry  *tools.Registry
-	mu        sync.Mutex
+	stdin       io.Reader
+	stdout      io.Writer
+	scanner     *bufio.Scanner
+	registry    *tools.Registry
+	mu          sync.Mutex
 	initialized bool
 }
 

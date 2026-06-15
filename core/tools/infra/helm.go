@@ -17,8 +17,10 @@ func NewHelmTool() *HelmTool {
 	return &HelmTool{executor: &DefaultExecutor{}}
 }
 
-func (t *HelmTool) Name() string        { return "helm" }
-func (t *HelmTool) Description() string { return "Execute Helm operations: list, install, upgrade, rollback" }
+func (t *HelmTool) Name() string { return "helm" }
+func (t *HelmTool) Description() string {
+	return "Execute Helm operations: list, install, upgrade, rollback"
+}
 
 func (t *HelmTool) Parameters() []tools.ToolParameter {
 	return []tools.ToolParameter{

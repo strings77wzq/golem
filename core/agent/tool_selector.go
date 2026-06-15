@@ -9,7 +9,7 @@ import (
 
 // ToolSelector selects the most relevant tools for a given step.
 type ToolSelector struct {
-	registry *tools.Registry
+	registry  *tools.Registry
 	stopWords map[string]bool
 }
 

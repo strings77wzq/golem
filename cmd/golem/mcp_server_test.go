@@ -122,7 +122,7 @@ func TestMCPServerEndToEnd(t *testing.T) {
 		"jsonrpc": "2.0", "id": 1, "method": "initialize",
 		"params": map[string]interface{}{
 			"protocolVersion": "2024-11-05",
-			"clientInfo":     map[string]string{"name": "test", "version": "1.0"},
+			"clientInfo":      map[string]string{"name": "test", "version": "1.0"},
 		},
 	})
 

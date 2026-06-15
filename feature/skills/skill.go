@@ -25,10 +25,10 @@ type Prompt struct {
 
 // Step defines a single step in a skill's tool-chain workflow.
 type Step struct {
-	Tool       string            `json:"tool"`
-	Input      map[string]string `json:"input,omitempty"`
-	OutputVar  string            `json:"output_var,omitempty"`
-	Condition  string            `json:"condition,omitempty"`
+	Tool      string            `json:"tool"`
+	Input     map[string]string `json:"input,omitempty"`
+	OutputVar string            `json:"output_var,omitempty"`
+	Condition string            `json:"condition,omitempty"`
 }
 
 // HasSteps returns true if the skill defines a tool-chain workflow.

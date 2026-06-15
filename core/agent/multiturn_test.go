@@ -38,8 +38,8 @@ func setupMultiTurnAgent(t *testing.T) (*Agent, bus.Bus, *providers.MockProvider
 	cfg := &config.Config{
 		Agents: config.AgentConfig{
 			Defaults: config.AgentDefaults{
-				ModelName:  "mock/echo",
-				MaxTokens:  4096,
+				ModelName:    "mock/echo",
+				MaxTokens:    4096,
 				SystemPrompt: "You are a helpful assistant.",
 			},
 		},
@@ -187,7 +187,7 @@ func TestMultiTurnToolCallHistory(t *testing.T) {
 func TestSessionPersistenceAcrossRestarts(t *testing.T) {
 	// Create a shared store for both agents
 	sharedStore := session.NewMemoryStore()
-	
+
 	// Create agent 1 with shared store
 	registry1 := tools.NewRegistry()
 	registry1.Register(&echoTool{})

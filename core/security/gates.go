@@ -10,10 +10,10 @@ import (
 type PermissionLevel int
 
 const (
-	PermRead    PermissionLevel = iota // Read-only operations
-	PermWrite                          // Write operations
-	PermDelete                         // Delete operations
-	PermAdmin                          // Admin operations (DROP, ALTER)
+	PermRead   PermissionLevel = iota // Read-only operations
+	PermWrite                         // Write operations
+	PermDelete                        // Delete operations
+	PermAdmin                         // Admin operations (DROP, ALTER)
 )
 
 // GateResult represents the result of a security gate check.

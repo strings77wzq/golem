@@ -17,8 +17,10 @@ func NewKubectlTool() *KubectlTool {
 	return &KubectlTool{executor: &DefaultExecutor{}}
 }
 
-func (t *KubectlTool) Name() string        { return "kubectl" }
-func (t *KubectlTool) Description() string { return "Execute kubectl operations: get, apply, delete, describe, logs, scale" }
+func (t *KubectlTool) Name() string { return "kubectl" }
+func (t *KubectlTool) Description() string {
+	return "Execute kubectl operations: get, apply, delete, describe, logs, scale"
+}
 
 func (t *KubectlTool) Parameters() []tools.ToolParameter {
 	return []tools.ToolParameter{

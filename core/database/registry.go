@@ -7,18 +7,18 @@ import (
 
 // Registry manages multiple database connections of different types.
 type Registry struct {
-	mu           sync.RWMutex
-	sqlDrivers   map[string]SQLDriver
-	redisDrivers map[string]RedisDriver
- vectorDrivers map[string]VectorDriver
-	defaultDB    string
+	mu            sync.RWMutex
+	sqlDrivers    map[string]SQLDriver
+	redisDrivers  map[string]RedisDriver
+	vectorDrivers map[string]VectorDriver
+	defaultDB     string
 }
 
 // NewRegistry creates a new database registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		sqlDrivers:   make(map[string]SQLDriver),
-		redisDrivers: make(map[string]RedisDriver),
+		sqlDrivers:    make(map[string]SQLDriver),
+		redisDrivers:  make(map[string]RedisDriver),
 		vectorDrivers: make(map[string]VectorDriver),
 	}
 }

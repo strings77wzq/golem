@@ -7,13 +7,14 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/strings77wzq/golem/core/bus"
 	"github.com/strings77wzq/golem/core/planner"
 	"github.com/strings77wzq/golem/core/providers"
 	"github.com/strings77wzq/golem/core/session"
 	"github.com/strings77wzq/golem/core/tools"
 	"github.com/strings77wzq/golem/core/usage"
-	"golang.org/x/sync/errgroup"
 )
 
 func (a *Agent) handleMessage(ctx context.Context, msg bus.InboundMessage) {
@@ -285,7 +286,7 @@ func (a *Agent) processMessage(
 			if errors[i] != nil {
 				// Build informative error message for LLM feedback loop
 				errMsg := a.buildToolErrorMessage(tc, errors[i])
-				
+
 				sess.AddMessage(providers.Message{
 					Role:       providers.RoleTool,
 					Content:    errMsg,
@@ -765,14 +766,14 @@ func (a *Agent) processMessageFallback(
 // The message includes: tool name, error details, arguments, and suggested actions.
 func (a *Agent) buildToolErrorMessage(tc providers.ToolCall, err error) string {
 	var sb strings.Builder
-	
+
 	// Header with tool name
 	sb.WriteString(fmt.Sprintf("[Tool Error] %s failed\n", tc.Name))
-	
+
 	// Error details
 	errStr := err.Error()
 	sb.WriteString(fmt.Sprintf("Error: %s\n", errStr))
-	
+
 	// Arguments that were passed (helps LLM understand what went wrong)
 	if tc.Arguments != nil {
 		argsJSON, marshalErr := json.Marshal(tc.Arguments)
@@ -780,10 +781,10 @@ func (a *Agent) buildToolErrorMessage(tc providers.ToolCall, err error) string {
 			sb.WriteString(fmt.Sprintf("Arguments: %s\n", string(argsJSON)))
 		}
 	}
-	
+
 	// Suggested actions based on error type
 	sb.WriteString("\nSuggested actions:\n")
-	
+
 	errLower := strings.ToLower(errStr)
 	switch {
 	case strings.Contains(errLower, "not found"):
@@ -796,27 +797,27 @@ func (a *Agent) buildToolErrorMessage(tc providers.ToolCall, err error) string {
 			sb.WriteString(fmt.Sprintf("- Available tools: %s\n", strings.Join(available, ", ")))
 		}
 		sb.WriteString("- Try a different tool that can accomplish the same goal\n")
-		
+
 	case strings.Contains(errLower, "connection") || strings.Contains(errLower, "timeout"):
 		// Connection/timeout error - suggest retry or different approach
 		sb.WriteString("- This may be a temporary issue, try again\n")
 		sb.WriteString("- Or try a different approach to accomplish the goal\n")
-		
+
 	case strings.Contains(errLower, "permission") || strings.Contains(errLower, "denied"):
 		// Permission error - suggest different tool
 		sb.WriteString("- You don't have permission for this operation\n")
 		sb.WriteString("- Try a different tool or ask the user for help\n")
-		
+
 	case strings.Contains(errLower, "sql") || strings.Contains(errLower, "query"):
 		// SQL error - suggest checking syntax
 		sb.WriteString("- Check the SQL syntax\n")
 		sb.WriteString("- Make sure the table/column names are correct\n")
-		
+
 	default:
 		// Generic error - suggest retry or alternative
 		sb.WriteString("- Try again with different arguments\n")
 		sb.WriteString("- Or try a different approach\n")
 	}
-	
+
 	return sb.String()
 }

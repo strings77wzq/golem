@@ -114,7 +114,7 @@ func (d *PostgresDriver) Execute(ctx context.Context, query string, args ...inte
 
 	return Result{
 		RowsAffected: affected,
-		LastInsertID:  lastID,
+		LastInsertID: lastID,
 	}, nil
 }
 

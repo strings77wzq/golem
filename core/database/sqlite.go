@@ -12,12 +12,12 @@ import (
 
 // SQLiteDriver implements SQLDriver for SQLite databases.
 type SQLiteDriver struct {
-	db           *sql.DB
-	name         string
-	dsn          string
-	schemaCache  string
-	schemaTime   time.Time
-	schemaTTL    time.Duration
+	db          *sql.DB
+	name        string
+	dsn         string
+	schemaCache string
+	schemaTime  time.Time
+	schemaTTL   time.Duration
 }
 
 // NewSQLiteDriver creates a new SQLite driver.
@@ -122,7 +122,7 @@ func (d *SQLiteDriver) Execute(ctx context.Context, query string, args ...interf
 
 	return Result{
 		RowsAffected: affected,
-		LastInsertID:  lastID,
+		LastInsertID: lastID,
 	}, nil
 }
 

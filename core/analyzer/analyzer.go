@@ -25,36 +25,36 @@ const (
 type LogSource string
 
 const (
-	SourceSQL       LogSource = "sql"
-	SourceDocker    LogSource = "docker"
-	SourceK8s       LogSource = "k8s"
-	SourceRedis     LogSource = "redis"
-	SourceApp       LogSource = "app"
+	SourceSQL    LogSource = "sql"
+	SourceDocker LogSource = "docker"
+	SourceK8s    LogSource = "k8s"
+	SourceRedis  LogSource = "redis"
+	SourceApp    LogSource = "app"
 )
 
 // ErrorPattern defines a known error pattern to match against.
 type ErrorPattern struct {
-	Pattern     string
-	Regex       *regexp.Regexp
-	Severity    Severity
-	Issue       string
-	FixSQL      string // SQL fix
-	FixCommand  string // Shell command fix
-	FixYAML     string // YAML fix
-	RiskLevel   string // "low", "medium", "high"
+	Pattern    string
+	Regex      *regexp.Regexp
+	Severity   Severity
+	Issue      string
+	FixSQL     string // SQL fix
+	FixCommand string // Shell command fix
+	FixYAML    string // YAML fix
+	RiskLevel  string // "low", "medium", "high"
 }
 
 // Issue represents a detected problem in logs.
 type Issue struct {
-	Pattern     ErrorPattern
-	Count       int
-	FirstLine   string
-	Severity    Severity
-	Issue       string
-	Suggestion  string
-	FixSQL      string
-	FixCommand  string
-	FixYAML     string
+	Pattern    ErrorPattern
+	Count      int
+	FirstLine  string
+	Severity   Severity
+	Issue      string
+	Suggestion string
+	FixSQL     string
+	FixCommand string
+	FixYAML    string
 }
 
 // Analyzer analyzes logs and generates diagnoses.

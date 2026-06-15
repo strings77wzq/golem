@@ -18,8 +18,10 @@ func NewSQLSchemaTool(registry *database.Registry) *SQLSchemaTool {
 	return &SQLSchemaTool{registry: registry}
 }
 
-func (t *SQLSchemaTool) Name() string        { return "sql_schema" }
-func (t *SQLSchemaTool) Description() string { return "Get database schema information (tables, columns, types)" }
+func (t *SQLSchemaTool) Name() string { return "sql_schema" }
+func (t *SQLSchemaTool) Description() string {
+	return "Get database schema information (tables, columns, types)"
+}
 
 func (t *SQLSchemaTool) Parameters() []tools.ToolParameter {
 	return []tools.ToolParameter{

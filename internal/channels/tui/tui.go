@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/strings77wzq/golem/core/bus"
 )
 
@@ -48,25 +49,25 @@ var (
 	assistantStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 	promptStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("3"))
 	errorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	planStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))  // blue
-	stepStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))  // green
-	toolStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))  // yellow
-	resultStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("5"))  // magenta
+	planStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("4")) // blue
+	stepStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("2")) // green
+	toolStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("3")) // yellow
+	resultStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("5")) // magenta
 )
 
 // Model is the Bubble Tea model for the chat TUI.
 type Model struct {
-	agent      MessageHandler
-	sessionID  string
-	ctx        context.Context
-	cancel     context.CancelFunc
+	agent     MessageHandler
+	sessionID string
+	ctx       context.Context
+	cancel    context.CancelFunc
 
-	messages    []chatMsg
-	tokenCh     <-chan string
-	progressCh  <-chan bus.OutboundMessage
-	input       string
-	thinking    bool
-	lastError   string
+	messages   []chatMsg
+	tokenCh    <-chan string
+	progressCh <-chan bus.OutboundMessage
+	input      string
+	thinking   bool
+	lastError  string
 
 	viewport viewport.Model
 	ready    bool

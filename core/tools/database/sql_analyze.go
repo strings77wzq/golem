@@ -19,8 +19,10 @@ func NewSQLAnalyzeTool(registry *database.Registry) *SQLAnalyzeTool {
 	return &SQLAnalyzeTool{registry: registry}
 }
 
-func (t *SQLAnalyzeTool) Name() string        { return "sql_analyze" }
-func (t *SQLAnalyzeTool) Description() string { return "Analyze data distribution for a table (row count, nulls, distinct values, ranges)" }
+func (t *SQLAnalyzeTool) Name() string { return "sql_analyze" }
+func (t *SQLAnalyzeTool) Description() string {
+	return "Analyze data distribution for a table (row count, nulls, distinct values, ranges)"
+}
 
 func (t *SQLAnalyzeTool) Parameters() []tools.ToolParameter {
 	return []tools.ToolParameter{

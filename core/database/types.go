@@ -15,7 +15,7 @@ type Row map[string]interface{}
 // Result represents the result of a non-SELECT query.
 type Result struct {
 	RowsAffected int64
-	LastInsertID  int64
+	LastInsertID int64
 }
 
 // Config holds database connection configuration.

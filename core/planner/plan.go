@@ -33,13 +33,13 @@ const (
 
 // Plan represents a decomposed task with ordered execution steps.
 type Plan struct {
-	ID        string      `json:"id"`
-	Goal      string      `json:"goal"`
-	Steps     []Step      `json:"steps"`
-	Status    PlanStatus  `json:"status"`
-	Revision  int         `json:"revision"`
-	CreatedAt time.Time   `json:"created_at"`
-	UpdatedAt time.Time   `json:"updated_at"`
+	ID        string     `json:"id"`
+	Goal      string     `json:"goal"`
+	Steps     []Step     `json:"steps"`
+	Status    PlanStatus `json:"status"`
+	Revision  int        `json:"revision"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
 }
 
 // Step represents a single execution step within a plan.

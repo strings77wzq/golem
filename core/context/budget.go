@@ -6,10 +6,10 @@ import "fmt"
 // and conversation history. Ratios determine what fraction of the total
 // context window each component gets.
 type TokenBudget struct {
-	TotalTokens   int
-	SystemRatio   float64
-	ToolsRatio    float64
-	HistoryRatio  float64
+	TotalTokens  int
+	SystemRatio  float64
+	ToolsRatio   float64
+	HistoryRatio float64
 
 	SystemTokens  int
 	ToolsTokens   int

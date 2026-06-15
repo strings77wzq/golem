@@ -114,7 +114,7 @@ func (d *MySQLDriver) Execute(ctx context.Context, query string, args ...interfa
 
 	return Result{
 		RowsAffected: affected,
-		LastInsertID:  lastID,
+		LastInsertID: lastID,
 	}, nil
 }
 
@@ -188,7 +188,7 @@ func (d *MySQLDriver) GetSchemaForTable(ctx context.Context, table string) (stri
 		col := fmt.Sprintf("%v", row["column_name"])
 		typ := fmt.Sprintf("%v", row["data_type"])
 		key := fmt.Sprintf("%v", row["column_key"])
-	 nullable := fmt.Sprintf("%v", row["is_nullable"])
+		nullable := fmt.Sprintf("%v", row["is_nullable"])
 
 		part := fmt.Sprintf("%s %s", col, typ)
 		if key == "PRI" {

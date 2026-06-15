@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defaultMaxRows    = 50
+	defaultMaxRows     = 50
 	defaultMaxColWidth = 30
 	summaryThreshold   = 100
 )
@@ -45,8 +45,10 @@ func (t *SQLQueryTool) SetAuditFunc(fn func(entry security.AuditEntry)) {
 	t.auditFn = fn
 }
 
-func (t *SQLQueryTool) Name() string        { return "sql_query" }
-func (t *SQLQueryTool) Description() string { return "Execute SQL SELECT query and return results (auto-truncated to 50 rows)" }
+func (t *SQLQueryTool) Name() string { return "sql_query" }
+func (t *SQLQueryTool) Description() string {
+	return "Execute SQL SELECT query and return results (auto-truncated to 50 rows)"
+}
 
 func (t *SQLQueryTool) Parameters() []tools.ToolParameter {
 	return []tools.ToolParameter{

@@ -59,12 +59,12 @@ func TestSessionTimestampUpdate(t *testing.T) {
 
 	sess := NewSession("timestamp-test")
 	sess.AddMessage(providers.Message{Role: providers.RoleUser, Content: "First"})
-	
+
 	firstUpdate := sess.UpdatedAt
 	time.Sleep(10 * time.Millisecond)
 
 	sess.AddMessage(providers.Message{Role: providers.RoleAssistant, Content: "Second"})
-	
+
 	if !sess.UpdatedAt.After(firstUpdate) {
 		t.Error("expected UpdatedAt to be updated after adding message")
 	}

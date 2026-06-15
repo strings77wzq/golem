@@ -59,24 +59,24 @@ func NewManagerWithConfig(cfg ManagerConfig) *Manager {
 
 // ManagerConfig holds configuration for the context manager.
 type ManagerConfig struct {
-	TotalTokens       int
-	SystemRatio       float64
-	ToolsRatio        float64
-	HistoryRatio      float64
-	BaseSystemPrompt  string
-	MaxToolOutput     int
+	TotalTokens        int
+	SystemRatio        float64
+	ToolsRatio         float64
+	HistoryRatio       float64
+	BaseSystemPrompt   string
+	MaxToolOutput      int
 	SummarizeThreshold int
 }
 
 // DefaultConfig returns sensible defaults for most LLM providers.
 func DefaultConfig() ManagerConfig {
 	return ManagerConfig{
-		TotalTokens:       8192,
-		SystemRatio:       0.2,
-		ToolsRatio:        0.3,
-		HistoryRatio:      0.5,
-		BaseSystemPrompt:  "",
-		MaxToolOutput:     2000,
+		TotalTokens:        8192,
+		SystemRatio:        0.2,
+		ToolsRatio:         0.3,
+		HistoryRatio:       0.5,
+		BaseSystemPrompt:   "",
+		MaxToolOutput:      2000,
 		SummarizeThreshold: 10,
 	}
 }

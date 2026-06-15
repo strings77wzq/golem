@@ -8,9 +8,9 @@ package agent
 import (
 	"context"
 
-	golemctx "github.com/strings77wzq/golem/core/context"
 	"github.com/strings77wzq/golem/core/bus"
 	"github.com/strings77wzq/golem/core/config"
+	golemctx "github.com/strings77wzq/golem/core/context"
 	"github.com/strings77wzq/golem/core/planner"
 	"github.com/strings77wzq/golem/core/providers"
 	"github.com/strings77wzq/golem/core/session"

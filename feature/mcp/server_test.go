@@ -49,7 +49,7 @@ func TestServerInitialize(t *testing.T) {
 
 	writeRequest(t, input, map[string]interface{}{
 		"jsonrpc": "2.0", "id": 1, "method": "initialize",
-		"params":   map[string]interface{}{"protocolVersion": "2024-11-05", "clientInfo": map[string]string{"name": "test", "version": "1.0"}},
+		"params": map[string]interface{}{"protocolVersion": "2024-11-05", "clientInfo": map[string]string{"name": "test", "version": "1.0"}},
 	})
 	server.handleMessage(context.Background())
 	resp := readResponse(t, &output)
@@ -68,7 +68,7 @@ func TestServerToolsList(t *testing.T) {
 
 	writeRequest(t, input, map[string]interface{}{
 		"jsonrpc": "2.0", "id": 1, "method": "initialize",
-		"params":   map[string]interface{}{"protocolVersion": "2024-11-05", "clientInfo": map[string]string{"name": "test", "version": "1.0"}},
+		"params": map[string]interface{}{"protocolVersion": "2024-11-05", "clientInfo": map[string]string{"name": "test", "version": "1.0"}},
 	})
 	server.handleMessage(context.Background())
 	readResponse(t, &output)
@@ -92,14 +92,14 @@ func TestServerToolsCall(t *testing.T) {
 
 	writeRequest(t, input, map[string]interface{}{
 		"jsonrpc": "2.0", "id": 1, "method": "initialize",
-		"params":   map[string]interface{}{"protocolVersion": "2024-11-05", "clientInfo": map[string]string{"name": "test", "version": "1.0"}},
+		"params": map[string]interface{}{"protocolVersion": "2024-11-05", "clientInfo": map[string]string{"name": "test", "version": "1.0"}},
 	})
 	server.handleMessage(context.Background())
 	readResponse(t, &output)
 
 	writeRequest(t, input, map[string]interface{}{
 		"jsonrpc": "2.0", "id": 3, "method": "tools/call",
-		"params":  map[string]interface{}{"name": "sql_query", "arguments": map[string]interface{}{"sql": "SELECT * FROM users"}},
+		"params": map[string]interface{}{"name": "sql_query", "arguments": map[string]interface{}{"sql": "SELECT * FROM users"}},
 	})
 	server.handleMessage(context.Background())
 	resp := readResponse(t, &output)

@@ -39,8 +39,10 @@ func NewDockerTool() *DockerTool {
 	return &DockerTool{executor: &DefaultExecutor{}}
 }
 
-func (t *DockerTool) Name() string        { return "docker" }
-func (t *DockerTool) Description() string { return "Execute Docker operations: build, run, stop, ps, logs, exec, push, images" }
+func (t *DockerTool) Name() string { return "docker" }
+func (t *DockerTool) Description() string {
+	return "Execute Docker operations: build, run, stop, ps, logs, exec, push, images"
+}
 
 func (t *DockerTool) Parameters() []tools.ToolParameter {
 	return []tools.ToolParameter{

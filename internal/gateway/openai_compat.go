@@ -11,23 +11,23 @@ import (
 
 // OpenAICompatRequest represents a request to /v1/chat/completions.
 type OpenAICompatRequest struct {
-	Model    string              `json:"model"`
-	Messages []OpenAIMessage     `json:"messages"`
-	Stream   bool                `json:"stream,omitempty"`
-	Tools    []OpenAIToolDef     `json:"tools,omitempty"`
-	Options  *OpenAICompatOpts   `json:"options,omitempty"`
+	Model    string            `json:"model"`
+	Messages []OpenAIMessage   `json:"messages"`
+	Stream   bool              `json:"stream,omitempty"`
+	Tools    []OpenAIToolDef   `json:"tools,omitempty"`
+	Options  *OpenAICompatOpts `json:"options,omitempty"`
 }
 
 type OpenAIMessage struct {
-	Role       string            `json:"role"`
-	Content    string            `json:"content"`
-	ToolCalls  []OpenAIToolCall  `json:"tool_calls,omitempty"`
-	ToolCallID string            `json:"tool_call_id,omitempty"`
+	Role       string           `json:"role"`
+	Content    string           `json:"content"`
+	ToolCalls  []OpenAIToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string           `json:"tool_call_id,omitempty"`
 }
 
 type OpenAIToolDef struct {
-	Type     string          `json:"type"`
-	Function OpenAIToolFunc  `json:"function"`
+	Type     string         `json:"type"`
+	Function OpenAIToolFunc `json:"function"`
 }
 
 type OpenAIToolFunc struct {
@@ -52,19 +52,19 @@ type OpenAICompatOpts struct {
 
 // OpenAICompatResponse represents a response from /v1/chat/completions.
 type OpenAICompatResponse struct {
-	ID      string                `json:"id"`
-	Object  string                `json:"object"`
-	Created int64                 `json:"created"`
-	Model   string                `json:"model"`
-	Choices []OpenAICompatChoice  `json:"choices"`
-	Usage   *OpenAICompatUsage    `json:"usage,omitempty"`
+	ID      string               `json:"id"`
+	Object  string               `json:"object"`
+	Created int64                `json:"created"`
+	Model   string               `json:"model"`
+	Choices []OpenAICompatChoice `json:"choices"`
+	Usage   *OpenAICompatUsage   `json:"usage,omitempty"`
 }
 
 type OpenAICompatChoice struct {
-	Index        int              `json:"index"`
-	Message      *OpenAIMessage   `json:"message,omitempty"`
-	Delta        *OpenAIMessage   `json:"delta,omitempty"`
-	FinishReason *string          `json:"finish_reason"`
+	Index        int            `json:"index"`
+	Message      *OpenAIMessage `json:"message,omitempty"`
+	Delta        *OpenAIMessage `json:"delta,omitempty"`
+	FinishReason *string        `json:"finish_reason"`
 }
 
 type OpenAICompatUsage struct {

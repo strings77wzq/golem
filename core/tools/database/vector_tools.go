@@ -79,8 +79,10 @@ func NewVectorCollectionsTool(registry *database.Registry) *VectorCollectionsToo
 	return &VectorCollectionsTool{registry: registry}
 }
 
-func (t *VectorCollectionsTool) Name() string        { return "vector_collections" }
-func (t *VectorCollectionsTool) Description() string { return "List all collections in vector database" }
+func (t *VectorCollectionsTool) Name() string { return "vector_collections" }
+func (t *VectorCollectionsTool) Description() string {
+	return "List all collections in vector database"
+}
 func (t *VectorCollectionsTool) Parameters() []tools.ToolParameter {
 	return []tools.ToolParameter{
 		{Name: "database", Type: "string", Description: "Vector DB instance name", Required: false},
