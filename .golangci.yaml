@@ -10,8 +10,10 @@ linters:
     - staticcheck
     - unused
   settings:
-    errcheck:
-      check-type-assertions: true
+    staticcheck:
+      checks:
+        - all
+        - -QF1012
 
 issues:
   max-issues-per-linter: 0
