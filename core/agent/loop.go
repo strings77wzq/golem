@@ -172,6 +172,27 @@ func (a *Agent) summarizeMessages(messages []providers.Message) string {
 	return sb.String()
 }
 
+// HandleFork creates a forked session from an existing one.
+// It copies messages up to (excluding) upToIndex, appends the new message,
+// and returns the new session ID.
+func (a *Agent) HandleFork(ctx context.Context, originalSessionID string, upToIndex int, newMessage string) (string, error) {
+	sess, found := a.sessionStore.Get(originalSessionID)
+	if !found {
+		return "", fmt.Errorf("session %q not found", originalSessionID)
+	}
+
+	forked := sess.Fork(upToIndex, providers.Message{
+		Role:    providers.RoleUser,
+		Content: newMessage,
+	})
+
+	if err := a.sessionStore.Save(forked); err != nil {
+		return "", fmt.Errorf("saving forked session: %w", err)
+	}
+
+	return forked.ID, nil
+}
+
 func (a *Agent) HandleMessageStreamWithProgress(ctx context.Context, sessionID string, message string, tokens chan<- string, progress chan<- bus.OutboundMessage) error {
 	defer close(tokens)
 	streamed := false
@@ -370,9 +391,45 @@ func (a *Agent) processMessage(
 		results := make([]*tools.ToolResult, len(resp.ToolCalls))
 		errors := make([]error, len(resp.ToolCalls))
 
+		// Pre-tool shell hooks: run sequentially before parallel execution
+		blockedTools := make(map[string]bool)
+		if a.hooks != nil && a.hooks.PreToolShell != nil {
+			for _, tc := range resp.ToolCalls {
+				output, hookErr := a.hooks.PreToolShell.Execute(&HookInput{
+					SessionID: msg.SessionID,
+					ToolName:  tc.Name,
+					ToolInput: tc.Arguments,
+				})
+				if hookErr != nil || !output.Allowed {
+					reason := "hook error"
+					if output != nil {
+						reason = output.Reason
+					}
+					blockedTools[tc.ID] = true
+					sess.AddMessage(providers.Message{
+						Role:       providers.RoleTool,
+						Content:    fmt.Sprintf("Tool blocked by policy: %s", reason),
+						ToolCallID: tc.ID,
+					})
+					if emit != nil {
+						emit(bus.OutboundMessage{
+							SessionID: msg.SessionID,
+							Content:   fmt.Sprintf("Tool %s blocked: %s", tc.Name, reason),
+							Role:      bus.RoleTool,
+							Done:      false,
+						})
+					}
+				}
+			}
+		}
+
 		for i, tc := range resp.ToolCalls {
 			i, tc := i, tc // capture loop variables
 			wg.Go(func() error {
+				// Skip blocked tools
+				if blockedTools[tc.ID] {
+					return nil
+				}
 				// Observability: record tool call
 				AgentToolCalls.Inc()
 				toolStart := time.Now()
@@ -426,6 +483,16 @@ func (a *Agent) processMessage(
 				Content:    result.ForLLM,
 				ToolCallID: tc.ID,
 			})
+
+			// Post-tool shell hook
+			if a.hooks != nil && a.hooks.PostToolShell != nil && !blockedTools[tc.ID] {
+				a.hooks.PostToolShell.Execute(&HookInput{
+					SessionID:  msg.SessionID,
+					ToolName:   tc.Name,
+					ToolInput:  tc.Arguments,
+					ToolOutput: result.ForLLM,
+				})
+			}
 
 			if result.ForUser != "" && !result.Silent {
 				// ForUser: user-visible feedback (e.g., "Searched for X", "Downloaded file Y")

@@ -17,6 +17,8 @@ type Hooks struct {
 	BeforeTool    func(ctx context.Context, call providers.ToolCall) error
 	AfterTool     func(ctx context.Context, call providers.ToolCall, result *tools.ToolResult) error
 	OnError       func(ctx context.Context, err error) error
+	PreToolShell  *ShellHook // shell command hook before tool execution
+	PostToolShell *ShellHook // shell command hook after tool execution
 }
 
 // Middleware wraps the message processing pipeline.

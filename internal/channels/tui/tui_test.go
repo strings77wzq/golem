@@ -36,6 +36,10 @@ func (m *mockHandler) HandleCompact(_ context.Context, _ string) (string, error)
 	return "compacted", nil
 }
 
+func (m *mockHandler) HandleFork(_ context.Context, _ string, _ int, _ string) (string, error) {
+	return "forked-session-id", nil
+}
+
 func TestModelInitialState(t *testing.T) {
 	handler := &mockHandler{}
 	m := New(context.Background(), "sess", handler)

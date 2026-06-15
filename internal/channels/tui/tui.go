@@ -88,6 +88,7 @@ func New(ctx context.Context, sessionID string, handler MessageHandler) Model {
 	cmds.Register(clearCmd{})
 	cmds.Register(helpCmd{registry: cmds})
 	cmds.Register(quitCmd{})
+	cmds.Register(forkCmd{})
 
 	return Model{
 		agent:     handler,
@@ -197,6 +198,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.atBottom = true
 		}
 		return m, nil
+
+	case forkHelpMsg:
+		help := "Usage: /fork <message-index> <new message>\nExample: /fork 2 查询所有订单"
+		m.messages = append(m.messages, chatMsg{role: roleProgress, content: help})
+		if m.ready {
+			m.viewport.SetContent(m.buildTranscript())
+			m.viewport.GotoBottom()
+			m.atBottom = true
+		}
+		return m, nil
+
+	case forkResultMsg:
+		result := fmt.Sprintf("Forked to session %s\n%s", msg.newSessionID, msg.message)
+		m.messages = append(m.messages, chatMsg{role: roleProgress, content: result})
+		m.sessionID = msg.newSessionID
+		if m.ready {
+			m.viewport.SetContent(m.buildTranscript())
+			m.viewport.GotoBottom()
+			m.atBottom = true
+		}
+		return m, nil
 	}
 
 	if m.ready {
@@ -291,6 +313,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		text := m.input
 		m.input = ""
+
+		// Resolve @file references before sending
+		text = m.resolveFileRefs(text)
 
 		// Handle slash commands
 		if strings.HasPrefix(text, "/") {

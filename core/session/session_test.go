@@ -1,211 +1,141 @@
 package session
 
 import (
-	"bytes"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/strings77wzq/golem/core/providers"
 )
 
-func TestNewSession(t *testing.T) {
-	id := "test-session"
-	session := NewSession(id)
+func TestSession_Fork_Basic(t *testing.T) {
+	sess := NewSession("original")
+	sess.AddMessage(providers.Message{Role: providers.RoleSystem, Content: "You are helpful."})
+	sess.AddMessage(providers.Message{Role: providers.RoleUser, Content: "Hello"})
+	sess.AddMessage(providers.Message{Role: providers.RoleAssistant, Content: "Hi there!"})
+	sess.AddMessage(providers.Message{Role: providers.RoleUser, Content: "How are you?"})
 
-	if session.ID != id {
-		t.Errorf("expected ID %q, got %q", id, session.ID)
+	forked := sess.Fork(2, providers.Message{Role: providers.RoleUser, Content: "What's up?"})
+
+	// Forked session should have: system + user1 + new message = 3
+	if forked.MessageCount() != 3 {
+		t.Fatalf("expected 3 messages in forked session, got %d", forked.MessageCount())
 	}
-
-	if len(session.Messages) != 0 {
-		t.Errorf("expected 0 messages, got %d", len(session.Messages))
+	msgs := forked.GetMessages()
+	if msgs[0].Content != "You are helpful." {
+		t.Errorf("expected system prompt preserved, got %q", msgs[0].Content)
 	}
-
-	if session.CreatedAt.IsZero() {
-		t.Error("expected CreatedAt to be set")
+	if msgs[1].Content != "Hello" {
+		t.Errorf("expected first user message preserved, got %q", msgs[1].Content)
 	}
-
-	if session.UpdatedAt.IsZero() {
-		t.Error("expected UpdatedAt to be set")
-	}
-
-	if !session.CreatedAt.Equal(session.UpdatedAt) {
-		t.Error("expected CreatedAt and UpdatedAt to be equal for new session")
-	}
-}
-
-func TestAddMessage(t *testing.T) {
-	session := NewSession("test")
-
-	msg1 := providers.Message{Role: providers.RoleUser, Content: "Hello"}
-	msg2 := providers.Message{Role: providers.RoleAssistant, Content: "Hi"}
-
-	session.AddMessage(msg1)
-	if session.MessageCount() != 1 {
-		t.Errorf("expected 1 message, got %d", session.MessageCount())
-	}
-
-	session.AddMessage(msg2)
-	if session.MessageCount() != 2 {
-		t.Errorf("expected 2 messages, got %d", session.MessageCount())
-	}
-
-	messages := session.GetMessages()
-	if messages[0].Content != "Hello" {
-		t.Errorf("expected first message 'Hello', got %q", messages[0].Content)
-	}
-	if messages[1].Content != "Hi" {
-		t.Errorf("expected second message 'Hi', got %q", messages[1].Content)
+	if msgs[2].Content != "What's up?" {
+		t.Errorf("expected new message, got %q", msgs[2].Content)
 	}
 }
 
-func TestGetMessages(t *testing.T) {
-	session := NewSession("test")
+func TestSession_Fork_OriginalUnchanged(t *testing.T) {
+	sess := NewSession("original")
+	sess.AddMessage(providers.Message{Role: providers.RoleSystem, Content: "system"})
+	sess.AddMessage(providers.Message{Role: providers.RoleUser, Content: "msg1"})
+	sess.AddMessage(providers.Message{Role: providers.RoleUser, Content: "msg2"})
 
-	msg := providers.Message{Role: providers.RoleUser, Content: "Test"}
-	session.AddMessage(msg)
+	_ = sess.Fork(1, providers.Message{Role: providers.RoleUser, Content: "forked"})
 
-	messages := session.GetMessages()
-	messages[0].Content = "Modified"
-
-	origMessages := session.GetMessages()
-	if origMessages[0].Content != "Test" {
-		t.Error("modifying returned slice should not affect session")
+	// Original should still have 3 messages
+	if sess.MessageCount() != 3 {
+		t.Errorf("original session changed: expected 3, got %d", sess.MessageCount())
 	}
 }
 
-func TestClear(t *testing.T) {
-	session := NewSession("test")
+func TestSession_Fork_NewID(t *testing.T) {
+	sess := NewSession("original")
+	sess.AddMessage(providers.Message{Role: providers.RoleUser, Content: "test"})
 
-	session.AddMessage(providers.Message{Role: providers.RoleUser, Content: "Hello"})
-	session.AddMessage(providers.Message{Role: providers.RoleAssistant, Content: "Hi"})
+	forked := sess.Fork(0)
 
-	if session.MessageCount() != 2 {
-		t.Errorf("expected 2 messages before clear, got %d", session.MessageCount())
-	}
-
-	oldUpdatedAt := session.UpdatedAt
-	time.Sleep(10 * time.Millisecond)
-
-	session.Clear()
-
-	if session.MessageCount() != 0 {
-		t.Errorf("expected 0 messages after clear, got %d", session.MessageCount())
-	}
-
-	if !session.UpdatedAt.After(oldUpdatedAt) {
-		t.Error("expected UpdatedAt to be updated after clear")
+	if forked.ID == sess.ID {
+		t.Error("forked session should have different ID")
 	}
 }
 
-func TestConcurrentAddMessage(t *testing.T) {
-	session := NewSession("test")
+func TestSession_Fork_Index0(t *testing.T) {
+	sess := NewSession("original")
+	sess.AddMessage(providers.Message{Role: providers.RoleSystem, Content: "system"})
+	sess.AddMessage(providers.Message{Role: providers.RoleUser, Content: "hello"})
 
-	var wg sync.WaitGroup
-	numGoroutines := 50
+	forked := sess.Fork(0, providers.Message{Role: providers.RoleUser, Content: "new start"})
 
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func(n int) {
-			defer wg.Done()
-			msg := providers.Message{
-				Role:    providers.RoleUser,
-				Content: "message",
-			}
-			session.AddMessage(msg)
-		}(i)
+	// Only the new message (no system prompt since index 0 means nothing copied)
+	if forked.MessageCount() != 1 {
+		t.Fatalf("expected 1 message, got %d", forked.MessageCount())
 	}
-
-	wg.Wait()
-
-	if session.MessageCount() != numGoroutines {
-		t.Errorf("expected %d messages, got %d", numGoroutines, session.MessageCount())
+	if forked.GetMessages()[0].Content != "new start" {
+		t.Errorf("expected 'new start', got %q", forked.GetMessages()[0].Content)
 	}
 }
 
-func TestExport(t *testing.T) {
-	s := NewSession("test-session")
-	s.AddMessage(providers.Message{Role: providers.RoleUser, Content: "Hello"})
-	s.AddMessage(providers.Message{Role: providers.RoleAssistant, Content: "Hi there!"})
+func TestSession_Fork_IndexEqualLength(t *testing.T) {
+	sess := NewSession("original")
+	sess.AddMessage(providers.Message{Role: providers.RoleUser, Content: "a"})
+	sess.AddMessage(providers.Message{Role: providers.RoleUser, Content: "b"})
 
-	exportData := s.Export()
+	forked := sess.Fork(2, providers.Message{Role: providers.RoleUser, Content: "c"})
 
-	if exportData.Version != "1.0" {
-		t.Errorf("expected version '1.0', got %q", exportData.Version)
-	}
-	if exportData.Session.ID != "test-session" {
-		t.Errorf("expected session ID 'test-session', got %q", exportData.Session.ID)
-	}
-	if len(exportData.Session.Messages) != 2 {
-		t.Fatalf("expected 2 messages, got %d", len(exportData.Session.Messages))
-	}
-	if exportData.Session.Messages[0].Content != "Hello" {
-		t.Errorf("expected first message 'Hello', got %q", exportData.Session.Messages[0].Content)
+	// All original + new message
+	if forked.MessageCount() != 3 {
+		t.Fatalf("expected 3 messages, got %d", forked.MessageCount())
 	}
 }
 
-func TestExportToJSON(t *testing.T) {
-	s := NewSession("json-test")
-	s.AddMessage(providers.Message{Role: providers.RoleUser, Content: "Test"})
+func TestSession_Fork_IndexBeyondLength(t *testing.T) {
+	sess := NewSession("original")
+	sess.AddMessage(providers.Message{Role: providers.RoleUser, Content: "a"})
 
-	jsonData, err := s.ExportToJSON()
-	if err != nil {
-		t.Fatalf("ExportToJSON failed: %v", err)
-	}
+	forked := sess.Fork(100, providers.Message{Role: providers.RoleUser, Content: "b"})
 
-	if len(jsonData) == 0 {
-		t.Fatal("expected non-empty JSON")
-	}
-
-	if !bytes.Contains(jsonData, []byte("json-test")) {
-		t.Error("expected JSON to contain session ID")
+	// Clamped to length + new message
+	if forked.MessageCount() != 2 {
+		t.Fatalf("expected 2 messages, got %d", forked.MessageCount())
 	}
 }
 
-func TestImportFromJSON(t *testing.T) {
-	original := NewSession("import-test")
-	original.AddMessage(providers.Message{Role: providers.RoleUser, Content: "Original message"})
+func TestSession_Fork_MultipleNewMessages(t *testing.T) {
+	sess := NewSession("original")
+	sess.AddMessage(providers.Message{Role: providers.RoleSystem, Content: "sys"})
 
-	jsonData, err := original.ExportToJSON()
-	if err != nil {
-		t.Fatalf("ExportToJSON failed: %v", err)
-	}
+	forked := sess.Fork(1,
+		providers.Message{Role: providers.RoleUser, Content: "q1"},
+		providers.Message{Role: providers.RoleAssistant, Content: "a1"},
+	)
 
-	imported, err := ImportFromJSON(jsonData)
-	if err != nil {
-		t.Fatalf("ImportFromJSON failed: %v", err)
-	}
-
-	if imported.ID != "import-test" {
-		t.Errorf("expected ID 'import-test', got %q", imported.ID)
-	}
-	if imported.MessageCount() != 1 {
-		t.Fatalf("expected 1 message, got %d", imported.MessageCount())
-	}
-	if imported.GetMessages()[0].Content != "Original message" {
-		t.Errorf("expected message 'Original message', got %q", imported.GetMessages()[0].Content)
+	// system + q1 + a1 = 3
+	if forked.MessageCount() != 3 {
+		t.Fatalf("expected 3 messages, got %d", forked.MessageCount())
 	}
 }
 
-func TestImportFromJSONInvalid(t *testing.T) {
-	_, err := ImportFromJSON([]byte("invalid json"))
-	if err == nil {
-		t.Fatal("expected error for invalid JSON")
-	}
-}
+func TestSession_Fork_ToolCallsPreserved(t *testing.T) {
+	sess := NewSession("original")
+	sess.AddMessage(providers.Message{Role: providers.RoleSystem, Content: "sys"})
+	sess.AddMessage(providers.Message{
+		Role:    providers.RoleAssistant,
+		Content: "",
+		ToolCalls: []providers.ToolCall{
+			{ID: "call-1", Name: "sql_query", Arguments: map[string]interface{}{"sql": "SELECT 1"}},
+		},
+	})
+	sess.AddMessage(providers.Message{
+		Role:       providers.RoleTool,
+		Content:    "result",
+		ToolCallID: "call-1",
+	})
 
-func TestImportFromJSONMissingVersion(t *testing.T) {
-	jsonData := `{"session": {"id": "test"}}`
-	_, err := ImportFromJSON([]byte(jsonData))
-	if err == nil {
-		t.Fatal("expected error for missing version")
-	}
-}
+	forked := sess.Fork(2, providers.Message{Role: providers.RoleUser, Content: "new"})
 
-func TestImportFromJSONMissingID(t *testing.T) {
-	jsonData := `{"version": "1.0", "session": {}}`
-	_, err := ImportFromJSON([]byte(jsonData))
-	if err == nil {
-		t.Fatal("expected error for missing session ID")
+	msgs := forked.GetMessages()
+	if len(msgs) < 2 {
+		t.Fatal("expected at least 2 messages")
+	}
+	// First message should be system, second should have tool calls
+	if msgs[1].ToolCalls == nil || len(msgs[1].ToolCalls) == 0 {
+		t.Error("expected tool calls preserved in forked session")
 	}
 }

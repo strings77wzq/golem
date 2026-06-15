@@ -6,6 +6,7 @@
 package session
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -80,6 +81,31 @@ func (s *Session) Clear() {
 	defer s.mu.Unlock()
 	s.Messages = []providers.Message{}
 	s.UpdatedAt = time.Now()
+}
+
+// Fork creates a new session with messages up to (excluding) the given index,
+// plus the provided new messages. Original session is unchanged.
+func (s *Session) Fork(upToIndex int, newMessages ...providers.Message) *Session {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if upToIndex > len(s.Messages) {
+		upToIndex = len(s.Messages)
+	}
+
+	forked := NewSession(generateSessionID())
+	forked.Messages = make([]providers.Message, upToIndex)
+	copy(forked.Messages, s.Messages[:upToIndex])
+	forked.Messages = append(forked.Messages, newMessages...)
+	return forked
+}
+
+func generateSessionID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("fork-%d", time.Now().UnixNano())
+	}
+	return fmt.Sprintf("%x", b)
 }
 
 // Export returns the session data in exportable JSON format.

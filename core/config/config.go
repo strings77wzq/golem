@@ -34,6 +34,8 @@ type AgentDefaults struct {
 	MaxTokens      int      `json:"max_tokens"`
 	SystemPrompt   string   `json:"system_prompt"`
 	FallbackModels []string `json:"fallback_models,omitempty"`
+	PreToolHook    string   `json:"pre_tool_hook,omitempty"`
+	PostToolHook   string   `json:"post_tool_hook,omitempty"`
 }
 
 // GatewayConfig holds HTTP gateway configuration

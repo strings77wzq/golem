@@ -100,6 +100,16 @@ func (c *AgentConfig) ToCoreConfig() *corecfg.Config {
 		},
 	}
 
+	// Wire hooks from YAML config
+	if c.Hooks != nil {
+		if c.Hooks.PreToolUse != nil {
+			cfg.Agents.Defaults.PreToolHook = c.Hooks.PreToolUse.Command
+		}
+		if c.Hooks.PostToolUse != nil {
+			cfg.Agents.Defaults.PostToolHook = c.Hooks.PostToolUse.Command
+		}
+	}
+
 	// Build model list from the agent model
 	if c.Agent.Model != "" {
 		parts := strings.SplitN(c.Agent.Model, "/", 2)
