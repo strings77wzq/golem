@@ -1,16 +1,17 @@
 # Configuration Reference
 
-Complete reference for `~/.golem/config.json`.
+Complete reference for Golem configuration. Supports both JSON (`~/.golem/config.json`) and YAML (`agent.yaml`).
 
 ## File Location
 
 ```
-~/.golem/config.json
+~/.golem/config.json      # JSON config (default)
+./agent.yaml              # YAML config (pass via --config)
 ```
 
 Hot reload: Send `SIGHUP` to the golem process to reload config without restart.
 
-## Schema
+## JSON Schema
 
 ```json
 {
@@ -18,7 +19,10 @@ Hot reload: Send `SIGHUP` to the golem process to reload config without restart.
     "defaults": {
       "model_name": "gpt4",
       "max_tokens": 8192,
-      "system_prompt": "You are Golem, a helpful AI assistant."
+      "system_prompt": "You are Golem, a helpful AI assistant.",
+      "fallback_models": ["anthropic/claude-3-haiku", "ollama/qwen3"],
+      "pre_tool_hook": "./scripts/validate-sql.sh",
+      "post_tool_hook": "./scripts/log-audit.sh"
     }
   },
   "model_list": [
@@ -30,6 +34,36 @@ Hot reload: Send `SIGHUP` to the golem process to reload config without restart.
     }
   ]
 }
+```
+
+## YAML Schema
+
+```yaml
+version: 1
+agent:
+  model: openai/gpt-4o
+  fallback_models:
+    - anthropic/claude-3-haiku
+  system_prompt: |
+    You are a database assistant.
+  max_tokens: 8192
+database:
+  path: ./myapp.db
+tools:
+  - name: sql_query
+    enabled: true
+  - name: exec
+    enabled: false
+hooks:
+  pre_tool_use:
+    command: ./scripts/validate-sql.sh
+  post_tool_use:
+    command: ./scripts/log-audit.sh
+```
+
+```bash
+golem agent --config agent.yaml
+```
 ```
 
 ## Full Field Reference
@@ -49,6 +83,9 @@ Agent-level configuration.
 | `model_name` | string | Yes | `"gpt4"` | Short name referencing an entry in `model_list`. Used by CLI `-M` flag. |
 | `max_tokens` | integer | No | `8192` | Maximum tokens in LLM response |
 | `system_prompt` | string | No | `"You are Golem, a helpful AI assistant."` | System prompt injected at session start |
+| `fallback_models` | array | No | `[]` | List of fallback models (format: `"vendor/model"`). Tried in order when primary model fails. |
+| `pre_tool_hook` | string | No | `""` | Shell command to run before each tool call. Receives JSON on stdin, returns `{"allowed":true/false}`. |
+| `post_tool_hook` | string | No | `""` | Shell command to run after each tool call. Receives JSON on stdin with tool result. |
 
 ### `model_list` (array)
 

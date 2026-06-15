@@ -13,7 +13,9 @@
 
 | Document | Description |
 |----------|-------------|
-| [CONFIG-REFERENCE.md](CONFIG-REFERENCE.md) | Configuration file format and options |
+| [CONFIG-REFERENCE.md](CONFIG-REFERENCE.md) | Configuration (JSON + YAML) and all options |
+| [TOOLS.md](TOOLS.md) | Built-in tools, security model, custom tools |
+| [TUI-COMMANDS.md](TUI-COMMANDS.md) | TUI slash commands, @file reference, keyboard shortcuts |
 | [GATEWAY-API.md](GATEWAY-API.md) | HTTP API endpoints and OpenAI-compatible API |
 | [SECURITY.md](SECURITY.md) | Security best practices and threat model |
 | [TESTING.md](TESTING.md) | Testing guide and coverage expectations |
