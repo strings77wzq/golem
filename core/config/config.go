@@ -30,9 +30,10 @@ type AgentConfig struct {
 
 // AgentDefaults holds default values for agents
 type AgentDefaults struct {
-	ModelName    string `json:"model_name"`
-	MaxTokens    int    `json:"max_tokens"`
-	SystemPrompt string `json:"system_prompt"`
+	ModelName      string   `json:"model_name"`
+	MaxTokens      int      `json:"max_tokens"`
+	SystemPrompt   string   `json:"system_prompt"`
+	FallbackModels []string `json:"fallback_models,omitempty"`
 }
 
 // GatewayConfig holds HTTP gateway configuration

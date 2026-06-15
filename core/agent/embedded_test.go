@@ -44,10 +44,9 @@ func TestChatWithMockProvider(t *testing.T) {
 	factory := providers.NewFactory()
 	factory.Register("mock", mock)
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 
-	ag := New(b, registry, factory, store, history, log, cfg)
+	ag := New(b, registry, factory, store, log, cfg)
 
 	response, err := ag.Chat(context.Background(), "Hello")
 	if err != nil {
@@ -68,7 +67,6 @@ func TestChatWithSession(t *testing.T) {
 	factory := providers.NewFactory()
 	factory.Register("mock", mock)
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.ModelName = "mock/echo"
@@ -76,7 +74,7 @@ func TestChatWithSession(t *testing.T) {
 		{ModelName: "mock/echo", Model: "echo", APIKey: "test"},
 	}
 
-	ag := New(b, registry, factory, store, history, log, cfg)
+	ag := New(b, registry, factory, store, log, cfg)
 
 	sessionID := "test-session"
 	resp1, err := ag.ChatWithSession(context.Background(), sessionID, "Hello")

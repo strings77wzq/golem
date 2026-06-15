@@ -22,7 +22,6 @@ func TestHooksBeforeMessage(t *testing.T) {
 	factory := providers.NewFactory()
 	factory.Register("mock", mock)
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.ModelName = "mock/test"
@@ -38,7 +37,7 @@ func TestHooksBeforeMessage(t *testing.T) {
 		},
 	}
 
-	ag := New(b, registry, factory, store, history, log, cfg, WithHooks(hooks))
+	ag := New(b, registry, factory, store, log, cfg, WithHooks(hooks))
 	_, err := ag.Chat(context.Background(), "hello")
 	if err != nil {
 		t.Fatalf("Chat failed: %v", err)
@@ -58,7 +57,6 @@ func TestHooksAfterLLM(t *testing.T) {
 	factory := providers.NewFactory()
 	factory.Register("mock", mock)
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.ModelName = "mock/test"
@@ -74,7 +72,7 @@ func TestHooksAfterLLM(t *testing.T) {
 		},
 	}
 
-	ag := New(b, registry, factory, store, history, log, cfg, WithHooks(hooks))
+	ag := New(b, registry, factory, store, log, cfg, WithHooks(hooks))
 	_, err := ag.Chat(context.Background(), "hello")
 	if err != nil {
 		t.Fatalf("Chat failed: %v", err)
@@ -94,7 +92,6 @@ func TestHooksOnError(t *testing.T) {
 	factory := providers.NewFactory()
 	factory.Register("mock", mock)
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.ModelName = "mock/test"
@@ -107,7 +104,7 @@ func TestHooksOnError(t *testing.T) {
 		},
 	}
 
-	ag := New(b, registry, factory, store, history, log, cfg, WithHooks(hooks))
+	ag := New(b, registry, factory, store, log, cfg, WithHooks(hooks))
 	_, err := ag.Chat(context.Background(), "hello")
 	if err == nil {
 		t.Fatal("expected error")
@@ -127,7 +124,6 @@ func TestHooksErrorPropagation(t *testing.T) {
 	factory := providers.NewFactory()
 	factory.Register("mock", mock)
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.ModelName = "mock/test"
@@ -139,7 +135,7 @@ func TestHooksErrorPropagation(t *testing.T) {
 		},
 	}
 
-	ag := New(b, registry, factory, store, history, log, cfg, WithHooks(hooks))
+	ag := New(b, registry, factory, store, log, cfg, WithHooks(hooks))
 	// Agent should still work even if hook returns error
 	_, err := ag.Chat(context.Background(), "hello")
 	if err != nil {
@@ -156,13 +152,12 @@ func TestNoHooks(t *testing.T) {
 	factory := providers.NewFactory()
 	factory.Register("mock", mock)
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.ModelName = "mock/test"
 	cfg.ModelList = []config.ModelEntry{{ModelName: "mock/test", Model: "test", APIKey: "test"}}
 
-	ag := New(b, registry, factory, store, history, log, cfg)
+	ag := New(b, registry, factory, store, log, cfg)
 	_, err := ag.Chat(context.Background(), "hello")
 	if err != nil {
 		t.Fatalf("Chat failed: %v", err)

@@ -47,10 +47,9 @@ func setupMultiTurnAgent(t *testing.T) (*Agent, bus.Bus, *providers.MockProvider
 
 	b := bus.New()
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.New(logger.DefaultOptions())
 
-	a := New(b, registry, factory, store, history, log, cfg)
+	a := New(b, registry, factory, store, log, cfg)
 	return a, b, mockProvider, registry
 }
 
@@ -204,9 +203,8 @@ func TestSessionPersistenceAcrossRestarts(t *testing.T) {
 		},
 	}
 	b1 := bus.New()
-	history1 := session.NewHistoryManager(4096)
 	log1 := logger.New(logger.DefaultOptions())
-	a1 := New(b1, registry1, factory1, sharedStore, history1, log1, cfg1)
+	a1 := New(b1, registry1, factory1, sharedStore, log1, cfg1)
 
 	mockProvider1.AddResponse(&providers.LLMResponse{Content: "Hello"})
 	mockProvider1.AddResponse(&providers.LLMResponse{Content: "Welcome back"})
@@ -247,9 +245,8 @@ func TestSessionPersistenceAcrossRestarts(t *testing.T) {
 		},
 	}
 	b2 := bus.New()
-	history2 := session.NewHistoryManager(4096)
 	log2 := logger.New(logger.DefaultOptions())
-	a2 := New(b2, registry2, factory2, sharedStore, history2, log2, cfg2)
+	a2 := New(b2, registry2, factory2, sharedStore, log2, cfg2)
 
 	mockProvider2.AddResponse(&providers.LLMResponse{Content: "Resumed"})
 

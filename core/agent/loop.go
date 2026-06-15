@@ -261,12 +261,15 @@ func (a *Agent) processMessage(
 	for i := 0; i < a.maxToolIterations; i++ {
 		contextMsgs := a.contextManager.BuildContext(sess, toolDefs, "")
 
-		provider, modelName, err := a.providerFactory.GetProviderForModel(model)
+		provider, modelName, usedModel, err := a.providerFactory.GetProviderForModelWithFallback(
+			model, a.config.Agents.Defaults.FallbackModels,
+		)
 		if err != nil {
 			a.logger.Error("failed to get provider for model", err)
 			a.emitError(msg.SessionID, fmt.Sprintf("failed to get provider: %v", err), emit)
 			return "", nil, err
 		}
+		_ = usedModel // available for logging if needed
 
 		// Hook: before LLM call
 		if a.hooks != nil && a.hooks.BeforeLLM != nil {
@@ -686,7 +689,9 @@ func (a *Agent) executeStep(
 	var lastContent string
 	for i := 0; i < maxIter; i++ {
 		contextMsgs := a.contextManager.BuildContext(sess, toolDefs, "")
-		provider, modelName, err := a.providerFactory.GetProviderForModel(model)
+		provider, modelName, _, err := a.providerFactory.GetProviderForModelWithFallback(
+			model, a.config.Agents.Defaults.FallbackModels,
+		)
 		if err != nil {
 			return fmt.Sprintf("Error: %v", err)
 		}
@@ -777,7 +782,9 @@ func (a *Agent) processMessageFallback(
 	for i := 0; i < a.maxToolIterations; i++ {
 		contextMsgs := a.contextManager.BuildContext(sess, toolDefs, "")
 
-		provider, modelName, err := a.providerFactory.GetProviderForModel(model)
+		provider, modelName, _, err := a.providerFactory.GetProviderForModelWithFallback(
+			model, a.config.Agents.Defaults.FallbackModels,
+		)
 		if err != nil {
 			a.emitError(msg.SessionID, fmt.Sprintf("failed to get provider: %v", err), emit)
 			return "", nil, err

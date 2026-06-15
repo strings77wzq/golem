@@ -19,6 +19,7 @@ import (
 	"github.com/strings77wzq/golem/core/bus"
 	"github.com/strings77wzq/golem/core/config"
 	"github.com/strings77wzq/golem/core/session"
+	featureconfig "github.com/strings77wzq/golem/feature/config"
 	"github.com/strings77wzq/golem/foundation/logger"
 	"github.com/strings77wzq/golem/foundation/term"
 	"github.com/strings77wzq/golem/internal/channels/telegram"
@@ -110,6 +111,16 @@ func runAgent(cmd *cobra.Command) error {
 		return err
 	}
 
+	// If db flag is empty, check if YAML config provided a database path
+	if dbFlag == "" {
+		configPath, _ := getConfigPath(cmd)
+		if featureconfig.IsYAMLConfig(configPath) {
+			if agentCfg, loadErr := featureconfig.LoadYAML(configPath); loadErr == nil && agentCfg.Database != nil {
+				dbFlag = agentCfg.Database.Path
+			}
+		}
+	}
+
 	log := logger.New(logger.DefaultOptions())
 
 	if modelFlag != "" {
@@ -169,8 +180,7 @@ func runAgent(cmd *cobra.Command) error {
 	}
 
 	systemPrompt := wiring.BuildSystemPrompt(cfg.Agents.Defaults.SystemPrompt, skillRegistry)
-	history := session.NewHistoryManager(cfg.Agents.Defaults.MaxTokens)
-	ag := agent.New(b, registry, factory, sessionStore, history, log, cfg, agent.WithSystemPrompt(systemPrompt))
+	ag := agent.New(b, registry, factory, sessionStore, log, cfg, agent.WithSystemPrompt(systemPrompt))
 
 	// Telegram adapter
 	telegramFlag, _ := cmd.Flags().GetString("telegram")
@@ -262,9 +272,7 @@ func newGatewayCommand() *cobra.Command {
 				sessionStore = session.NewMemoryStore()
 			}
 
-			history := session.NewHistoryManager(cfg.Agents.Defaults.MaxTokens)
-
-			ag := agent.New(b, registry, factory, sessionStore, history, log, cfg)
+			ag := agent.New(b, registry, factory, sessionStore, log, cfg)
 
 			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer cancel()
@@ -342,6 +350,19 @@ func loadConfig(cmd *cobra.Command) (*config.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// YAML config path — use feature/config loader
+	if featureconfig.IsYAMLConfig(configPath) {
+		agentCfg, loadErr := featureconfig.LoadYAML(configPath)
+		if loadErr != nil {
+			if errors.Is(loadErr, os.ErrNotExist) {
+				return config.DefaultConfig(), nil
+			}
+			return nil, loadErr
+		}
+		return agentCfg.ToCoreConfig(), nil
+	}
+
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {

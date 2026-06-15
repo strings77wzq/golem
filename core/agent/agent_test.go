@@ -21,7 +21,6 @@ func setupTestAgent(t *testing.T) (*Agent, bus.Bus, *providers.MockProvider, *to
 	registry := tools.NewRegistry()
 	factory := providers.NewFactory()
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.ModelName = "mock/test-model"
@@ -29,7 +28,7 @@ func setupTestAgent(t *testing.T) (*Agent, bus.Bus, *providers.MockProvider, *to
 	mockProvider := providers.NewMockProvider("mock")
 	factory.Register("mock", mockProvider)
 
-	a := New(b, registry, factory, store, history, log, cfg)
+	a := New(b, registry, factory, store, log, cfg)
 
 	return a, b, mockProvider, registry
 }
@@ -359,7 +358,6 @@ func TestAgentSystemPrompt(t *testing.T) {
 	registry := tools.NewRegistry()
 	factory := providers.NewFactory()
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.ModelName = "mock/test-model"
@@ -368,7 +366,7 @@ func TestAgentSystemPrompt(t *testing.T) {
 	factory.Register("mock", mockProvider)
 
 	customPrompt := "You are a helpful assistant"
-	a := New(b, registry, factory, store, history, log, cfg, WithSystemPrompt(customPrompt))
+	a := New(b, registry, factory, store, log, cfg, WithSystemPrompt(customPrompt))
 
 	mockProvider.AddResponse(&providers.LLMResponse{
 		Content: "Hello",

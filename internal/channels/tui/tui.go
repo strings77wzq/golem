@@ -71,6 +71,8 @@ type Model struct {
 	thinking   bool
 	lastError  string
 
+	commands *CommandRegistry
+
 	viewport viewport.Model
 	ready    bool
 	width    int
@@ -80,11 +82,19 @@ type Model struct {
 
 func New(ctx context.Context, sessionID string, handler MessageHandler) Model {
 	childCtx, cancel := context.WithCancel(ctx)
+
+	cmds := NewCommandRegistry()
+	cmds.Register(compactCmd{})
+	cmds.Register(clearCmd{})
+	cmds.Register(helpCmd{registry: cmds})
+	cmds.Register(quitCmd{})
+
 	return Model{
 		agent:     handler,
 		sessionID: sessionID,
 		ctx:       childCtx,
 		cancel:    cancel,
+		commands:  cmds,
 		atBottom:  true,
 	}
 }
@@ -319,48 +329,14 @@ func (m Model) startStream(text string, tokens chan<- string, progress chan<- bu
 
 // handleSlashCommand processes TUI slash commands.
 func (m Model) handleSlashCommand(text string) (tea.Model, tea.Cmd) {
-	cmd := strings.TrimSpace(text)
+	parts := strings.Fields(text)
+	name := parts[0]
 
-	switch {
-	case cmd == "/compact":
-		m.messages = append(m.messages, chatMsg{role: roleUser, content: cmd})
-		if m.ready {
-			m.viewport.SetContent(m.buildTranscript())
-			m.viewport.GotoBottom()
-			m.atBottom = true
-		}
-		return m, m.doCompact()
-
-	case cmd == "/clear":
-		m.messages = nil
-		m.lastError = ""
-		if m.ready {
-			m.viewport.SetContent(m.buildTranscript())
-		}
-		return m, nil
-
-	case cmd == "/help":
-		help := `Available commands:
-  /compact  — Compress conversation history to save context
-  /clear    — Clear conversation history
-  /help     — Show this help message
-  /quit     — Exit (or press q)`
-		m.messages = append(m.messages, chatMsg{role: roleProgress, content: help})
-		if m.ready {
-			m.viewport.SetContent(m.buildTranscript())
-			m.viewport.GotoBottom()
-			m.atBottom = true
-		}
-		return m, nil
-
-	case cmd == "/quit" || cmd == "/q":
-		m.cancel()
-		return m, tea.Quit
-
-	default:
+	cmd := m.commands.Get(name)
+	if cmd == nil {
 		m.messages = append(m.messages, chatMsg{
 			role:    roleProgress,
-			content: fmt.Sprintf("Unknown command: %s (type /help for available commands)", cmd),
+			content: fmt.Sprintf("Unknown command: %s (type /help for available commands)", name),
 		})
 		if m.ready {
 			m.viewport.SetContent(m.buildTranscript())
@@ -369,6 +345,18 @@ func (m Model) handleSlashCommand(text string) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+
+	// Record the command in chat history (except /help which manages its own display)
+	if name != "/help" {
+		m.messages = append(m.messages, chatMsg{role: roleUser, content: text})
+		if m.ready {
+			m.viewport.SetContent(m.buildTranscript())
+			m.viewport.GotoBottom()
+			m.atBottom = true
+		}
+	}
+
+	return m, cmd.Execute(&m)
 }
 
 func (m Model) doCompact() tea.Cmd {

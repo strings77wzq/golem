@@ -45,7 +45,6 @@ func setupIntegrationTest(t *testing.T) (*Agent, bus.Bus, *providers.MockProvide
 	factory.Register("mock", mockProvider)
 
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.ModelName = "mock/test"
@@ -53,7 +52,7 @@ func setupIntegrationTest(t *testing.T) (*Agent, bus.Bus, *providers.MockProvide
 		{ModelName: "mock/test", Model: "test", APIKey: "test"},
 	}
 
-	ag := New(busInst, registry, factory, store, history, log, cfg)
+	ag := New(busInst, registry, factory, store, log, cfg)
 	return ag, busInst, mockProvider
 }
 
@@ -102,12 +101,11 @@ func TestIntegrationToolCall(t *testing.T) {
 	})
 
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.ModelName = "mock/test"
 
-	ag := New(b, registry, factory, store, history, log, cfg)
+	ag := New(b, registry, factory, store, log, cfg)
 
 	ctx := context.Background()
 	response, err := ag.Chat(ctx, "What's the weather in Beijing?")
@@ -130,12 +128,11 @@ func TestIntegrationMultiTurnSession(t *testing.T) {
 	mockProvider.AddResponse(&providers.LLMResponse{Content: "You said your name is Golem."})
 
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.ModelName = "mock/test"
 
-	ag := New(b, registry, factory, store, history, log, cfg)
+	ag := New(b, registry, factory, store, log, cfg)
 	sessionID := "multi-turn-test"
 
 	ctx := context.Background()
@@ -169,12 +166,11 @@ func TestIntegrationTraceID(t *testing.T) {
 	mockProvider.AddResponse(&providers.LLMResponse{Content: "ok"})
 
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.ModelName = "mock/test"
 
-	ag := New(b, registry, factory, store, history, log, cfg)
+	ag := New(b, registry, factory, store, log, cfg)
 
 	ctx := context.Background()
 	_, err := ag.Chat(ctx, "test")
@@ -197,12 +193,11 @@ func TestIntegrationMetricsIncrement(t *testing.T) {
 	})
 
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.ModelName = "mock/test"
 
-	ag := New(b, registry, factory, store, history, log, cfg)
+	ag := New(b, registry, factory, store, log, cfg)
 
 	// Record initial metric values
 	initMessages := AgentMessagesTotal.Value()
@@ -237,12 +232,11 @@ func TestIntegrationContextManager(t *testing.T) {
 	mockProvider.AddResponse(&providers.LLMResponse{Content: "ok"})
 
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(4096)
 	log := logger.NopLogger()
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.ModelName = "mock/test"
 
-	ag := New(b, registry, factory, store, history, log, cfg)
+	ag := New(b, registry, factory, store, log, cfg)
 
 	// Verify context manager is initialized
 	if ag.contextManager == nil {

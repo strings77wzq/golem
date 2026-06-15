@@ -44,7 +44,6 @@ type Agent struct {
 	toolRegistry      *tools.Registry
 	providerFactory   *providers.Factory
 	sessionStore      session.SessionStore
-	historyManager    *session.HistoryManager
 	contextManager    *golemctx.Manager
 	planner           *planner.Planner
 	toolSelector      *ToolSelector
@@ -105,7 +104,6 @@ func New(
 	registry *tools.Registry,
 	factory *providers.Factory,
 	store session.SessionStore,
-	history *session.HistoryManager,
 	log logger.Logger,
 	cfg *config.Config,
 	opts ...Option,
@@ -120,7 +118,6 @@ func New(
 		toolRegistry:      registry,
 		providerFactory:   factory,
 		sessionStore:      store,
-		historyManager:    history,
 		contextManager:    golemctx.NewManager(totalTokens, cfg.Agents.Defaults.SystemPrompt),
 		logger:            log,
 		config:            cfg,

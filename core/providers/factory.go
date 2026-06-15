@@ -58,3 +58,26 @@ func (f *Factory) GetProviderForModel(model string) (LLMProvider, string, error)
 
 	return provider, modelName, nil
 }
+
+// GetProviderForModelWithFallback tries the primary model, then fallbacks in order.
+// Returns: provider, resolved modelName, which full model was used, error
+func (f *Factory) GetProviderForModelWithFallback(
+	model string,
+	fallbackModels []string,
+) (LLMProvider, string, string, error) {
+	// Try primary
+	provider, modelName, err := f.GetProviderForModel(model)
+	if err == nil {
+		return provider, modelName, model, nil
+	}
+
+	// Try fallbacks
+	for _, fallback := range fallbackModels {
+		provider, modelName, err := f.GetProviderForModel(fallback)
+		if err == nil {
+			return provider, modelName, fallback, nil
+		}
+	}
+
+	return nil, "", "", fmt.Errorf("no provider available for model %q or any fallback", model)
+}

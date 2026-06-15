@@ -57,9 +57,8 @@ func NewFromConfig(cfg *config.Config) (*Agent, error) {
 	registry := newDefaultToolRegistry(workspace)
 	factory := newProviderFactory(cfg)
 	store := session.NewMemoryStore()
-	history := session.NewHistoryManager(cfg.Agents.Defaults.MaxTokens)
 
-	return New(b, registry, factory, store, history, log, cfg), nil
+	return New(b, registry, factory, store, log, cfg), nil
 }
 
 // Chat sends a single message and returns the response.

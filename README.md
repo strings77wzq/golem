@@ -95,8 +95,10 @@ Other agents can call these tools via MCP:
 | `sql_query` | Execute SQL SELECT queries |
 | `sql_schema` | Get database schema |
 | `sql_analyze` | Analyze table data distribution |
+| `think` | Reasoning scratchpad for step-by-step thinking |
 | `exec` | Execute shell commands (can be disabled) |
-| `file_read` / `file_write` | File operations |
+| `file_read` / `file_write` / `file_list` | File operations |
+| `web_search` | Web search |
 
 Add to Claude Code's MCP config:
 
@@ -120,6 +122,57 @@ curl http://localhost:18790/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"messages":[{"role":"user","content":"List all admins"}]}'
 ```
+
+### YAML Configuration — Declarative Agent Definition
+
+Define your agent in YAML instead of CLI flags:
+
+```yaml
+# agent.yaml
+version: 1
+agent:
+  model: openai/gpt-4o
+  fallback_models:
+    - anthropic/claude-3-haiku
+  system_prompt: |
+    You are a database assistant. Help users query their data.
+  max_tokens: 8192
+database:
+  path: ./myapp.db
+tools:
+  - name: sql_query
+    enabled: true
+  - name: exec
+    enabled: false
+```
+
+```bash
+golem agent --config agent.yaml
+```
+
+### Provider Fallback — Automatic Failover
+
+If the primary model is unavailable, Golem automatically tries fallback models:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model_name": "openai/gpt-4o",
+      "fallback_models": ["anthropic/claude-3-haiku", "ollama/qwen3"]
+    }
+  }
+}
+```
+
+### TUI Slash Commands
+
+| Command | Description |
+|---------|-------------|
+| `/compact` | Compress conversation history to save context |
+| `/clear` | Clear conversation history |
+| `/help` | Show available commands |
+| `/quit` | Exit the application |
 
 ---
 
@@ -183,6 +236,7 @@ golem/
 │   ├── security/           # Permission checker, quality gates
 │   └── session/            # Session management
 ├── feature/                # Optional features (wired via CLI flags)
+│   ├── config/             # YAML declarative agent configuration
 │   ├── mcp/                # MCP client + server
 │   ├── rag/                # RAG pipeline (TF-IDF)
 │   ├── skills/             # Skill registry
@@ -234,7 +288,7 @@ Also supports any OpenAI-compatible API (vLLM, OpenRouter, LiteLLM).
 ## Testing
 
 ```bash
-go test ./...                    # 38 packages
+go test ./...                    # 40 packages
 go test -race ./...              # Race detector
 go test -coverprofile=out ./...  # Coverage
 ```
@@ -272,6 +326,9 @@ Golem 是一个 Go 原生的数据库 AI agent。它连接你的 SQLite 数据�
 - **数据库智能** — 连接 SQLite，用自然语言查询和分析数据
 - **MCP Server** — 把你的数据库工具暴露给其他 AI agent
 - **安全内置** — 默认只读，写操作需要 WHERE 子句，自动生成回滚 SQL
+- **YAML 配置** — 用 YAML 声明式定义 agent，无需编写代码
+- **Provider Fallback** — 主模型不可用时自动切换备选模型
+- **Think 工具** — 推理草稿本，让 agent 分步思考复杂问题
 - **单二进制** — 零 CGO，纯 Go，支持 Linux/macOS/Android Termux
 
 ### 快速开始
@@ -282,13 +339,31 @@ golem demo-db
 golem agent --db .golem-demo.db -m "分析这个数据库"
 ```
 
+### YAML 配置示例
+
+```yaml
+version: 1
+agent:
+  model: openai/gpt-4o
+  fallback_models:
+    - anthropic/claude-3-haiku
+  system_prompt: |
+    你是一个数据库助手，帮助用户查询和分析数据。
+database:
+  path: ./myapp.db
+```
+
+```bash
+golem agent --config agent.yaml
+```
+
 ### 项目结构
 
 ```
 cmd/golem/        → CLI 入口
-internal/wiring/  → 依赖创建（新增）
+internal/wiring/  → 依赖创建
 core/             → 领域逻辑
-feature/          → 可选功能（MCP、RAG、Skills）
+feature/          → 可选功能（MCP、RAG、Skills、YAML Config）
 internal/         → 内部适配器
 foundation/       → 基础设施原语
 ```

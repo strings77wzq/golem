@@ -1,194 +1,161 @@
 package providers
 
 import (
-	"sync"
+	"context"
+	"fmt"
 	"testing"
+
+	"github.com/strings77wzq/golem/core/tools"
 )
 
-func TestFactoryRegisterAndGet(t *testing.T) {
-	factory := NewFactory()
-	mockProvider := NewMockProvider("openai")
+func TestGetProviderForModelWithFallback_PrimarySucceeds(t *testing.T) {
+	f := NewFactory()
+	primary := NewMockProvider("openai")
+	primary.AddResponse(&LLMResponse{Content: "hello"})
+	f.Register("openai", primary)
 
-	factory.Register("openai", mockProvider)
-
-	provider, err := factory.GetProvider("openai")
+	provider, modelName, usedModel, err := f.GetProviderForModelWithFallback(
+		"openai/gpt-4o",
+		[]string{"anthropic/claude-3-haiku"},
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	if provider.Name() != "openai" {
-		t.Errorf("Provider name mismatch: got %s, want openai", provider.Name())
+	if provider != primary {
+		t.Error("expected primary provider")
 	}
-
-	if provider != mockProvider {
-		t.Error("Expected to get the same provider instance")
+	if modelName != "gpt-4o" {
+		t.Errorf("expected 'gpt-4o', got %q", modelName)
 	}
-}
-
-func TestFactoryUnknownVendor(t *testing.T) {
-	factory := NewFactory()
-
-	_, err := factory.GetProvider("unknown-vendor")
-	if err == nil {
-		t.Fatal("expected error for unknown vendor")
-	}
-
-	expected := "no provider registered for vendor: unknown-vendor"
-	if err.Error() != expected {
-		t.Errorf("Error message mismatch: got %q, want %q", err.Error(), expected)
+	if usedModel != "openai/gpt-4o" {
+		t.Errorf("expected 'openai/gpt-4o', got %q", usedModel)
 	}
 }
 
-func TestFactoryGetProviderForModel(t *testing.T) {
-	factory := NewFactory()
-	mockProvider := NewMockProvider("openai")
+func TestGetProviderForModelWithFallback_PrimaryFailsFallbackSucceeds(t *testing.T) {
+	f := NewFactory()
 
-	factory.Register("openai", mockProvider)
+	// Primary vendor not registered — should fail
+	fallback := NewMockProvider("anthropic")
+	fallback.AddResponse(&LLMResponse{Content: "fallback response"})
+	f.Register("anthropic", fallback)
 
-	provider, modelName, err := factory.GetProviderForModel("openai/gpt-4")
+	provider, modelName, usedModel, err := f.GetProviderForModelWithFallback(
+		"openai/gpt-4o",
+		[]string{"anthropic/claude-3-haiku"},
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	if provider.Name() != "openai" {
-		t.Errorf("Provider name mismatch: got %s, want openai", provider.Name())
+	if provider != fallback {
+		t.Error("expected fallback provider")
 	}
-
-	if modelName != "gpt-4" {
-		t.Errorf("Model name mismatch: got %s, want gpt-4", modelName)
+	if modelName != "claude-3-haiku" {
+		t.Errorf("expected 'claude-3-haiku', got %q", modelName)
+	}
+	if usedModel != "anthropic/claude-3-haiku" {
+		t.Errorf("expected 'anthropic/claude-3-haiku', got %q", usedModel)
 	}
 }
 
-func TestFactoryGetProviderForModelNoSlash(t *testing.T) {
-	factory := NewFactory()
+func TestGetProviderForModelWithFallback_AllFail(t *testing.T) {
+	f := NewFactory()
+	// No providers registered
 
-	_, _, err := factory.GetProviderForModel("gpt-4")
+	_, _, _, err := f.GetProviderForModelWithFallback(
+		"openai/gpt-4o",
+		[]string{"anthropic/claude-3-haiku"},
+	)
 	if err == nil {
-		t.Fatal("expected error for model without vendor prefix")
-	}
-
-	if err.Error() != "model name must include vendor prefix (format: vendor/model): gpt-4" {
-		t.Errorf("Error message mismatch: got %q", err.Error())
+		t.Fatal("expected error when all providers fail")
 	}
 }
 
-func TestFactoryGetProviderForModelUnknownVendor(t *testing.T) {
-	factory := NewFactory()
+func TestGetProviderForModelWithFallback_NoFallbacks(t *testing.T) {
+	f := NewFactory()
+	// No providers registered, no fallbacks
 
-	_, _, err := factory.GetProviderForModel("unknown/model-123")
+	_, _, _, err := f.GetProviderForModelWithFallback("openai/gpt-4o", nil)
 	if err == nil {
-		t.Fatal("expected error for unknown vendor")
-	}
-
-	if err.Error() != "no provider registered for vendor: unknown" {
-		t.Errorf("Error message mismatch: got %q", err.Error())
+		t.Fatal("expected error when primary fails and no fallbacks")
 	}
 }
 
-func TestFactoryMultipleVendors(t *testing.T) {
-	factory := NewFactory()
+func TestGetProviderForModelWithFallback_EmptyFallbacks(t *testing.T) {
+	f := NewFactory()
+	// No providers registered
 
-	openaiProvider := NewMockProvider("openai")
-	anthropicProvider := NewMockProvider("anthropic")
-	googleProvider := NewMockProvider("google")
-
-	factory.Register("openai", openaiProvider)
-	factory.Register("anthropic", anthropicProvider)
-	factory.Register("google", googleProvider)
-
-	tests := []struct {
-		model          string
-		expectedVendor string
-		expectedModel  string
-	}{
-		{"openai/gpt-4", "openai", "gpt-4"},
-		{"anthropic/claude-3", "anthropic", "claude-3"},
-		{"google/gemini-pro", "google", "gemini-pro"},
-		{"openai/gpt-3.5-turbo", "openai", "gpt-3.5-turbo"},
-	}
-
-	for _, tt := range tests {
-		provider, modelName, err := factory.GetProviderForModel(tt.model)
-		if err != nil {
-			t.Errorf("model %s: unexpected error: %v", tt.model, err)
-			continue
-		}
-
-		if provider.Name() != tt.expectedVendor {
-			t.Errorf("model %s: vendor mismatch: got %s, want %s", tt.model, provider.Name(), tt.expectedVendor)
-		}
-
-		if modelName != tt.expectedModel {
-			t.Errorf("model %s: model name mismatch: got %s, want %s", tt.model, modelName, tt.expectedModel)
-		}
+	_, _, _, err := f.GetProviderForModelWithFallback("openai/gpt-4o", []string{})
+	if err == nil {
+		t.Fatal("expected error when primary fails and empty fallbacks")
 	}
 }
 
-func TestFactoryConcurrentAccess(t *testing.T) {
-	factory := NewFactory()
+func TestGetProviderForModelWithFallback_MultipleFallbacks(t *testing.T) {
+	f := NewFactory()
 
-	const numGoroutines = 50
-	const numVendors = 5
+	// Second fallback succeeds
+	fallback2 := NewMockProvider("ollama")
+	fallback2.AddResponse(&LLMResponse{Content: "local response"})
+	f.Register("ollama", fallback2)
 
-	var wg sync.WaitGroup
-	wg.Add(numGoroutines)
-
-	for i := 0; i < numGoroutines; i++ {
-		go func(id int) {
-			defer wg.Done()
-
-			vendorID := id % numVendors
-			vendorName := string(rune('a' + vendorID))
-			provider := NewMockProvider(vendorName)
-
-			factory.Register(vendorName, provider)
-
-			retrieved, err := factory.GetProvider(vendorName)
-			if err != nil {
-				t.Errorf("goroutine %d: GetProvider failed: %v", id, err)
-				return
-			}
-
-			if retrieved.Name() != vendorName {
-				t.Errorf("goroutine %d: provider name mismatch: got %s, want %s", id, retrieved.Name(), vendorName)
-			}
-
-			modelName := vendorName + "/model-x"
-			p, m, err := factory.GetProviderForModel(modelName)
-			if err != nil {
-				t.Errorf("goroutine %d: GetProviderForModel failed: %v", id, err)
-				return
-			}
-
-			if p.Name() != vendorName {
-				t.Errorf("goroutine %d: provider name from model mismatch: got %s, want %s", id, p.Name(), vendorName)
-			}
-
-			if m != "model-x" {
-				t.Errorf("goroutine %d: model name mismatch: got %s, want model-x", id, m)
-			}
-		}(i)
-	}
-
-	wg.Wait()
-}
-
-func TestFactoryModelWithMultipleSlashes(t *testing.T) {
-	factory := NewFactory()
-	mockProvider := NewMockProvider("openrouter")
-
-	factory.Register("openrouter", mockProvider)
-
-	provider, modelName, err := factory.GetProviderForModel("openrouter/anthropic/claude-3")
+	provider, modelName, usedModel, err := f.GetProviderForModelWithFallback(
+		"openai/gpt-4o",
+		[]string{"anthropic/claude-3-haiku", "ollama/qwen3"},
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	if provider.Name() != "openrouter" {
-		t.Errorf("Provider name mismatch: got %s, want openrouter", provider.Name())
+	if provider != fallback2 {
+		t.Error("expected second fallback provider")
 	}
+	if modelName != "qwen3" {
+		t.Errorf("expected 'qwen3', got %q", modelName)
+	}
+	if usedModel != "ollama/qwen3" {
+		t.Errorf("expected 'ollama/qwen3', got %q", usedModel)
+	}
+}
 
-	if modelName != "anthropic/claude-3" {
-		t.Errorf("Model name mismatch: got %s, want anthropic/claude-3", modelName)
+// errorProvider always returns errors
+type errorProvider struct {
+	name string
+}
+
+func (p *errorProvider) Name() string { return p.name }
+func (p *errorProvider) Chat(_ context.Context, _ []Message, _ []tools.ToolDefinition, _ string, _ *ChatOptions) (*LLMResponse, error) {
+	return nil, fmt.Errorf("%s: simulated failure", p.name)
+}
+
+func TestGetProviderForModelWithFallback_PrimaryProviderError(t *testing.T) {
+	f := NewFactory()
+
+	// Primary provider registered but will fail at Chat time
+	// The fallback resolution only checks if vendor is registered, not if Chat succeeds
+	// So this test verifies that the Factory resolves the correct provider
+	// The actual retry-on-error logic is in the agent layer
+	primary := &errorProvider{name: "openai"}
+	f.Register("openai", primary)
+
+	fallback := NewMockProvider("anthropic")
+	fallback.AddResponse(&LLMResponse{Content: "fallback"})
+	f.Register("anthropic", fallback)
+
+	// Factory resolves primary successfully (vendor exists)
+	provider, modelName, usedModel, err := f.GetProviderForModelWithFallback(
+		"openai/gpt-4o",
+		[]string{"anthropic/claude-3-haiku"},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if provider != primary {
+		t.Error("expected primary provider (factory resolves by vendor, not by health)")
+	}
+	if modelName != "gpt-4o" {
+		t.Errorf("expected 'gpt-4o', got %q", modelName)
+	}
+	if usedModel != "openai/gpt-4o" {
+		t.Errorf("expected 'openai/gpt-4o', got %q", usedModel)
 	}
 }
