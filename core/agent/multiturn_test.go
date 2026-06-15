@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/strings77wzq/golem/core/bus"
 	"github.com/strings77wzq/golem/core/config"
@@ -159,17 +160,26 @@ func TestMultiTurnToolCallHistory(t *testing.T) {
 	})
 	<-outCh
 
-	// Verify LLM saw the tool result in history
-	lastMessages := mockProvider.LastMessages
+	// Stop agent and wait for it to finish
+	cancel()
+	time.Sleep(200 * time.Millisecond)
+
+	// Verify session contains tool result messages
+	sess, ok := a.sessionStore.Get(sessionID)
+	if !ok {
+		t.Fatal("expected session to exist")
+	}
+
+	messages := sess.GetMessages()
 	hasToolResult := false
-	for _, msg := range lastMessages {
+	for _, msg := range messages {
 		if msg.Role == providers.RoleTool && strings.Contains(msg.Content, "echoed") {
 			hasToolResult = true
 			break
 		}
 	}
 	if !hasToolResult {
-		t.Error("expected tool result to be in LLM history for turn 2")
+		t.Error("expected tool result to be in session history for turn 2")
 	}
 }
 
