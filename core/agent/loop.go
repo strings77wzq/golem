@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -282,20 +283,8 @@ func (a *Agent) processMessage(
 		// Process results in order (but execution was parallel)
 		for i, tc := range resp.ToolCalls {
 			if errors[i] != nil {
-				// Build informative error message for LLM
-				errMsg := fmt.Sprintf("Tool %q failed: %v", tc.Name, errors[i])
-				
-				// Add available tools hint if tool not found
-				if strings.Contains(errors[i].Error(), "not found") {
-					var available []string
-					for _, t := range a.toolRegistry.ListTools() {
-						available = append(available, t.Name())
-					}
-					if len(available) > 0 {
-						errMsg += fmt.Sprintf("\nAvailable tools: %s", strings.Join(available, ", "))
-					}
-					errMsg += "\nPlease try a different tool."
-				}
+				// Build informative error message for LLM feedback loop
+				errMsg := a.buildToolErrorMessage(tc, errors[i])
 				
 				sess.AddMessage(providers.Message{
 					Role:       providers.RoleTool,
@@ -770,4 +759,64 @@ func (a *Agent) processMessageFallback(
 	}
 
 	return "max tool iterations reached", nil, nil
+}
+
+// buildToolErrorMessage creates an informative error message for the LLM feedback loop.
+// The message includes: tool name, error details, arguments, and suggested actions.
+func (a *Agent) buildToolErrorMessage(tc providers.ToolCall, err error) string {
+	var sb strings.Builder
+	
+	// Header with tool name
+	sb.WriteString(fmt.Sprintf("[Tool Error] %s failed\n", tc.Name))
+	
+	// Error details
+	errStr := err.Error()
+	sb.WriteString(fmt.Sprintf("Error: %s\n", errStr))
+	
+	// Arguments that were passed (helps LLM understand what went wrong)
+	if tc.Arguments != nil {
+		argsJSON, marshalErr := json.Marshal(tc.Arguments)
+		if marshalErr == nil {
+			sb.WriteString(fmt.Sprintf("Arguments: %s\n", string(argsJSON)))
+		}
+	}
+	
+	// Suggested actions based on error type
+	sb.WriteString("\nSuggested actions:\n")
+	
+	errLower := strings.ToLower(errStr)
+	switch {
+	case strings.Contains(errLower, "not found"):
+		// Tool not found - list available tools
+		var available []string
+		for _, t := range a.toolRegistry.ListTools() {
+			available = append(available, t.Name())
+		}
+		if len(available) > 0 {
+			sb.WriteString(fmt.Sprintf("- Available tools: %s\n", strings.Join(available, ", ")))
+		}
+		sb.WriteString("- Try a different tool that can accomplish the same goal\n")
+		
+	case strings.Contains(errLower, "connection") || strings.Contains(errLower, "timeout"):
+		// Connection/timeout error - suggest retry or different approach
+		sb.WriteString("- This may be a temporary issue, try again\n")
+		sb.WriteString("- Or try a different approach to accomplish the goal\n")
+		
+	case strings.Contains(errLower, "permission") || strings.Contains(errLower, "denied"):
+		// Permission error - suggest different tool
+		sb.WriteString("- You don't have permission for this operation\n")
+		sb.WriteString("- Try a different tool or ask the user for help\n")
+		
+	case strings.Contains(errLower, "sql") || strings.Contains(errLower, "query"):
+		// SQL error - suggest checking syntax
+		sb.WriteString("- Check the SQL syntax\n")
+		sb.WriteString("- Make sure the table/column names are correct\n")
+		
+	default:
+		// Generic error - suggest retry or alternative
+		sb.WriteString("- Try again with different arguments\n")
+		sb.WriteString("- Or try a different approach\n")
+	}
+	
+	return sb.String()
 }
