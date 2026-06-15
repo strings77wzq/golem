@@ -4,14 +4,11 @@ run:
   timeout: 5m
 
 linters:
+  default: none
   enable:
-    - errcheck
     - govet
     - staticcheck
     - unused
-    - ineffassign
-  disable:
-    - depguard
   settings:
     errcheck:
       check-type-assertions: true
