@@ -8,16 +8,20 @@
 
 ## 1. Project Overview
 
-**Golem** is a progressive Go AI assistant learning project, inspired by
-[PicoClaw](https://github.com/sipeed/picoclaw). Its purpose is two-fold:
+**Golem** is a Go-native database AI agent. It connects to your databases (SQLite, PostgreSQL,
+MySQL, Redis, Qdrant), understands schemas, and exposes query capabilities to AI agents via MCP.
 
-1. **Functional**: A working AI agent CLI that supports multiple LLM providers, tool calling,
-   streaming output, session persistence, and a Bubble Tea TUI.
-2. **Educational**: A structured learning project for intermediate Go developers to understand
-   hexagonal architecture, concurrency patterns, and AI agent design.
+Inspired by [PicoClaw](https://github.com/sipeed/picoclaw). Its purpose is:
 
-**Current stable version**: v0.5.0  
-**Target platform**: Linux amd64 + Android/Termux ARM64  
+1. **Database Agent**: A single binary that connects to your database, understands table schemas,
+   and lets AI agents (Claude Code, Cursor, or any MCP-compatible agent) query your data in
+   natural language — with safety controls (read-only default, WHERE enforcement, rollback SQL).
+2. **AI Agent Runtime**: Multi-provider LLM support (OpenAI, Anthropic, DeepSeek, Kimi, GLM,
+   MiniMax, Qwen, Ollama), tool calling, streaming output, session persistence, and a
+   Bubble Tea TUI for interactive database exploration.
+
+**Current stable version**: v0.5.0
+**Target platform**: Linux amd64 + Android/Termux ARM64
 **Build constraint**: `CGO_ENABLED=0` — pure Go, zero CGO dependencies, single static binary
 
 ---

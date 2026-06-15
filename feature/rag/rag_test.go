@@ -379,16 +379,16 @@ func TestPipelineAugment(t *testing.T) {
 		t.Fatalf("AddDocuments failed: %v", err)
 	}
 
-	context_str, err := pipeline.Augment(ctx, "programming language")
+	contextStr, err := pipeline.Augment(ctx, "programming language")
 	if err != nil {
 		t.Fatalf("Augment failed: %v", err)
 	}
 
-	if !strings.Contains(context_str, "Relevant context:") {
+	if !strings.Contains(contextStr, "Relevant context:") {
 		t.Error("Context string missing expected prefix")
 	}
 
-	if !strings.Contains(context_str, "[1]") {
+	if !strings.Contains(contextStr, "[1]") {
 		t.Error("Context string missing numbered chunks")
 	}
 }

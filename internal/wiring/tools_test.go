@@ -15,15 +15,15 @@ func TestBuildToolRegistry(t *testing.T) {
 		t.Fatal("expected non-nil registry")
 	}
 	defs := registry.ListDefinitions()
-	if len(defs) != 5 {
-		t.Errorf("expected 5 tools, got %d", len(defs))
+	if len(defs) != 6 {
+		t.Errorf("expected 6 tools, got %d", len(defs))
 	}
 	// Verify tool names
 	names := make(map[string]bool)
 	for _, d := range defs {
 		names[d.Name] = true
 	}
-	for _, expected := range []string{"exec", "file_read", "file_write", "file_list", "web_search"} {
+	for _, expected := range []string{"exec", "file_read", "file_write", "file_list", "think", "web_search"} {
 		if !names[expected] {
 			t.Errorf("expected tool %q", expected)
 		}

@@ -135,11 +135,14 @@ func TestListModelNames(t *testing.T) {
 func TestBuildToolRegistry(t *testing.T) {
 	registry := wiring.BuildToolRegistry(t.TempDir())
 	defs := registry.ListDefinitions()
-	if len(defs) != 5 {
-		t.Fatalf("expected 5 tool definitions, got %d", len(defs))
+	if len(defs) != 6 {
+		t.Fatalf("expected 6 tool definitions, got %d", len(defs))
 	}
-	gotNames := []string{defs[0].Name, defs[1].Name, defs[2].Name, defs[3].Name, defs[4].Name}
-	wantNames := []string{"exec", "file_list", "file_read", "file_write", "web_search"}
+	gotNames := make([]string, len(defs))
+	for i, d := range defs {
+		gotNames[i] = d.Name
+	}
+	wantNames := []string{"exec", "file_list", "file_read", "file_write", "think", "web_search"}
 	for i := range wantNames {
 		if gotNames[i] != wantNames[i] {
 			t.Fatalf("tool[%d] = %q, want %q", i, gotNames[i], wantNames[i])

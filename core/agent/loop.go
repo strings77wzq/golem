@@ -54,6 +54,124 @@ func (a *Agent) HandleMessageStream(ctx context.Context, sessionID string, messa
 	return err
 }
 
+// HandleCompact compresses the session history by summarizing old messages.
+func (a *Agent) HandleCompact(ctx context.Context, sessionID string) (string, error) {
+	sess, found := a.sessionStore.Get(sessionID)
+	if !found {
+		return "no active session to compact", nil
+	}
+
+	messages := sess.GetMessages()
+	if len(messages) <= 2 {
+		return "session is already minimal, nothing to compact", nil
+	}
+
+	beforeCount := len(messages)
+	beforeTokens := 0
+	for _, msg := range messages {
+		for _, r := range msg.Content {
+			if r >= 0x4E00 && r <= 0x9FFF {
+				beforeTokens++
+			} else {
+				beforeTokens += 2
+			}
+		}
+	}
+
+	// Build a summary of old messages (keep system + last 4 messages)
+	var systemMsg providers.Message
+	var recent []providers.Message
+	var old []providers.Message
+
+	if messages[0].Role == providers.RoleSystem {
+		systemMsg = messages[0]
+		rest := messages[1:]
+		keepRecent := 4
+		if keepRecent > len(rest) {
+			keepRecent = len(rest)
+		}
+		old = rest[:len(rest)-keepRecent]
+		recent = rest[len(rest)-keepRecent:]
+	} else {
+		keepRecent := 4
+		if keepRecent > len(messages) {
+			keepRecent = len(messages)
+		}
+		old = messages[:len(messages)-keepRecent]
+		recent = messages[len(messages)-keepRecent:]
+	}
+
+	if len(old) == 0 {
+		return "session is already minimal, nothing to compact", nil
+	}
+
+	// Summarize old messages
+	summary := a.summarizeMessages(old)
+
+	// Rebuild session with summary + recent
+	sess.Clear()
+	if systemMsg.Content != "" {
+		sess.AddMessage(systemMsg)
+	}
+	sess.AddMessage(providers.Message{
+		Role:    providers.RoleUser,
+		Content: fmt.Sprintf("[System: Previous conversation summary]\n%s\n[End summary]", summary),
+	})
+	sess.AddMessage(providers.Message{
+		Role:    providers.RoleAssistant,
+		Content: "Understood. I have the context from the previous conversation summary. How can I help?",
+	})
+	for _, msg := range recent {
+		sess.AddMessage(msg)
+	}
+
+	if err := a.sessionStore.Save(sess); err != nil {
+		a.logger.Error("failed to save compacted session", err)
+	}
+
+	afterCount := sess.MessageCount()
+	return fmt.Sprintf("compacted: %d messages → %d messages (saved ~%d tokens)", beforeCount, afterCount, beforeTokens/2), nil
+}
+
+// summarizeMessages creates a concise summary of old messages.
+func (a *Agent) summarizeMessages(messages []providers.Message) string {
+	var sb strings.Builder
+	sb.WriteString("Key points from the conversation:\n")
+
+	for _, msg := range messages {
+		switch msg.Role {
+		case providers.RoleUser:
+			content := msg.Content
+			if len(content) > 200 {
+				content = content[:200] + "..."
+			}
+			sb.WriteString(fmt.Sprintf("- User asked: %s\n", content))
+		case providers.RoleAssistant:
+			if msg.Content != "" {
+				content := msg.Content
+				if len(content) > 200 {
+					content = content[:200] + "..."
+				}
+				sb.WriteString(fmt.Sprintf("- Assistant responded: %s\n", content))
+			} else if len(msg.ToolCalls) > 0 {
+				toolNames := make([]string, len(msg.ToolCalls))
+				for i, tc := range msg.ToolCalls {
+					toolNames[i] = tc.Name
+				}
+				sb.WriteString(fmt.Sprintf("- Assistant used tools: %s\n", strings.Join(toolNames, ", ")))
+			}
+		case providers.RoleTool:
+			content := msg.Content
+			if len(content) > 100 {
+				content = content[:100] + "..."
+			}
+			sb.WriteString(fmt.Sprintf("- Tool result: %s\n", content))
+		}
+	}
+
+	return sb.String()
+}
+
 func (a *Agent) HandleMessageStreamWithProgress(ctx context.Context, sessionID string, message string, tokens chan<- string, progress chan<- bus.OutboundMessage) error {
 	defer close(tokens)
 	streamed := false

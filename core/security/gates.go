@@ -1,3 +1,4 @@
+// Package security provides security gates for database operations.
 package security
 
 import (

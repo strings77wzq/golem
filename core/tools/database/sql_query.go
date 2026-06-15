@@ -1,3 +1,4 @@
+// Package database provides SQL tools for database operations.
 package database
 
 import (

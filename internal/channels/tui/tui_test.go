@@ -32,6 +32,10 @@ func (m *mockHandler) HandleMessageStreamWithProgress(_ context.Context, _ strin
 	return m.err
 }
 
+func (m *mockHandler) HandleCompact(_ context.Context, _ string) (string, error) {
+	return "compacted", nil
+}
+
 func TestModelInitialState(t *testing.T) {
 	handler := &mockHandler{}
 	m := New(context.Background(), "sess", handler)

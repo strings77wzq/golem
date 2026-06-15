@@ -22,6 +22,7 @@ import (
 type MessageHandler interface {
 	HandleMessageStream(ctx context.Context, sessionID string, message string, tokens chan<- string) error
 	HandleMessageStreamWithProgress(ctx context.Context, sessionID string, message string, tokens chan<- string, progress chan<- bus.OutboundMessage) error
+	HandleCompact(ctx context.Context, sessionID string) (string, error)
 }
 
 type role int
@@ -39,6 +40,7 @@ type chatMsg struct {
 
 type tokenMsg string
 type doneMsg struct{ err error }
+type compactDoneMsg struct{ result string }
 type progressMsg struct {
 	content      string
 	progressType string
@@ -176,6 +178,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
+
+	case compactDoneMsg:
+		m.messages = append(m.messages, chatMsg{role: roleProgress, content: msg.result})
+		if m.ready {
+			m.viewport.SetContent(m.buildTranscript())
+			m.viewport.GotoBottom()
+			m.atBottom = true
+		}
+		return m, nil
 	}
 
 	if m.ready {
@@ -270,6 +281,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		text := m.input
 		m.input = ""
+
+		// Handle slash commands
+		if strings.HasPrefix(text, "/") {
+			return m.handleSlashCommand(text)
+		}
+
 		m.thinking = true
 		m.lastError = ""
 		m.messages = append(m.messages, chatMsg{role: roleUser, content: text})
@@ -297,6 +314,70 @@ func (m Model) startStream(text string, tokens chan<- string, progress chan<- bu
 			return doneMsg{err: err}
 		}
 		return nil
+	}
+}
+
+// handleSlashCommand processes TUI slash commands.
+func (m Model) handleSlashCommand(text string) (tea.Model, tea.Cmd) {
+	cmd := strings.TrimSpace(text)
+
+	switch {
+	case cmd == "/compact":
+		m.messages = append(m.messages, chatMsg{role: roleUser, content: cmd})
+		if m.ready {
+			m.viewport.SetContent(m.buildTranscript())
+			m.viewport.GotoBottom()
+			m.atBottom = true
+		}
+		return m, m.doCompact()
+
+	case cmd == "/clear":
+		m.messages = nil
+		m.lastError = ""
+		if m.ready {
+			m.viewport.SetContent(m.buildTranscript())
+		}
+		return m, nil
+
+	case cmd == "/help":
+		help := `Available commands:
+  /compact  — Compress conversation history to save context
+  /clear    — Clear conversation history
+  /help     — Show this help message
+  /quit     — Exit (or press q)`
+		m.messages = append(m.messages, chatMsg{role: roleProgress, content: help})
+		if m.ready {
+			m.viewport.SetContent(m.buildTranscript())
+			m.viewport.GotoBottom()
+			m.atBottom = true
+		}
+		return m, nil
+
+	case cmd == "/quit" || cmd == "/q":
+		m.cancel()
+		return m, tea.Quit
+
+	default:
+		m.messages = append(m.messages, chatMsg{
+			role:    roleProgress,
+			content: fmt.Sprintf("Unknown command: %s (type /help for available commands)", cmd),
+		})
+		if m.ready {
+			m.viewport.SetContent(m.buildTranscript())
+			m.viewport.GotoBottom()
+			m.atBottom = true
+		}
+		return m, nil
+	}
+}
+
+func (m Model) doCompact() tea.Cmd {
+	return func() tea.Msg {
+		result, err := m.agent.HandleCompact(m.ctx, m.sessionID)
+		if err != nil {
+			return doneMsg{err: err}
+		}
+		return compactDoneMsg{result: result}
 	}
 }
 

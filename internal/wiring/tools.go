@@ -13,12 +13,14 @@ import (
 	toolexec "github.com/strings77wzq/golem/core/tools/exec"
 	"github.com/strings77wzq/golem/core/tools/fileops"
 	"github.com/strings77wzq/golem/core/tools/infra"
+	"github.com/strings77wzq/golem/core/tools/think"
 	"github.com/strings77wzq/golem/core/tools/websearch"
 )
 
 // BuildToolRegistry creates the default tool registry with built-in tools.
 func BuildToolRegistry(workspace string) *tools.Registry {
 	registry := tools.NewRegistry()
+	registry.Register(think.New())
 	registry.Register(toolexec.New(workspace))
 	registry.Register(fileops.NewFileReadTool(workspace))
 	registry.Register(fileops.NewFileWriteTool(workspace))
