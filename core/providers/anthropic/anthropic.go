@@ -252,7 +252,7 @@ func (p *Provider) parseAnthropicSSE(body io.Reader, onToken func(token string))
 		ArgsJSON strings.Builder
 	}
 	var blocks []streamBlock
-	var currentBlockIdx int = -1
+	currentBlockIdx := -1
 
 	var pendingEvent string
 

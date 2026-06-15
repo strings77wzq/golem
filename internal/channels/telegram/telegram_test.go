@@ -176,7 +176,8 @@ func TestAdapterStart(t *testing.T) {
 	sentMessageCh := make(chan bool, 1)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/getUpdates" {
+		switch r.URL.Path {
+		case "/getUpdates":
 			mu.Lock()
 			var updates []Update
 			if updateCount == 0 {
@@ -208,7 +209,7 @@ func TestAdapterStart(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(resp)
-		} else if r.URL.Path == "/sendMessage" {
+		case "/sendMessage":
 			var req SendMessageRequest
 			json.NewDecoder(r.Body).Decode(&req)
 
