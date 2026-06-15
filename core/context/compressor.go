@@ -204,6 +204,64 @@ func (c *Compressor) fitToBudget(
 		}
 	}
 
+	// Collect tool_call_ids from batches that will be dropped
+	droppedToolCallIDs := make(map[string]bool)
+	for bi, batch := range batches {
+		if includedBatches[bi] {
+			continue
+		}
+		// This batch will be processed - check if it fits
+		batchTokens := 0
+		for _, ti := range batch.toolIndices {
+			batchTokens += tokenFunc(compressed[ti])
+		}
+		batchTokens += tokenFunc(compressed[batch.assistantIdx])
+		if used+batchTokens > budget {
+			// Batch will be dropped - mark its tool_call_ids
+			for _, tc := range compressed[batch.assistantIdx].ToolCalls {
+				droppedToolCallIDs[tc.ID] = true
+			}
+		}
+	}
+
+	// Remove orphaned tool result messages from recent
+	// (tool results that reference dropped tool_calls)
+	if len(droppedToolCallIDs) > 0 {
+		filtered := make([]providers.Message, 0, len(result))
+		usedDelta := 0
+		for _, msg := range result {
+			if msg.Role == providers.RoleTool && droppedToolCallIDs[msg.ToolCallID] {
+				// Orphaned tool result - skip it
+				usedDelta -= tokenFunc(msg)
+				continue
+			}
+			filtered = append(filtered, msg)
+		}
+		result = filtered
+		used += usedDelta
+	}
+
+	// Also check: remove tool results in recent that reference tool_calls not in result
+	// Build a set of tool_call_ids that have corresponding assistant messages in result
+	assistantToolCallIDs := make(map[string]bool)
+	for _, msg := range result {
+		if msg.Role == providers.RoleAssistant {
+			for _, tc := range msg.ToolCalls {
+				assistantToolCallIDs[tc.ID] = true
+			}
+		}
+	}
+	// Remove tool results whose tool_call_id is not in any assistant message
+	filtered2 := make([]providers.Message, 0, len(result))
+	for _, msg := range result {
+		if msg.Role == providers.RoleTool && msg.ToolCallID != "" && !assistantToolCallIDs[msg.ToolCallID] {
+			// Orphaned tool result - skip it
+			continue
+		}
+		filtered2 = append(filtered2, msg)
+	}
+	result = filtered2
+
 	// Add compressed messages from newest to oldest
 	for i := len(compressed) - 1; i >= 0; i-- {
 		if i >= recentStart {
