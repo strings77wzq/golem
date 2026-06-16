@@ -4,10 +4,13 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	"github.com/strings77wzq/golem/core/config"
 )
@@ -32,7 +35,7 @@ var providerPresets = []providerPreset{
 }
 
 func newInitCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Configure Golem for first use",
 		Long:  "Interactive setup wizard: choose a provider, set your API key, and write config",
@@ -41,12 +44,15 @@ func newInitCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return runOnboardWizard(configPath)
+			format, _ := cmd.Flags().GetString("format")
+			return runOnboardWizard(configPath, format)
 		},
 	}
+	cmd.Flags().String("format", "yaml", "Config format: yaml (default) or json")
+	return cmd
 }
 
-func runOnboardWizard(configPath string) error {
+func runOnboardWizard(configPath string, format string) error {
 	r := bufio.NewReader(os.Stdin)
 
 	if _, err := os.Stat(configPath); err == nil {
@@ -100,18 +106,40 @@ func runOnboardWizard(configPath string) error {
 	customModel, _ := readLine(r)
 	customModel = strings.TrimSpace(customModel)
 	if customModel != "" {
-		// Ensure vendor/model format
 		if !strings.Contains(customModel, "/") {
 			customModel = preset.vendor + "/" + customModel
 		}
 		modelName = customModel
 	}
 
+	if err := ensureConfigDir(configPath); err != nil {
+		return err
+	}
+
+	if err := writeInitConfig(configPath, format, modelName, apiKey, apiBase, 4096); err != nil {
+		return err
+	}
+
+	// Connectivity validation
+	fmt.Println()
+	if err := validateProviderConnectivity(preset.vendor, apiBase, apiKey); err != nil {
+		fmt.Printf("Warning: %v\n", err)
+	} else {
+		fmt.Println("Connectivity check passed.")
+	}
+
+	// Next steps
+	fmt.Println()
+	fmt.Println(nextStepsMessage(modelName))
+	return nil
+}
+
+func writeInitConfig(configPath, format, modelName, apiKey, apiBase string, maxTokens int) error {
 	cfg := &config.Config{
 		Agents: config.AgentConfig{
 			Defaults: config.AgentDefaults{
 				ModelName: modelName,
-				MaxTokens: 4096,
+				MaxTokens: maxTokens,
 			},
 		},
 		ModelList: []config.ModelEntry{
@@ -124,22 +152,79 @@ func runOnboardWizard(configPath string) error {
 		},
 	}
 
-	if err := ensureConfigDir(configPath); err != nil {
-		return err
+	if format == "yaml" {
+		data, err := yaml.Marshal(cfg)
+		if err != nil {
+			return fmt.Errorf("serializing config: %w", err)
+		}
+		return os.WriteFile(configPath, data, 0600)
 	}
 
+	// JSON fallback
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return fmt.Errorf("serializing config: %w", err)
 	}
+	return os.WriteFile(configPath, data, 0600)
+}
 
-	if err := os.WriteFile(configPath, data, 0600); err != nil {
-		return fmt.Errorf("writing config: %w", err)
+func validateProviderConnectivity(vendor, apiBase, apiKey string) error {
+	if vendor == "ollama" {
+		client := &http.Client{Timeout: 3 * time.Second}
+		resp, err := client.Get(apiBase + "/api/tags")
+		if err != nil {
+			return fmt.Errorf("Ollama not reachable at %s — is it running?", apiBase)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("Ollama returned status %d", resp.StatusCode)
+		}
+		return nil
 	}
 
-	fmt.Printf("\nConfig written to %s\n", configPath)
-	fmt.Printf("Run: golem agent\n")
+	// For cloud providers, check API key presence
+	if apiKey == "" {
+		envKey := vendorEnvKey(vendor)
+		if envKey == "" {
+			return nil // can't validate unknown vendor
+		}
+		if os.Getenv(envKey) == "" {
+			return fmt.Errorf("no API key provided and %s not set in environment", envKey)
+		}
+	}
 	return nil
+}
+
+func vendorEnvKey(vendor string) string {
+	switch vendor {
+	case "openai":
+		return "OPENAI_API_KEY"
+	case "anthropic":
+		return "ANTHROPIC_API_KEY"
+	case "deepseek":
+		return "DEEPSEEK_API_KEY"
+	case "mimo":
+		return "MIMO_API_KEY"
+	case "moonshot":
+		return "MOONSHOT_API_KEY"
+	case "zhipu":
+		return "ZHIPU_API_KEY"
+	case "minimax":
+		return "MINIMAX_API_KEY"
+	case "dashscope":
+		return "DASHSCOPE_API_KEY"
+	default:
+		return ""
+	}
+}
+
+func nextStepsMessage(modelName string) string {
+	return fmt.Sprintf(`Next steps:
+  1. Test your setup:  golem agent -m "hello"
+  2. Start interactive: golem agent
+  3. Check status:      golem status
+
+  Model: %s`, modelName)
 }
 
 func choosePreset(r *bufio.Reader) (providerPreset, error) {

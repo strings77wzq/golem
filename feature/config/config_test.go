@@ -214,3 +214,96 @@ func writeTempYAML(t *testing.T, content string) string {
 	}
 	return path
 }
+
+func TestLoadYAML_TypedTools(t *testing.T) {
+	yaml := `
+version: 2
+agent:
+  model: openai/gpt-4o
+tools:
+  - type: database
+    path: ./data.db
+  - type: mcp
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-duckduckgo"]
+  - type: memory
+    path: ./memory.db
+  - type: rag
+    docs: ["./docs"]
+  - type: infra
+`
+	path := writeTempYAML(t, yaml)
+	cfg, err := LoadYAML(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.Tools) != 5 {
+		t.Fatalf("expected 5 tools, got %d", len(cfg.Tools))
+	}
+	// Database tool
+	if cfg.Tools[0].Type != "database" || cfg.Tools[0].Path != "./data.db" {
+		t.Errorf("tool[0] should be database with path, got: %+v", cfg.Tools[0])
+	}
+	// MCP tool
+	if cfg.Tools[1].Type != "mcp" || cfg.Tools[1].Command != "npx" {
+		t.Errorf("tool[1] should be mcp with command, got: %+v", cfg.Tools[1])
+	}
+	// Memory tool
+	if cfg.Tools[2].Type != "memory" || cfg.Tools[2].Path != "./memory.db" {
+		t.Errorf("tool[2] should be memory with path, got: %+v", cfg.Tools[2])
+	}
+	// RAG tool
+	if cfg.Tools[3].Type != "rag" {
+		t.Errorf("tool[3] should be rag, got: %+v", cfg.Tools[3])
+	}
+	// Infra tool
+	if cfg.Tools[4].Type != "infra" {
+		t.Errorf("tool[4] should be infra, got: %+v", cfg.Tools[4])
+	}
+}
+
+func TestLoadYAML_Commands(t *testing.T) {
+	yaml := `
+version: 2
+agent:
+  model: openai/gpt-4o
+  commands:
+    schema: "Analyze the database schema"
+    optimize: "Review the last query and suggest optimizations"
+`
+	path := writeTempYAML(t, yaml)
+	cfg, err := LoadYAML(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.Agent.Commands) != 2 {
+		t.Fatalf("expected 2 commands, got %d", len(cfg.Agent.Commands))
+	}
+	if cfg.Agent.Commands["schema"] != "Analyze the database schema" {
+		t.Errorf("unexpected schema command: %q", cfg.Agent.Commands["schema"])
+	}
+}
+
+func TestLoadYAML_BackwardCompatible(t *testing.T) {
+	// Old v1 config should still work
+	yaml := `
+version: 1
+agent:
+  model: openai/gpt-4o
+tools:
+  - name: sql_query
+    enabled: true
+`
+	path := writeTempYAML(t, yaml)
+	cfg, err := LoadYAML(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Should parse as v1 with old ToolSpec format
+	if len(cfg.Tools) != 1 {
+		t.Fatalf("expected 1 tool, got %d", len(cfg.Tools))
+	}
+	if cfg.Tools[0].Name != "sql_query" {
+		t.Errorf("expected 'sql_query', got %q", cfg.Tools[0].Name)
+	}
+}

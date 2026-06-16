@@ -89,6 +89,10 @@ func New(ctx context.Context, sessionID string, handler MessageHandler) Model {
 	cmds.Register(helpCmd{registry: cmds})
 	cmds.Register(quitCmd{})
 	cmds.Register(forkCmd{})
+	cmds.Register(newToolsCmd{})
+	cmds.Register(newSessionCmd{})
+	cmds.Register(sessionsCmd{})
+	cmds.Register(modelCmd{})
 
 	return Model{
 		agent:     handler,

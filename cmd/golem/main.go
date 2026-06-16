@@ -53,6 +53,7 @@ func NewRootCommand() *cobra.Command {
 		newInitCommand(),
 		newMCPServerCommand(),
 		newDemoCommand(),
+		newDebugCommand(nil), // lazy init: creates registry on first use
 	)
 
 	return cmd

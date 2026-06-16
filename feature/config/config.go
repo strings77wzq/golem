@@ -15,27 +15,45 @@ import (
 
 // AgentConfig represents a YAML agent definition.
 type AgentConfig struct {
-	Version int       `yaml:"version"`
-	Agent   AgentSpec `yaml:"agent"`
-	Tools   []ToolSpec `yaml:"tools,omitempty"`
-	Database *DBSpec  `yaml:"database,omitempty"`
-	MCPServers []MCPDef `yaml:"mcp,omitempty"`
-	Hooks   *HooksSpec `yaml:"hooks,omitempty"`
+	Version    int            `yaml:"version"`
+	Agent      AgentSpec      `yaml:"agent"`
+	Tools      []ToolSpec     `yaml:"tools,omitempty"`
+	Database   *DBSpec        `yaml:"database,omitempty"`
+	MCPServers []MCPDef       `yaml:"mcp,omitempty"`
+	Hooks      *HooksSpec     `yaml:"hooks,omitempty"`
 }
 
 // AgentSpec defines agent behavior.
 type AgentSpec struct {
-	Model           string   `yaml:"model"`
-	FallbackModels  []string `yaml:"fallback_models,omitempty"`
-	SystemPrompt    string   `yaml:"system_prompt"`
-	MaxTokens       int      `yaml:"max_tokens,omitempty"`
-	MaxToolIterations int    `yaml:"max_tool_iterations,omitempty"`
+	Model             string            `yaml:"model"`
+	FallbackModels    []string          `yaml:"fallback_models,omitempty"`
+	SystemPrompt      string            `yaml:"system_prompt"`
+	MaxTokens         int               `yaml:"max_tokens,omitempty"`
+	MaxToolIterations int               `yaml:"max_tool_iterations,omitempty"`
+	Commands          map[string]string `yaml:"commands,omitempty"`
 }
 
-// ToolSpec enables or disables a specific tool.
+// ToolSpec enables or configures a tool. Supports two formats:
+// v1: {name: "tool_name", enabled: true}
+// v2: {type: "database", path: "./data.db"}
 type ToolSpec struct {
-	Name    string `yaml:"name"`
-	Enabled bool   `yaml:"enabled"`
+	// v1 fields (backward compatible)
+	Name    string `yaml:"name,omitempty"`
+	Enabled bool   `yaml:"enabled,omitempty"`
+
+	// v2 fields (type-based configuration)
+	Type    string   `yaml:"type,omitempty"`
+	Path    string   `yaml:"path,omitempty"`
+	Command string   `yaml:"command,omitempty"`
+	Args    []string `yaml:"args,omitempty"`
+	Docs    []string `yaml:"docs,omitempty"`
+	URL     string   `yaml:"url,omitempty"`
+	Tools   []string `yaml:"tools,omitempty"`
+}
+
+// IsTypeBased returns true if this tool spec uses v2 type-based configuration.
+func (t *ToolSpec) IsTypeBased() bool {
+	return t.Type != ""
 }
 
 // DBSpec defines database connection.

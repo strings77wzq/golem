@@ -835,6 +835,7 @@ func (a *Agent) executeStep(
 }
 
 // processMessageFallback is the regular ReAct loop (used when planning fails).
+// It delegates to shared helpers for tool execution and result processing.
 func (a *Agent) processMessageFallback(
 	ctx context.Context,
 	msg bus.InboundMessage,
@@ -845,7 +846,6 @@ func (a *Agent) processMessageFallback(
 	onToken func(string),
 	emit func(bus.OutboundMessage),
 ) (string, *bus.TokenUsage, error) {
-	// This is the original ReAct loop logic
 	for i := 0; i < a.maxToolIterations; i++ {
 		contextMsgs := a.contextManager.BuildContext(sess, toolDefs, "")
 
@@ -870,81 +870,16 @@ func (a *Agent) processMessageFallback(
 
 		AgentLLMTokens.Add(int64(resp.Usage.TotalTokens))
 
+		// No tool calls — final response
 		if len(resp.ToolCalls) == 0 {
-			sess.AddMessage(providers.Message{Role: providers.RoleAssistant, Content: resp.Content})
-			if err := a.sessionStore.Save(sess); err != nil {
-				a.logger.Error("failed to save session", err)
-			}
-
-			tokenUsage := &bus.TokenUsage{
-				PromptTokens:     resp.Usage.PromptTokens,
-				CompletionTokens: resp.Usage.CompletionTokens,
-				TotalTokens:      resp.Usage.TotalTokens,
-			}
-
-			if emit != nil {
-				finalContent := resp.Content
-				if streamed {
-					finalContent = ""
-				}
-				emit(bus.OutboundMessage{
-					SessionID: msg.SessionID,
-					Content:   finalContent,
-					Role:      bus.RoleAssistant,
-					Done:      true,
-					Usage:     tokenUsage,
-				})
-			}
-
+			tokenUsage := a.saveAndEmitFinal(sess, resp, streamed, modelName, msg, emit)
 			return resp.Content, tokenUsage, nil
 		}
 
+		// Tool calls — execute and continue loop
 		sess.AddMessage(providers.Message{Role: providers.RoleAssistant, Content: resp.Content, ToolCalls: resp.ToolCalls})
-
-		var wg errgroup.Group
-		results := make([]*tools.ToolResult, len(resp.ToolCalls))
-		errors := make([]error, len(resp.ToolCalls))
-
-		for i, tc := range resp.ToolCalls {
-			i, tc := i, tc
-			wg.Go(func() error {
-				AgentToolCalls.Inc()
-				toolStart := time.Now()
-				tool, found := a.toolRegistry.Get(tc.Name)
-				if !found {
-					errors[i] = fmt.Errorf("tool %q not found", tc.Name)
-					AgentToolErrors.Inc()
-					return nil
-				}
-				result, err := tool.Execute(ctx, tc.Arguments)
-				AgentToolLatency.Observe(time.Since(toolStart).Seconds())
-				results[i] = result
-				errors[i] = err
-				if err != nil {
-					AgentToolErrors.Inc()
-				}
-				return nil
-			})
-		}
-
-		if err := wg.Wait(); err != nil {
-			a.logger.Error("tool execution failed", err)
-		}
-
-		for i, tc := range resp.ToolCalls {
-			if errors[i] != nil {
-				sess.AddMessage(providers.Message{Role: providers.RoleTool, Content: fmt.Sprintf("tool error: %v", errors[i]), ToolCallID: tc.ID})
-				continue
-			}
-			result := results[i]
-			if result == nil {
-				continue
-			}
-			sess.AddMessage(providers.Message{Role: providers.RoleTool, Content: result.ForLLM, ToolCallID: tc.ID})
-			if result.ForUser != "" && !result.Silent && emit != nil {
-				emit(bus.OutboundMessage{SessionID: msg.SessionID, Content: result.ForUser, Role: bus.RoleTool, Done: false})
-			}
-		}
+		results, errors := a.executeTools(ctx, resp)
+		a.processToolResults(sess, resp, results, errors, msg.SessionID, emit)
 
 		if err := a.sessionStore.Save(sess); err != nil {
 			a.logger.Error("failed to save session", err)
