@@ -53,14 +53,20 @@ func (c *Compactor) Compact(ctx context.Context, sess *session.Session, tokenBud
 		rest := messages[1:]
 		keepRecent := 4
 		if keepRecent >= len(rest) {
-			keepRecent = len(rest) - 1 // keep at least 1 old message to compact
+			keepRecent = len(rest) / 2 // keep half as recent, summarize other half
+			if keepRecent < 1 {
+				keepRecent = 1
+			}
 		}
 		old = rest[:len(rest)-keepRecent]
 		recent = rest[len(rest)-keepRecent:]
 	} else {
 		keepRecent := 4
 		if keepRecent >= len(messages) {
-			keepRecent = len(messages) - 1
+			keepRecent = len(messages) / 2
+			if keepRecent < 1 {
+				keepRecent = 1
+			}
 		}
 		old = messages[:len(messages)-keepRecent]
 		recent = messages[len(messages)-keepRecent:]
@@ -158,6 +164,19 @@ func (c *Compactor) simpleSummary(messages []providers.Message) string {
 				}
 				sb.WriteString(fmt.Sprintf("- Assistant: %s\n", content))
 			}
+			if len(msg.ToolCalls) > 0 {
+				toolNames := make([]string, len(msg.ToolCalls))
+				for i, tc := range msg.ToolCalls {
+					toolNames[i] = tc.Name
+				}
+				sb.WriteString(fmt.Sprintf("- Assistant used tools: %s\n", strings.Join(toolNames, ", ")))
+			}
+		case providers.RoleTool:
+			content := msg.Content
+			if len(content) > 100 {
+				content = content[:100] + "..."
+			}
+			sb.WriteString(fmt.Sprintf("- Tool result: %s\n", content))
 		}
 	}
 

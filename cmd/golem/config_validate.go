@@ -95,6 +95,21 @@ func validateConfigFile(configPath string) ConfigValidateResult {
 		result.Errors = append(result.Errors, "model_list is empty but model_name is set — add at least one model entry")
 	}
 
+	// Check default model exists in model_list
+	if cfg.Agents.Defaults.ModelName != "" && len(cfg.ModelList) > 0 {
+		found := false
+		for _, m := range cfg.ModelList {
+			if m.ModelName == cfg.Agents.Defaults.ModelName || m.Model == cfg.Agents.Defaults.ModelName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			result.Errors = append(result.Errors, fmt.Sprintf(
+				"default model %q not found in model_list", cfg.Agents.Defaults.ModelName))
+		}
+	}
+
 	// Check model_list entries have matching model names
 	for _, m := range cfg.ModelList {
 		if m.Model == "" {

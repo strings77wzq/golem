@@ -4,10 +4,13 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // BM25Index provides keyword-based search using the BM25 algorithm.
+// Thread-safe for concurrent Add and Search operations.
 type BM25Index struct {
+	mu      sync.RWMutex
 	docs    []bm25Doc
 	numDocs int
 	avgDL   float64
@@ -33,6 +36,9 @@ func NewBM25Index() *BM25Index {
 
 // Add adds a document to the index.
 func (idx *BM25Index) Add(id, text string) {
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+
 	terms := tokenize(text)
 	tf := make(map[string]int)
 	for _, term := range terms {
@@ -60,6 +66,9 @@ type ScoredDoc struct {
 
 // Search finds the top-K documents matching the query.
 func (idx *BM25Index) Search(query string, topK int) []ScoredDoc {
+	idx.mu.RLock()
+	defer idx.mu.RUnlock()
+
 	queryTerms := tokenize(query)
 	if len(queryTerms) == 0 || idx.numDocs == 0 {
 		return nil
@@ -107,15 +116,55 @@ func (idx *BM25Index) Search(query string, topK int) []ScoredDoc {
 // tokenize splits text into lowercase terms.
 func tokenize(text string) []string {
 	text = strings.ToLower(text)
-	// Simple whitespace + punctuation split
-	terms := strings.FieldsFunc(text, func(r rune) bool {
-		return r == ' ' || r == '\t' || r == '\n' || r == '\r' ||
-			r == '.' || r == ',' || r == ';' || r == ':' ||
-			r == '!' || r == '?' || r == '"' || r == '\'' ||
-			r == '(' || r == ')' || r == '[' || r == ']' ||
-			r == '{' || r == '}' || r == '-' || r == '_'
-	})
+	var terms []string
+	var current strings.Builder
+
+	for _, r := range text {
+		if isCJK(r) {
+			// Flush any accumulated Latin text
+			if current.Len() > 0 {
+				terms = append(terms, current.String())
+				current.Reset()
+			}
+			// CJK characters are individual tokens
+			terms = append(terms, string(r))
+		} else if isTokenDelimiter(r) {
+			// Flush accumulated text
+			if current.Len() > 0 {
+				terms = append(terms, current.String())
+				current.Reset()
+			}
+		} else {
+			current.WriteRune(r)
+		}
+	}
+
+	// Flush remaining
+	if current.Len() > 0 {
+		terms = append(terms, current.String())
+	}
+
 	return terms
+}
+
+// isCJK checks if a rune is a CJK character (Chinese, Japanese, Korean).
+func isCJK(r rune) bool {
+	return (r >= 0x4E00 && r <= 0x9FFF) || // CJK Unified Ideographs
+		(r >= 0x3400 && r <= 0x4DBF) || // CJK Extension A
+		(r >= 0x20000 && r <= 0x2A6DF) || // CJK Extension B
+		(r >= 0x2A700 && r <= 0x2B73F) || // CJK Extension C
+		(r >= 0x2B740 && r <= 0x2B81F) || // CJK Extension D
+		(r >= 0xF900 && r <= 0xFAFF) || // CJK Compatibility Ideographs
+		(r >= 0x2F800 && r <= 0x2FA1F) // CJK Compatibility Supplement
+}
+
+// isTokenDelimiter checks if a rune is a token delimiter.
+func isTokenDelimiter(r rune) bool {
+	return r == ' ' || r == '\t' || r == '\n' || r == '\r' ||
+		r == '.' || r == ',' || r == ';' || r == ':' ||
+		r == '!' || r == '?' || r == '"' || r == '\'' ||
+		r == '(' || r == ')' || r == '[' || r == ']' ||
+		r == '{' || r == '}' || r == '-' || r == '_'
 }
 
 // ReciprocalRankFusion merges multiple ranked lists using RRF.

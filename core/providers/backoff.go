@@ -102,6 +102,7 @@ func (r *RetryProvider) calculateDelay(attempt int) time.Duration {
 func isClientError(err error) bool {
 	msg := strings.ToLower(err.Error())
 	// These patterns indicate client errors that won't succeed on retry
+	// Note: "rate limit" is NOT included — 429 errors should be retried with backoff
 	clientPatterns := []string{
 		"invalid request",
 		"bad request",
@@ -111,7 +112,6 @@ func isClientError(err error) bool {
 		"invalid api key",
 		"invalid model",
 		"context length exceeded",
-		"rate limit",
 	}
 	for _, pattern := range clientPatterns {
 		if strings.Contains(msg, pattern) {
