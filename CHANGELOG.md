@@ -4,6 +4,37 @@ All notable changes to Golem will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.0] - 2026-06-16
+
+### Added
+- `golem debug tools` — list all registered tools with descriptions and parameters
+- `golem debug config` — show parsed config in YAML format (API keys masked)
+- `golem config validate` — validate config file format and model names
+- `golem status` — enhanced with tool list and feature module status display
+- `golem init --format yaml` — YAML-first config generation (default, JSON via `--format json`)
+- `golem init` — connectivity validation after config creation
+- TUI slash commands: `/tools`, `/new`, `/sessions`, `/model`
+- YAML config schema v2: typed tool config (database/mcp/memory/rag/infra)
+- AgentSpec.commands for named prompt templates
+- LLM-driven session compactor (replaces string truncation)
+- RetryProvider with exponential backoff + jitter for provider resilience
+- BM25 keyword search with CJK character-level tokenization
+- Reciprocal Rank Fusion for merging ranked retrieval lists
+- HybridRetriever combining BM25 + vector similarity search
+
+### Fixed
+- BM25 race condition: concurrent Add/Search now thread-safe with sync.RWMutex
+- Compactor preserves tool call information in summaries
+- Rate limit (429) errors now properly retried (removed from isClientError)
+- Config validate checks default model exists in model_list
+- Chinese text tokenization for BM25 search
+
+### Changed
+- Agent loop deduplication: extracted shared ReAct loop helpers (executeTools, processToolResults, saveAndEmitFinal)
+- `processMessageFallback` reduced from ~120 to ~50 lines
+- Status command now uses io.Writer for testability
+- Init command outputs YAML by default (backward compatible with `--format json`)
+
 ## [0.8.0] - 2026-06-14
 
 ### Added
