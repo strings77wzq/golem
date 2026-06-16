@@ -173,11 +173,11 @@ func validateProviderConnectivity(vendor, apiBase, apiKey string) error {
 		client := &http.Client{Timeout: 3 * time.Second}
 		resp, err := client.Get(apiBase + "/api/tags")
 		if err != nil {
-			return fmt.Errorf("Ollama not reachable at %s — is it running?", apiBase)
+			return fmt.Errorf("ollama not reachable at %s — is it running?", apiBase)
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("Ollama returned status %d", resp.StatusCode)
+			return fmt.Errorf("ollama returned status %d", resp.StatusCode)
 		}
 		return nil
 	}
