@@ -178,7 +178,7 @@ TUI (tui.go)                    Agent (loop.go)
 
 | Metric | Value |
 |---|---|
-| Version | v0.9.0 |
+| Version | v0.9.1 |
 | Packages | 41 |
 | Test coverage | 82.5% |
 | CI status | ✅ Green |
@@ -186,14 +186,33 @@ TUI (tui.go)                    Agent (loop.go)
 | Active channels | CLI, TUI, HTTP Gateway, Telegram |
 | Providers wired | OpenAI, Anthropic, DeepSeek, Kimi, GLM, MiniMax, Qwen, Ollama |
 | TUI commands | /tools, /new, /sessions, /model, /compact, /clear, /fork, /help, /quit |
-| New features | Debug tools, Config validate, YAML v2, LLM compaction, RetryProvider, BM25+RRF |
+| Features | Debug tools, Config validate, YAML v2, LLM compaction, RetryProvider, BM25+RRF, Provider Registry, Auto-compaction |
 
 ---
 
 ## 9. Working Principles
 
-- **First principles**: Understand *why* before *how*. If the motivation is unclear, stop and
-  discuss rather than guessing.
+### Thinking Methodology (Mandatory)
+
+Every significant interaction **must** pass through three thinking lenses. This is not optional.
+
+**First Principles** — Before any implementation or recommendation:
+- "What do I KNOW vs what am I ASSUMING?" — separate facts from inference
+- "Why does this need to exist?" — challenge the requirement itself
+- "What is the fundamental constraint?" — find the real bottleneck, not symptoms
+
+**Reverse Thinking** — Before any plan approval or significant change:
+- "How could this completely fail?" — enumerate failure modes, then prevent them
+- "If this ships and breaks at 3am, what went wrong?" — pre-mortem
+- "What would make the opposite true?" — inversion reveals hidden assumptions
+
+**Systems Thinking** — Before any multi-file or architectural change:
+- "What else changes when this changes?" — map the ripple effects
+- "What feedback loops does this create?" — second-order consequences
+- "Who are the invisible stakeholders?" — things that depend on this without being obvious
+
+### Other Principles
+
 - **Path optimization**: If you see a better path than what was described, say so explicitly.
   Don't silently implement an inferior approach.
 - **One pass, no partial state**: Fix everything in one pass. Never leave the codebase in a
@@ -293,3 +312,17 @@ Follow this standard process when wiring a new feature module from `feature/`:
 5. Do NOT modify core/ or internal/ code to support the feature — use interfaces to decouple
 6. Update documentation, changelog, and AGENTS.md with the new feature rules and usage
 7. Ensure all existing tests pass without modification
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues (`gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context. See `docs/agents/domain.md`.

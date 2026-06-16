@@ -4,6 +4,24 @@ All notable changes to Golem will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.1] - 2026-06-16
+
+### Added
+- Auto-compaction: triggers LLM-driven compression when context exceeds 80% of token budget
+- Provider Registry: dynamic vendor registration via `init()`, adding new vendors requires zero code changes in wiring
+- Streaming logic extracted to `streaming.go` for better code organization
+
+### Fixed
+- BM25 duplicate document handling: `Add()` now replaces existing document with same ID
+- BM25 negative topK panic: `Search()` returns nil for `topK <= 0`
+- Compactor nil provider panic: `Compact()` checks for nil provider before calling `summarize()`
+- Provider factory now wraps all providers with RetryProvider for exponential backoff
+
+### Changed
+- `internal/wiring/providers.go`: replaced 9-case switch-case with Provider Registry pattern
+- `core/agent/loop.go`: reduced from 982 to 929 lines via streaming extraction
+- All providers registered via `init()` in respective packages (openai, anthropic, ollama)
+
 ## [0.9.0] - 2026-06-16
 
 ### Added

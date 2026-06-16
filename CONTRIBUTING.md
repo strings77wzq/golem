@@ -1,21 +1,21 @@
 # Contributing to Golem
 
-Thanks for your interest in contributing to Golem.
+感谢你对 Golem 的关注！
 
-## Before You Start
+## 前置要求
 
 - Go 1.25+
 - Git
-- Linux amd64 or Android/Termux ARM64 preferred for local verification
-- `CGO_ENABLED=0` is mandatory
+- Linux amd64 或 Android/Termux ARM64（推荐本地验证）
+- `CGO_ENABLED=0` 强制执行
 
-Recommended reading before first PR:
+建议在提交第一个 PR 前阅读：
 
-- Project overview: `README.md`
-- Architecture and guardrails: `AGENTS.md`
-- Documentation index: `docs/README.md`
+- 项目概览：`README.md`
+- 架构与规范：`AGENTS.md`
+- 文档索引：`docs/README.md`
 
-## Development Setup
+## 开发环境
 
 ```bash
 git clone https://github.com/strings77wzq/golem.git
@@ -24,44 +24,42 @@ make build
 go test ./...
 ```
 
-## Available Commands
+## 可用命令
 
-<!-- AUTO-GENERATED from Makefile -->
-| Command | Description |
-|---------|-------------|
-| `make build` | Build binary to `build/golem` (pure Go, CGO_ENABLED=0) |
-| `make build-all` | Cross-compile for linux/darwin amd64/arm64 |
-| `make test` | Run all tests with race detection |
-| `make lint` | Run golangci-lint (if installed) |
-| `make deps` | Download and verify dependencies |
-| `make clean` | Remove build artifacts |
-| `make fmt` | Format code with gofmt |
-| `make vet` | Run go vet |
-| `make check` | Full CI check: deps + vet + test |
-<!-- END AUTO-GENERATED -->
+| 命令 | 说明 |
+|------|------|
+| `make build` | 构建二进制到 `build/golem`（纯 Go，CGO_ENABLED=0） |
+| `make build-all` | 交叉编译 linux/darwin amd64/arm64 |
+| `make test` | 运行所有测试（含竞态检测） |
+| `make lint` | 运行 golangci-lint（如已安装） |
+| `make deps` | 下载并验证依赖 |
+| `make clean` | 清理构建产物 |
+| `make fmt` | gofmt 格式化代码 |
+| `make vet` | 运行 go vet |
+| `make check` | 完整 CI 检查：deps + vet + test |
 
-## Quick Reference
+## 快速参考
 
 ```bash
-# Build
+# 构建
 CGO_ENABLED=0 go build -ldflags "-s -w" -trimpath -o build/golem ./cmd/golem
 
-# Test
-go test ./...                                    # all packages
-go test -race ./...                              # with race detector
-go test -coverprofile=coverage.out ./...         # with coverage
+# 测试
+go test ./...                                    # 所有包
+go test -race ./...                              # 含竞态检测
+go test -coverprofile=coverage.out ./...         # 含覆盖率
 
-# First-run setup
+# 首次运行
 ./build/golem init
 ./build/golem agent -m "Hello"
 ```
 
-## Development Workflow
+## 开发流程
 
-1. Fork repository and create a feature branch.
-2. Implement the change with tests and docs updates if needed.
-3. Run verification commands.
-4. Open a pull request with clear scope and motivation.
+1. Fork 仓库并创建特性分支
+2. 实现变更，添加测试和文档更新
+3. 运行验证命令
+4. 提交 PR，清晰描述范围和动机
 
 ```bash
 git checkout -b feat/my-change
@@ -69,66 +67,66 @@ go test -race ./...
 go vet ./...
 ```
 
-## Verification Checklist
+## 验证清单
 
-Before PR submission:
+提交 PR 前：
 
-- Build succeeds with pure Go settings
-- Related tests are added/updated
-- `go test -race ./...` passes
-- `go vet ./...` passes
-- Docs are updated for any user-facing changes
+- [ ] 纯 Go 设置下构建成功
+- [ ] 相关测试已添加/更新
+- [ ] `go test -race ./...` 通过
+- [ ] `go vet ./...` 通过
+- [ ] 用户可见的变更已更新文档
 
-## Commit Message Format
+## Commit Message 格式
 
-We follow Conventional Commits:
+遵循 Conventional Commits：
 
 ```text
 <type>(<scope>): <description>
 ```
 
-Types: `feat`, `fix`, `docs`, `refactor`, `test`, `build`, `ci`
+类型：`feat`, `fix`, `docs`, `refactor`, `test`, `build`, `ci`
 
-Examples:
+示例：
 
-- `feat(agent): add first-run validation command`
-- `fix(gateway): improve error response consistency`
-- `docs(readme): simplify quickstart section`
+- `feat(agent): add auto-compaction trigger`
+- `fix(bm25): handle duplicate document IDs`
+- `docs(readme): update architecture diagram`
 
-## Architecture and Code Standards
+## 架构与代码规范
 
-- Keep layer boundaries strict (cmd/core/foundation/feature/internal)
-- No circular imports
-- No CGO dependencies
-- Return errors instead of panics in library code
-- Wrap errors with context (`fmt.Errorf("...: %w", err)`)
+- 保持严格分层（cmd/core/foundation/feature/internal）
+- 禁止循环导入
+- 禁止 CGO 依赖
+- 库代码返回错误而非 panic
+- 错误包装带上下文（`fmt.Errorf("...: %w", err)`）
 
-## Code Structure Index
+## 代码结构索引
 
-- `cmd/golem/`: composition root and CLI wiring
-- `core/`: domain logic (agent, providers, tools, session)
-- `foundation/`: infrastructure primitives (logger, store, concurrency)
-- `feature/`: optional feature modules (mcp, rag, skills, memory)
-- `internal/`: channels, gateway, metrics, security adapters
-- `docs/`: user docs and study guides
-- `openspec/`: specification-driven change artifacts
+- `cmd/golem/`: 组合根与 CLI 接线
+- `core/`: 领域逻辑（agent, providers, tools, session）
+- `foundation/`: 基础设施原语（logger, store, concurrency）
+- `feature/`: 可选功能模块（mcp, rag, skills, memory, config）
+- `internal/`: 通道、网关、指标、安全适配器
+- `docs/`: 用户文档与学习指南
+- `openspec/`: 规格驱动的变更产物
 
-## Reporting Issues and Requests
+## 报告问题
 
-Use GitHub issue templates:
+使用 GitHub issue 模板：
 
-- Bug report
-- Feature request
-- Documentation request
+- Bug 报告
+- 功能请求
+- 文档请求
 
-Please include Go version, OS/architecture, and reproducible steps for bugs.
+请包含 Go 版本、OS/架构、可复现的步骤。
 
-## AI Collaboration Principles
+## AI 协作原则
 
-- Understand goals first, then implementation details
-- Surface better alternatives when they reduce risk or complexity
-- Avoid speculative changes without evidence
+- 先理解目标，再关注实现细节
+- 发现更优方案时主动提出
+- 避免无证据的投机性变更
 
-## License
+## 许可证
 
-By contributing, you agree your contributions are licensed under the MIT License.
+贡献即表示你同意你的贡献在 MIT 许可证下授权。
