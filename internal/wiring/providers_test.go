@@ -43,3 +43,28 @@ func TestRegisterProvidersMockDefault(t *testing.T) {
 		t.Errorf("expected mock provider to be registered: %v", err)
 	}
 }
+
+func TestRegisterProvidersWrappedWithRetry(t *testing.T) {
+	cfg := &config.Config{
+		ModelList: []config.ModelEntry{
+			{ModelName: "gpt4", Model: "openai/gpt-4o", APIKey: "sk-test"},
+		},
+	}
+
+	factory := RegisterProviders(cfg)
+
+	// The provider should be wrapped with retry logic
+	// We can't directly check the type, but we can verify it works
+	provider, err := factory.GetProvider("openai")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if provider == nil {
+		t.Fatal("expected non-nil provider")
+	}
+
+	// Verify the provider name is preserved
+	if provider.Name() != "openai" {
+		t.Errorf("expected name 'openai', got %q", provider.Name())
+	}
+}

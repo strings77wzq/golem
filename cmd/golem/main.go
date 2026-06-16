@@ -18,6 +18,7 @@ import (
 	"github.com/strings77wzq/golem/core/agent"
 	"github.com/strings77wzq/golem/core/bus"
 	"github.com/strings77wzq/golem/core/config"
+	"github.com/strings77wzq/golem/core/providers"
 	"github.com/strings77wzq/golem/core/session"
 	featureconfig "github.com/strings77wzq/golem/feature/config"
 	"github.com/strings77wzq/golem/foundation/logger"
@@ -181,7 +182,21 @@ func runAgent(cmd *cobra.Command) error {
 	}
 
 	systemPrompt := wiring.BuildSystemPrompt(cfg.Agents.Defaults.SystemPrompt, skillRegistry)
-	ag := agent.New(b, registry, factory, sessionStore, log, cfg, agent.WithSystemPrompt(systemPrompt))
+
+	// Create LLM-driven compactor for session compression
+	compactor := agent.NewCompactor(
+		providers.NewMockProvider("compact"),
+		cfg.Agents.Defaults.ModelName,
+	)
+	// Try to get the actual provider for compaction
+	if compactorProvider, _, err := factory.GetProviderForModel(cfg.Agents.Defaults.ModelName); err == nil {
+		compactor = agent.NewCompactor(compactorProvider, cfg.Agents.Defaults.ModelName)
+	}
+
+	ag := agent.New(b, registry, factory, sessionStore, log, cfg,
+		agent.WithSystemPrompt(systemPrompt),
+		agent.WithCompactor(compactor),
+	)
 
 	// Telegram adapter
 	telegramFlag, _ := cmd.Flags().GetString("telegram")

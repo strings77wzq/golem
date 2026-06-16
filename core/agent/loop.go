@@ -55,12 +55,33 @@ func (a *Agent) HandleMessageStream(ctx context.Context, sessionID string, messa
 }
 
 // HandleCompact compresses the session history by summarizing old messages.
+// Uses LLM-driven Compactor when available, falls back to string truncation.
 func (a *Agent) HandleCompact(ctx context.Context, sessionID string) (string, error) {
 	sess, found := a.sessionStore.Get(sessionID)
 	if !found {
 		return "no active session to compact", nil
 	}
 
+	// Use LLM-driven compactor if available
+	if a.compactor != nil {
+		// Token budget: use 80% of configured max tokens
+		budget := a.config.Agents.Defaults.MaxTokens * 8 / 10
+		if budget <= 0 {
+			budget = 8192 * 8 / 10
+		}
+		result, err := a.compactor.Compact(ctx, sess, budget)
+		if err != nil {
+			a.logger.Error("compactor failed, falling back to truncation", err)
+			// Fall through to old truncation
+		} else {
+			if err := a.sessionStore.Save(sess); err != nil {
+				a.logger.Error("failed to save compacted session", err)
+			}
+			return result, nil
+		}
+	}
+
+	// Fallback: old string truncation
 	messages := sess.GetMessages()
 	if len(messages) <= 2 {
 		return "session is already minimal, nothing to compact", nil

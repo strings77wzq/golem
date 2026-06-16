@@ -9,6 +9,7 @@ import (
 )
 
 // RegisterProviders creates a provider factory from config ModelList.
+// All providers are wrapped with RetryProvider for exponential backoff retry.
 func RegisterProviders(cfg *config.Config) *providers.Factory {
 	factory := providers.NewFactory()
 
@@ -21,64 +22,73 @@ func RegisterProviders(cfg *config.Config) *providers.Factory {
 		}
 		registered[vendor] = true
 
+		var provider providers.LLMProvider
+
 		switch vendor {
 		case "openai":
 			var opts []openai.Option
 			if entry.APIBase != "" {
 				opts = append(opts, openai.WithAPIBase(entry.APIBase))
 			}
-			factory.Register(vendor, openai.New(entry.APIKey, opts...))
+			provider = openai.New(entry.APIKey, opts...)
 		case "anthropic":
 			var opts []anthropic.Option
 			if entry.APIBase != "" {
 				opts = append(opts, anthropic.WithAPIBase(entry.APIBase))
 			}
-			factory.Register(vendor, anthropic.New(entry.APIKey, opts...))
+			provider = anthropic.New(entry.APIKey, opts...)
 		case "deepseek":
 			base := entry.APIBase
 			if base == "" {
 				base = "https://api.deepseek.com"
 			}
-			factory.Register(vendor, openai.New(entry.APIKey, openai.WithAPIBase(base)))
+			provider = openai.New(entry.APIKey, openai.WithAPIBase(base))
 		case "moonshot":
 			base := entry.APIBase
 			if base == "" {
 				base = "https://api.moonshot.cn"
 			}
-			factory.Register(vendor, openai.New(entry.APIKey, openai.WithAPIBase(base)))
+			provider = openai.New(entry.APIKey, openai.WithAPIBase(base))
 		case "zhipu":
 			base := entry.APIBase
 			if base == "" {
 				base = "https://open.bigmodel.cn/api/paas"
 			}
-			factory.Register(vendor, openai.New(entry.APIKey, openai.WithAPIBase(base)))
+			provider = openai.New(entry.APIKey, openai.WithAPIBase(base))
 		case "minimax":
 			base := entry.APIBase
 			if base == "" {
 				base = "https://api.minimax.chat"
 			}
-			factory.Register(vendor, openai.New(entry.APIKey, openai.WithAPIBase(base)))
+			provider = openai.New(entry.APIKey, openai.WithAPIBase(base))
 		case "dashscope":
 			base := entry.APIBase
 			if base == "" {
 				base = "https://dashscope.aliyuncs.com/compatible-mode"
 			}
-			factory.Register(vendor, openai.New(entry.APIKey, openai.WithAPIBase(base)))
+			provider = openai.New(entry.APIKey, openai.WithAPIBase(base))
 		case "ollama":
 			var opts []ollama.Option
 			if entry.APIBase != "" {
 				opts = append(opts, ollama.WithAPIBase(entry.APIBase))
 			}
-			factory.Register(vendor, ollama.New(opts...))
+			provider = ollama.New(opts...)
 		case "mimo":
 			base := entry.APIBase
 			if base == "" {
 				base = "https://api.xiaomimimo.com/v1"
 			}
-			factory.Register(vendor, openai.New(entry.APIKey, openai.WithAPIBase(base)))
+			provider = openai.New(entry.APIKey, openai.WithAPIBase(base))
 		case "mock":
-			factory.Register(vendor, providers.NewMockProvider("mock"))
+			provider = providers.NewMockProvider("mock")
 		}
+
+		// Wrap with retry logic for resilience
+		if provider != nil && vendor != "mock" {
+			provider = providers.NewRetryProvider(provider, providers.RetryConfig{})
+		}
+
+		factory.Register(vendor, provider)
 	}
 
 	if !registered["mock"] {

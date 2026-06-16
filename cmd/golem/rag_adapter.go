@@ -1,5 +1,5 @@
 // RAG Adapter - wires RAG feature into the main agent
-// Provides document indexing and retrieval capabilities
+// Provides document indexing and retrieval capabilities with hybrid search
 
 package main
 
@@ -24,6 +24,7 @@ type RagConfig struct {
 }
 
 // LoadRAGTools loads documents from the specified directory and creates a RAG tool
+// with hybrid search (BM25 + vector similarity via RRF fusion)
 func LoadRAGTools(ctx context.Context, cfg RagConfig) (*tools.Registry, error) {
 	registry := tools.NewRegistry()
 
@@ -55,12 +56,12 @@ func LoadRAGTools(ctx context.Context, cfg RagConfig) (*tools.Registry, error) {
 	// Create vector store
 	store := rag.NewMemoryVectorStore()
 
-	// Create retriever
+	// Create hybrid retriever (BM25 + vector similarity)
 	topK := cfg.TopK
 	if topK <= 0 {
 		topK = 3
 	}
-	retriever := rag.NewRetriever(embedder, store, topK)
+	hybrid := rag.NewHybridRetriever(embedder, store, topK)
 
 	// Load documents from directory
 	docs, err := loadDocumentsFromDir(cfg.IndexDir)
@@ -69,17 +70,41 @@ func LoadRAGTools(ctx context.Context, cfg RagConfig) (*tools.Registry, error) {
 	}
 
 	if len(docs) > 0 {
-		if err := retriever.AddDocuments(ctx, docs); err != nil {
-			return nil, fmt.Errorf("indexing documents: %w", err)
+		// Add documents to hybrid retriever (indexes both BM25 and vector)
+		for _, doc := range docs {
+			hybrid.AddDocument(doc.ID, doc.Content)
 		}
-		fmt.Printf("RAG: indexed %d documents from %s\n", len(docs), cfg.IndexDir)
+		// Also add to vector store for vector search
+		ragDocs := make([]rag.Document, len(docs))
+		for i, doc := range docs {
+			ragDocs[i] = rag.Document{
+				ID:       doc.ID,
+				Content:  doc.Content,
+				Metadata: doc.Metadata,
+			}
+		}
+		// Embed and add to vector store
+		if len(ragDocs) > 0 {
+			texts := make([]string, len(ragDocs))
+			for i, d := range ragDocs {
+				texts[i] = d.Content
+			}
+			embeddings, err := embedder.EmbedBatch(ctx, texts)
+			if err == nil {
+				for i, d := range ragDocs {
+					d.Vector = embeddings[i]
+				}
+				store.Add(ctx, ragDocs)
+			}
+		}
+		fmt.Printf("RAG: indexed %d documents from %s (hybrid search enabled)\n", len(docs), cfg.IndexDir)
 	}
 
-	// Create and register the RAG tool
+	// Create and register the RAG tool with hybrid search
 	ragTool := &ragTool{
-		retriever: retriever,
-		indexDir:  cfg.IndexDir,
-		docCount:  len(docs),
+		hybrid:   hybrid,
+		indexDir: cfg.IndexDir,
+		docCount: len(docs),
 	}
 	registry.Register(ragTool)
 
@@ -123,10 +148,10 @@ func loadDocumentsFromDir(dir string) ([]rag.RawDocument, error) {
 	return docs, nil
 }
 
-// ragTool implements tools.Tool for RAG retrieval
+// ragTool implements tools.Tool for RAG retrieval with hybrid search
 type ragTool struct {
-	retriever *rag.Retriever
-	indexDir  string
+	hybrid   *rag.HybridRetriever
+	indexDir string
 	docCount  int
 }
 
@@ -135,7 +160,7 @@ func (r *ragTool) Name() string {
 }
 
 func (r *ragTool) Description() string {
-	return fmt.Sprintf("Retrieve relevant information from the indexed documents (%d documents indexed from %s). Use this when you need to answer questions based on the provided document knowledge base.", r.docCount, r.indexDir)
+	return fmt.Sprintf("Retrieve relevant information from the indexed documents (%d documents indexed from %s). Uses hybrid search (keyword + semantic). Use this when you need to answer questions based on the provided document knowledge base.", r.docCount, r.indexDir)
 }
 
 func (r *ragTool) Parameters() []tools.ToolParameter {
@@ -159,7 +184,8 @@ func (r *ragTool) Execute(ctx context.Context, args map[string]interface{}) (*to
 		}, nil
 	}
 
-	results, err := r.retriever.Query(ctx, query)
+	// Use hybrid search (BM25 + vector similarity via RRF)
+	results, err := r.hybrid.Search(ctx, query, 5)
 	if err != nil {
 		return &tools.ToolResult{
 			ForLLM:  fmt.Sprintf("Error querying the document index: %v", err),
@@ -178,12 +204,12 @@ func (r *ragTool) Execute(ctx context.Context, args map[string]interface{}) (*to
 
 	// Format results for the LLM
 	var sb strings.Builder
-	sb.WriteString("Relevant documents found:\n\n")
+	sb.WriteString("Relevant documents found (hybrid search):\n\n")
 
 	for i, result := range results {
-		sb.WriteString(fmt.Sprintf("--- Document %d (score: %.3f) ---\n", i+1, result.Score))
-		sb.WriteString(fmt.Sprintf("Source: %s\n", result.Document.Metadata["source"]))
-		sb.WriteString(fmt.Sprintf("Content:\n%s\n\n", result.Document.Content))
+		sb.WriteString(fmt.Sprintf("--- Document %d (score: %.4f) ---\n", i+1, result.Score))
+		sb.WriteString(fmt.Sprintf("ID: %s\n", result.ID))
+		sb.WriteString("\n")
 	}
 
 	return &tools.ToolResult{

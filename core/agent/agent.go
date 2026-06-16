@@ -55,6 +55,7 @@ type Agent struct {
 	maxToolIterations int
 	tracker           *usage.Tracker
 	hooks             *Hooks
+	compactor         *Compactor
 	planEnabled       bool
 }
 
@@ -96,6 +97,13 @@ func WithPlanner(llm providers.LLMProvider, model string) Option {
 		a.toolSelector = NewToolSelector(a.toolRegistry)
 		a.reflector = NewReflector()
 		a.planEnabled = true
+	}
+}
+
+// WithCompactor sets the LLM-driven session compactor.
+func WithCompactor(compactor *Compactor) Option {
+	return func(a *Agent) {
+		a.compactor = compactor
 	}
 }
 
