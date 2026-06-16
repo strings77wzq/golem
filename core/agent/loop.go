@@ -298,6 +298,17 @@ func (a *Agent) processMessage(
 		return a.processWithPlan(ctx, msg, sess, model, toolDefs, streamFinal, onToken, emit)
 	}
 
+	// Auto-compact if context is getting too large (80% of token budget)
+	if a.compactor != nil {
+		budget := a.config.Agents.Defaults.MaxTokens * 8 / 10
+		if budget <= 0 {
+			budget = 8192 * 8 / 10
+		}
+		if result, err := a.compactor.Compact(ctx, sess, budget); err == nil && strings.HasPrefix(result, "compacted") {
+			a.logger.Info("auto-compacted session", "result", result)
+		}
+	}
+
 	// Guard against infinite loops if the LLM repeatedly calls tools without converging.
 	// Default maxToolIterations=25 prevents runaway agents while allowing complex tasks.
 	for i := 0; i < a.maxToolIterations; i++ {
@@ -551,59 +562,6 @@ func (a *Agent) processMessage(
 	}
 
 	return "max tool iterations reached", nil, nil
-}
-
-func (a *Agent) emitError(sessionID, errMsg string, emit func(bus.OutboundMessage)) {
-	if emit == nil {
-		return
-	}
-	emit(bus.OutboundMessage{
-		SessionID: sessionID,
-		Content:   errMsg,
-		Role:      bus.RoleAssistant,
-		Done:      true,
-	})
-}
-
-func (a *Agent) invokeProvider(
-	ctx context.Context,
-	provider providers.LLMProvider,
-	messages []providers.Message,
-	toolDefs []tools.ToolDefinition,
-	modelName string,
-	streamFinal bool,
-	onToken func(string),
-	sessionID string,
-	emit func(bus.OutboundMessage),
-) (*providers.LLMResponse, bool, error) {
-	sp, ok := provider.(providers.StreamingProvider)
-	// Streaming is disabled when tools are present because mid-stream tool call arguments
-	// require buffering the entire stream to parse JSON, eliminating any latency benefit.
-	// The streaming contract only applies to final text responses without tool calls.
-	canStream := ok && streamFinal && len(toolDefs) == 0
-	if !canStream {
-		resp, err := provider.Chat(ctx, messages, toolDefs, modelName, nil)
-		return resp, false, err
-	}
-	resp, err := sp.ChatStream(ctx, messages, toolDefs, modelName, nil, a.wrapTokenEmitter(sessionID, emit, onToken))
-	return resp, err == nil, err
-}
-
-func (a *Agent) wrapTokenEmitter(sessionID string, emit func(bus.OutboundMessage), onToken func(string)) func(string) {
-	return func(token string) {
-		if onToken != nil {
-			onToken(token)
-		}
-		if emit != nil {
-			emit(bus.OutboundMessage{
-				SessionID:  sessionID,
-				Content:    token,
-				Role:       bus.RoleAssistant,
-				Done:       false,
-				TokenDelta: token,
-			})
-		}
-	}
 }
 
 // isComplexTask determines if a message should use planning mode.
