@@ -76,10 +76,16 @@ func (c *Compactor) Compact(ctx context.Context, sess *session.Session, tokenBud
 		return "session is already minimal, nothing to compact", nil
 	}
 
-	// Use LLM to summarize old messages
-	summary, err := c.summarize(ctx, old)
-	if err != nil {
-		// Fallback to simple truncation if LLM fails
+	// Use LLM to summarize old messages (if provider available)
+	var summary string
+	if c.provider != nil {
+		var err error
+		summary, err = c.summarize(ctx, old)
+		if err != nil {
+			// Fallback to simple truncation if LLM fails
+			summary = c.simpleSummary(old)
+		}
+	} else {
 		summary = c.simpleSummary(old)
 	}
 

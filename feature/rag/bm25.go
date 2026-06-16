@@ -35,6 +35,7 @@ func NewBM25Index() *BM25Index {
 }
 
 // Add adds a document to the index.
+// If a document with the same ID already exists, it is replaced.
 func (idx *BM25Index) Add(id, text string) {
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
@@ -53,9 +54,25 @@ func (idx *BM25Index) Add(id, text string) {
 		tf:     tf,
 	}
 
+	// Check for existing document with same ID
+	for i, existing := range idx.docs {
+		if existing.id == id {
+			// Replace existing document, adjust avgDL
+			oldLen := float64(existing.length)
+			newLen := float64(doc.length)
+			idx.avgDL = (idx.avgDL*float64(idx.numDocs) - oldLen + newLen) / float64(idx.numDocs)
+			idx.docs[i] = doc
+			return
+		}
+	}
+
 	idx.docs = append(idx.docs, doc)
 	idx.numDocs++
-	idx.avgDL = float64((idx.avgDL*float64(idx.numDocs-1) + float64(doc.length)) / float64(idx.numDocs))
+	if idx.numDocs == 1 {
+		idx.avgDL = float64(doc.length)
+	} else {
+		idx.avgDL = (idx.avgDL*float64(idx.numDocs-1) + float64(doc.length)) / float64(idx.numDocs)
+	}
 }
 
 // ScoredDoc represents a document with its relevance score.
@@ -70,7 +87,7 @@ func (idx *BM25Index) Search(query string, topK int) []ScoredDoc {
 	defer idx.mu.RUnlock()
 
 	queryTerms := tokenize(query)
-	if len(queryTerms) == 0 || idx.numDocs == 0 {
+	if len(queryTerms) == 0 || idx.numDocs == 0 || topK <= 0 {
 		return nil
 	}
 
