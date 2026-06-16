@@ -187,34 +187,100 @@ agent:
 
 ## 架构
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                          cmd/golem/                              │
-│                    组合根 (Composition Root)                      │
-├─────────────────────────────────────────────────────────────────┤
-│                       internal/wiring/                            │
-│                 依赖创建与配置 (Provider Registry)                 │
-├─────────────────────────────────────────────────────────────────┤
-│                           core/                                   │
-│  agent/         │  providers/      │  tools/        │  session/  │
-│  (ReAct 循环)    │  (8家LLM+重试)   │  (12种工具)    │  (会话管理) │
-│  compactor.go   │  registry.go    │  registry.go  │  store.go  │
-│  streaming.go   │  backoff.go     │  mock.go      │  sqlite.go │
-├─────────────────────────────────────────────────────────────────┤
-│                          feature/                                 │
-│  config/    │  rag/        │  mcp/     │  skills/  │  memory/   │
-│  (YAML v2)  │  (BM25+RRF)  │  (协议)   │  (注册表)  │  (记忆)    │
-├─────────────────────────────────────────────────────────────────┤
-│                         internal/                                 │
-│  channels/    │  gateway/    │  metrics/  │  security/           │
-│  (TUI/CLI/TG) │  (HTTP API)  │  (Prom)    │  (Auth/限流)         │
-├─────────────────────────────────────────────────────────────────┤
-│                        foundation/                                │
-│  concurrency/  │  logger/  │  store/  │  term/                   │
-│  (并发原语)     │  (日志)    │  (存储)  │  (终端)                  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph "cmd/golem/ 组合根"
+        CLI[CLI 入口]
+        Debug[debug tools/config]
+        Status[status]
+        Validate[config validate]
+        Init[init 向导]
+    end
 
-依赖方向：
+    subgraph "internal/wiring/ 依赖创建"
+        Wiring[Provider Registry]
+        ToolWiring[工具注册]
+    end
+
+    subgraph "core/ 核心领域逻辑"
+        Agent[agent/<br/>ReAct 循环]
+        Compactor[compactor.go<br/>LLM 压缩]
+        Streaming[streaming.go<br/>流式输出]
+        Providers[providers/<br/>8家 LLM + 重试]
+        Registry[registry.go<br/>Provider 注册表]
+        Tools[tools/<br/>12 种工具]
+        Session[session/<br/>会话管理]
+        Context[context/<br/>上下文管理]
+        Bus[bus/<br/>消息总线]
+    end
+
+    subgraph "feature/ 可选功能模块"
+        Config[config/<br/>YAML v2]
+        RAG[rag/<br/>BM25+RRF]
+        MCP[mcp/<br/>MCP 协议]
+        Skills[skills/<br/>技能注册表]
+        Memory[memory/<br/>长期记忆]
+    end
+
+    subgraph "internal/ 内部适配器"
+        TUI[TUI/<br/>Bubble Tea]
+        CLI_Ch[CLI/<br/>readline]
+        TG[Telegram/<br/>Bot 适配器]
+        Gateway[Gateway/<br/>HTTP API]
+        Metrics[Metrics/<br/>Prometheus]
+        Security[Security/<br/>Auth/限流]
+    end
+
+    subgraph "foundation/ 基础设施原语"
+        Concurrency[concurrency/<br/>并发原语]
+        Logger[logger/<br/>结构化日志]
+        Store[store/<br/>SQLite 持久化]
+        Term[term/<br/>终端检测]
+    end
+
+    CLI --> Wiring
+    Debug --> ToolWiring
+    Status --> ToolWiring
+    Validate --> Config
+    Init --> Config
+
+    Wiring --> Providers
+    Wiring --> Registry
+    ToolWiring --> Tools
+
+    Agent --> Context
+    Agent --> Providers
+    Agent --> Tools
+    Agent --> Session
+    Agent --> Bus
+    Agent --> Compactor
+    Agent --> Streaming
+
+    Compactor --> Providers
+    Streaming --> Providers
+
+    TUI --> Bus
+    CLI_Ch --> Bus
+    TG --> Bus
+    Gateway --> Bus
+
+    Config --> Context
+    RAG --> Tools
+    MCP --> Tools
+
+    Session --> Store
+    Logger --> Term
+
+    style cmd fill:#e1f5fe
+    style wiring fill:#f3e5f5
+    style core fill:#e8f5e9
+    style feature fill:#fff3e0
+    style internal fill:#fce4ec
+    style foundation fill:#f5f5f5
+```
+
+**依赖方向：**
+```
 cmd/ → internal/wiring/ → core/*, feature/*
 cmd/ → internal/* → core/*
 foundation/ → stdlib only（零项目依赖）
