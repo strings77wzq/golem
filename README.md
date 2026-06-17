@@ -380,3 +380,7 @@ golem agent --db .golem-demo.db -m "分析这个数据库"
 ```
 
 详细文档请参考 [docs/](docs/) 目录。
+
+---
+
+> Built with ❤️ by the Golem community.
