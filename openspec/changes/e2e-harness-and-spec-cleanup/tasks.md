@@ -21,15 +21,15 @@
 
 **Allowed paths**: `tests/e2e/helpers/ollama.go`, `tests/e2e/helpers/ollama_test.go`
 
-- [ ] 2.1 **(RED)** Write `tests/e2e/helpers/ollama_test.go::TestDetectOllama_NotRunning` — uses an `httptest` server that closes immediately, asserts the helper returns a sentinel `ErrOllamaUnavailable`. Run; MUST fail (no implementation yet).
-- [ ] 2.2 **(GREEN)** Implement `Detect(baseURL string) error` in `tests/e2e/helpers/ollama.go` to GET `/api/tags`, return `ErrOllamaUnavailable` on connection error or non-200 status.
-- [ ] 2.3 **(RED)** Write `TestDetectOllama_ModelMissing` — `httptest` returns `{"models":[]}`, helper called with required model `qwen3:0.5b`. Assert returns sentinel `ErrModelNotPulled`. MUST fail first.
-- [ ] 2.4 **(GREEN)** Extend `Detect` to parse the model list and return `ErrModelNotPulled` when the required model is absent.
-- [ ] 2.5 **(RED)** Write `TestDetectOllama_HappyPath` — `httptest` returns the required model in the list. Assert returns nil. MUST fail before implementation reaches the success branch.
-- [ ] 2.6 **(GREEN)** Make happy path return nil; ensure all three tests pass.
-- [ ] 2.7 **(RED)** Write `TestSkipIfUnavailable_Skips` — uses a fake `*testing.T` recorder; assert `t.Skip` was called with the documented message format when `Detect` returns an error.
-- [ ] 2.8 **(GREEN)** Implement `SkipIfUnavailable(t *testing.T, baseURL, model string)` that calls `Detect` and `t.Skipf` with the documented messages.
-- [ ] 2.9 **(REFACTOR)** Run `go test ./tests/e2e/helpers/...`, all green; extract any duplication; re-run.
+- [x] 2.1 **(RED)** Write `tests/e2e/helpers/ollama_test.go::TestDetectOllama_NotRunning` — uses an `httptest` server that closes immediately, asserts the helper returns a sentinel `ErrOllamaUnavailable`. Run; MUST fail (no implementation yet).
+- [x] 2.2 **(GREEN)** Implement `Detect(baseURL string) error` in `tests/e2e/helpers/ollama.go` to GET `/api/tags`, return `ErrOllamaUnavailable` on connection error or non-200 status.
+- [x] 2.3 **(RED)** Write `TestDetectOllama_ModelMissing` — `httptest` returns `{"models":[]}`, helper called with required model `qwen3:0.5b`. Assert returns sentinel `ErrModelNotPulled`. MUST fail first.
+- [x] 2.4 **(GREEN)** Extend `Detect` to parse the model list and return `ErrModelNotPulled` when the required model is absent.
+- [x] 2.5 **(RED)** Write `TestDetectOllama_HappyPath` — `httptest` returns the required model in the list. Assert returns nil. MUST fail before implementation reaches the success branch.
+- [x] 2.6 **(GREEN)** Make happy path return nil; ensure all three tests pass.
+- [x] 2.7 **(RED)** Write `TestSkipIfUnavailable_Skips` — uses a fake `*testing.T` recorder; assert `t.Skip` was called with the documented message format when `Detect` returns an error.
+- [x] 2.8 **(GREEN)** Implement `SkipIfUnavailable(t *testing.T, baseURL, model string)` that calls `Detect` and `t.Skipf` with the documented messages.
+- [x] 2.9 **(REFACTOR)** Run `go test ./tests/e2e/helpers/...`, all green; extract any duplication; re-run.
 
 ## 3. Track A — Slice A3: Transcript helper (TDD)
 
