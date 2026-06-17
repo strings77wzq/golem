@@ -35,14 +35,14 @@
 
 **Allowed paths**: `tests/e2e/helpers/transcript.go`, `tests/e2e/helpers/transcript_test.go`, `tests/e2e/helpers/redact.go`, `tests/e2e/helpers/redact_test.go`
 
-- [ ] 3.1 **(RED)** Write `tests/e2e/helpers/redact_test.go::TestRedact_BearerToken` — feeds `"Authorization: Bearer sk-abcdefghijklmnopqrstuvwxyz1234"`, asserts output substitutes the token with `[REDACTED]`. MUST fail first.
-- [ ] 3.2 **(GREEN)** Implement `Redact(line string) string` in `redact.go` matching `Bearer [A-Za-z0-9_\-]{20,}` and `sk-[A-Za-z0-9]{20,}`, replacing with `[REDACTED]`.
-- [ ] 3.3 **(RED)** Add `TestRedact_DropUncertainLine` — feeds a line that contains a 60-char unbroken alphanumeric run not preceded by a known prefix; assert helper returns empty string (drop). MUST fail.
-- [ ] 3.4 **(GREEN)** Extend redactor with the conservative drop heuristic; all redact tests pass.
-- [ ] 3.5 **(RED)** Write `TestTranscript_FileCreated` — `New("foo")` then `Close()`, assert a file at `transcripts/foo.log` exists with a header line `# foo @ <RFC3339>`. MUST fail.
-- [ ] 3.6 **(GREEN)** Implement `Transcript` type in `transcript.go` with `New(name string) *Transcript`, `Write(p []byte) (int, error)`, `Close() error`. `Write` MUST pipe each line through `Redact`.
-- [ ] 3.7 **(RED)** Write `TestTranscript_RedactsOnWrite` — write a Bearer-token line, assert the file content shows `[REDACTED]`. MUST fail before integration of Redact into Write.
-- [ ] 3.8 **(GREEN)** Wire `Redact` into `Transcript.Write` per-line; all transcript tests pass.
+- [x] 3.1 **(RED)** Write `tests/e2e/helpers/redact_test.go::TestRedact_BearerToken` — feeds `"Authorization: Bearer sk-abcdefghijklmnopqrstuvwxyz1234"`, asserts output substitutes the token with `[REDACTED]`. MUST fail first.
+- [x] 3.2 **(GREEN)** Implement `Redact(line string) string` in `redact.go` matching `Bearer [A-Za-z0-9_\-]{20,}` and `sk-[A-Za-z0-9]{20,}`, replacing with `[REDACTED]`.
+- [x] 3.3 **(RED)** Add `TestRedact_DropUncertainLine` — feeds a line that contains a 60-char unbroken alphanumeric run not preceded by a known prefix; assert helper returns empty string (drop). MUST fail.
+- [x] 3.4 **(GREEN)** Extend redactor with the conservative drop heuristic; all redact tests pass.
+- [x] 3.5 **(RED)** Write `TestTranscript_FileCreated` — `New("foo")` then `Close()`, assert a file at `transcripts/foo.log` exists with a header line `# foo @ <RFC3339>`. MUST fail.
+- [x] 3.6 **(GREEN)** Implement `Transcript` type in `transcript.go` with `New(name string) *Transcript`, `Write(p []byte) (int, error)`, `Close() error`. `Write` MUST pipe each line through `Redact`.
+- [x] 3.7 **(RED)** Write `TestTranscript_RedactsOnWrite` — write a Bearer-token line, assert the file content shows `[REDACTED]`. MUST fail before integration of Redact into Write.
+- [x] 3.8 **(GREEN)** Wire `Redact` into `Transcript.Write` per-line; all transcript tests pass.
 
 ## 4. Track A — Slice A4: First behavioural test — agent + sql_query
 
