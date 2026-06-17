@@ -192,6 +192,30 @@ TUI (tui.go)                    Agent (loop.go)
 
 ## 9. Working Principles
 
+### CRITICAL: Development Workflow Gate (MANDATORY)
+
+**Every implementation task MUST follow this workflow. No exceptions.**
+
+```
+Brainstorm → Spec → TDD → Verify → Review → Archive
+```
+
+**Hard Gate Rules:**
+
+1. **Before writing ANY code**: You MUST have written a spec document first
+2. **Before writing ANY test**: You MUST have a spec with acceptance criteria
+3. **Before claiming completion**: You MUST have run verification and have evidence
+4. **Before moving to next task**: You MUST have archived the spec
+
+**If you catch yourself about to write code without a spec, STOP. Write the spec first.**
+
+**Exceptions (only these allow skipping brainstorm):**
+- Trivial one-line fixes with no architectural impact
+- Typo corrections
+- Import reordering
+
+**Everything else requires the full workflow.**
+
 ### Thinking Methodology (Mandatory)
 
 Every significant interaction **must** pass through three thinking lenses. This is not optional.
