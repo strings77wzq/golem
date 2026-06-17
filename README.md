@@ -8,90 +8,90 @@
 [![Tests](https://img.shields.io/badge/tests-41%20packages-brightgreen)](https://github.com/strings77wzq/golem/actions)
 [![Coverage](https://img.shields.io/badge/coverage-82.5%25-brightgreen)](https://github.com/strings77wzq/golem)
 
-> **让 AI 看到你的数据。**
+> **Let AI see your data.**
 
-Golem 是一个 Go 原生的数据库 AI Agent。它连接你的数据库，理解表结构，然后通过 MCP 协议把查询能力暴露给 Claude Code、Cursor 或任何支持 MCP 的 AI agent。
+Golem is a Go-native database AI agent. It connects to your databases, understands table schemas, and exposes query capabilities to Claude Code, Cursor, or any MCP-compatible agent via the Model Context Protocol.
 
-**零 Python、零 Docker、零依赖。** 下载一个 14MB 的二进制文件，指向你的数据库，开始查询。
+**Zero Python. Zero Docker. Zero dependencies.** Download a 14MB binary, point it at your database, and start querying.
 
 ---
 
-## 为什么需要 Golem？
+## Why Golem?
 
-如果你在使用 AI agent（Claude Code、Cursor、OpenClaw），你一定遇到过这个问题：**它们看不到你的数据。**
+If you use AI agents (Claude Code, Cursor, OpenClaw), you've hit a common problem: **they can't see your data.**
 
-你可以让 AI 写代码、读文件、执行命令 — 但它无法直接查询你的 SQLite 数据库来回答"上个月有多少用户注册？"
+You can ask AI to write code, read files, execute commands — but it can't directly query your SQLite database to answer "how many users signed up last month?"
 
 ```
-你的数据库 (SQLite / PostgreSQL / MySQL / Redis / Qdrant)
+Your Database (SQLite / PostgreSQL / MySQL / Redis / Qdrant)
         │
         ▼
 ┌─────────────────┐
-│  Golem Agent    │  ← 连接数据库，理解 schema
-│  (14MB 单二进制) │
+│  Golem Agent    │  ← Connects to DB, understands schema
+│  (14MB binary)  │
 └────────┬────────┘
-         │ MCP 协议
+         │ MCP Protocol
          ▼
 ┌─────────────────┐
 │  Claude Code    │
-│  Cursor         │  ← 通过 sql_query 工具查询数据
-│  任何 MCP 客户端  │
+│  Cursor         │  ← Queries data via sql_query tool
+│  Any MCP client │
 └─────────────────┘
 ```
 
 ---
 
-## 快速开始（5 分钟）
+## Quick Start (5 minutes)
 
 ```bash
-# 1. 安装
+# 1. Install
 go install github.com/strings77wzq/golem/cmd/golem@latest
 
-# 2. 创建演示数据库
+# 2. Create demo database
 golem demo-db
 
-# 3. 让 agent 分析你的数据
-golem agent --db .golem-demo.db -m "有哪些表？性能有问题吗？"
+# 3. Let the agent analyze your data
+golem agent --db .golem-demo.db -m "What tables exist? Any performance issues?"
 ```
 
 ---
 
-## 核心特性
+## Core Features
 
-### 数据库智能
+### Database Intelligence
 
 ```bash
-# 连接数据库，用自然语言查询
-golem agent --db ./myapp.db -m "显示最近 7 天注册的用户"
+# Connect to database, query with natural language
+golem agent --db ./myapp.db -m "Show me users registered in the last 7 days"
 
-# 分析表结构
-golem agent --db ./myapp.db -m "检查 orders 表的索引是否优化"
+# Analyze table structure
+golem agent --db ./myapp.db -m "Check if orders table indexes are optimal"
 
-# 发现性能问题
-golem agent --db ./myapp.db -m "这个数据库有什么需要优化的地方？"
+# Find performance issues
+golem agent --db ./myapp.db -m "What needs optimization in this database?"
 ```
 
-### 安全模型
+### Safety Model
 
-| 操作 | 默认 | 授权后 |
-|------|------|--------|
-| SELECT 查询 | ✅ 允许 | ✅ |
-| INSERT/UPDATE | ❌ 阻止 | ✅（需要 WHERE） |
-| DELETE | ❌ 阻止 | ✅（需要 WHERE） |
-| Shell 命令 | ⚠️ 仅允许列表 | ✅ |
+| Operation | Default | With Permission |
+|-----------|---------|-----------------|
+| SELECT queries | ✅ Allowed | ✅ |
+| INSERT/UPDATE | ❌ Blocked | ✅ (requires WHERE) |
+| DELETE | ❌ Blocked | ✅ (requires WHERE) |
+| Shell commands | ⚠️ Allowlist only | ✅ |
 
-- **PermissionChecker** — 操作级访问控制
-- **QualityGate** — WHERE 子句强制
-- **Rollback SQL** — DELETE/UPDATE 自动生成回滚语句
-- **审计日志** — 所有操作可追溯
+- **PermissionChecker** — operation-level access control
+- **QualityGate** — WHERE clause enforcement
+- **Rollback SQL** — auto-generated for DELETE/UPDATE
+- **Audit logging** — all operations traceable
 
-### MCP Server — 让其他 Agent 查询你的数据库
+### MCP Server — Let Other Agents Query Your Database
 
 ```bash
 golem mcp-server --db ./myapp.db
 ```
 
-添加到 Claude Code 的 MCP 配置：
+Add to Claude Code's MCP config:
 
 ```json
 {
@@ -102,19 +102,19 @@ golem mcp-server --db ./myapp.db
 }
 ```
 
-### HTTP Gateway — OpenAI 兼容 API
+### HTTP Gateway — OpenAI-Compatible API
 
 ```bash
-golem gateway    # 启动在 :18790
+golem gateway    # Starts on :18790
 ```
 
 ```bash
 curl http://localhost:18790/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"user","content":"列出所有管理员"}]}'
+  -d '{"messages":[{"role":"user","content":"List all admins"}]}'
 ```
 
-### YAML 声明式配置
+### YAML Declarative Configuration
 
 ```yaml
 # agent.yaml (v2)
@@ -124,11 +124,11 @@ agent:
   fallback_models:
     - anthropic/claude-3-haiku
   system_prompt: |
-    你是一个数据库助手，帮助用户查询和分析数据。
+    You are a database assistant. Help users query their data.
   max_tokens: 8192
   commands:
-    schema: "分析数据库结构并列出所有表"
-    optimize: "审查最后一条查询并建议优化"
+    schema: "Analyze the database schema and list all tables"
+    optimize: "Review the last query and suggest optimizations"
 database:
   path: ./myapp.db
 tools:
@@ -148,18 +148,18 @@ hooks:
 golem agent --config agent.yaml
 ```
 
-### 调试与验证
+### Debug & Validation Commands
 
 ```bash
-golem debug tools      # 列出所有工具
-golem debug config     # 显示配置（API key 已遮盖）
-golem config validate  # 验证配置文件
-golem status           # 显示系统状态
+golem debug tools      # List all registered tools
+golem debug config     # Show parsed config (API keys masked)
+golem config validate  # Validate config file
+golem status           # Show system status with tools and features
 ```
 
-### Provider 故障转移
+### Provider Fallback — Automatic Failover
 
-主模型不可用时自动切换备选模型，支持指数退避重试：
+If the primary model is unavailable, Golem automatically tries fallback models with exponential backoff:
 
 ```yaml
 agent:
@@ -169,73 +169,73 @@ agent:
     - ollama/qwen3
 ```
 
-### TUI 斜杠命令
+### TUI Slash Commands
 
-| 命令 | 说明 |
-|------|------|
-| `/tools` | 列出可用工具 |
-| `/new` | 新建会话 |
-| `/sessions` | 浏览历史会话 |
-| `/model` | 切换模型 |
-| `/compact` | 压缩会话历史（LLM 驱动） |
-| `/clear` | 清空会话历史 |
-| `/fork` | 分叉当前会话 |
-| `/help` | 显示帮助 |
-| `/quit` | 退出 |
+| Command | Description |
+|---------|-------------|
+| `/tools` | List available tools |
+| `/new` | Start a new session |
+| `/sessions` | Browse past sessions |
+| `/model` | Switch the current model |
+| `/compact` | Compact conversation history (LLM-driven) |
+| `/clear` | Clear conversation history |
+| `/fork` | Fork the current session |
+| `/help` | Show available commands |
+| `/quit` | Exit the application |
 
 ---
 
-## 架构
+## Architecture
 
 ```mermaid
 graph TB
-    subgraph "cmd/golem/ 组合根"
-        CLI[CLI 入口]
+    subgraph "cmd/golem/ Composition Root"
+        CLI[CLI Entry]
         Debug[debug tools/config]
         Status[status]
         Validate[config validate]
-        Init[init 向导]
+        Init[init wizard]
     end
 
-    subgraph "internal/wiring/ 依赖创建"
+    subgraph "internal/wiring/ Dependency Creation"
         Wiring[Provider Registry]
-        ToolWiring[工具注册]
+        ToolWiring[Tool Registration]
     end
 
-    subgraph "core/ 核心领域逻辑"
-        Agent[agent/<br/>ReAct 循环]
-        Compactor[compactor.go<br/>LLM 压缩]
-        Streaming[streaming.go<br/>流式输出]
-        Providers[providers/<br/>8家 LLM + 重试]
-        Registry[registry.go<br/>Provider 注册表]
-        Tools[tools/<br/>12 种工具]
-        Session[session/<br/>会话管理]
-        Context[context/<br/>上下文管理]
-        Bus[bus/<br/>消息总线]
+    subgraph "core/ Domain Logic"
+        Agent[agent/<br/>ReAct Loop]
+        Compactor[compactor.go<br/>LLM Compaction]
+        Streaming[streaming.go<br/>Streaming Output]
+        Providers[providers/<br/>8 LLMs + Retry]
+        Registry[registry.go<br/>Provider Registry]
+        Tools[tools/<br/>12 Tools]
+        Session[session/<br/>Session Management]
+        Context[context/<br/>Context Management]
+        Bus[bus/<br/>Message Bus]
     end
 
-    subgraph "feature/ 可选功能模块"
+    subgraph "feature/ Optional Modules"
         Config[config/<br/>YAML v2]
         RAG[rag/<br/>BM25+RRF]
-        MCP[mcp/<br/>MCP 协议]
-        Skills[skills/<br/>技能注册表]
-        Memory[memory/<br/>长期记忆]
+        MCP[mcp/<br/>MCP Protocol]
+        Skills[skills/<br/>Skill Registry]
+        Memory[memory/<br/>Long-term Memory]
     end
 
-    subgraph "internal/ 内部适配器"
+    subgraph "internal/ Internal Adapters"
         TUI[TUI/<br/>Bubble Tea]
         CLI_Ch[CLI/<br/>readline]
-        TG[Telegram/<br/>Bot 适配器]
+        TG[Telegram/<br/>Bot Adapter]
         Gateway[Gateway/<br/>HTTP API]
         Metrics[Metrics/<br/>Prometheus]
-        Security[Security/<br/>Auth/限流]
+        Security[Security/<br/>Auth/Rate Limit]
     end
 
-    subgraph "foundation/ 基础设施原语"
-        Concurrency[concurrency/<br/>并发原语]
-        Logger[logger/<br/>结构化日志]
-        Store[store/<br/>SQLite 持久化]
-        Term[term/<br/>终端检测]
+    subgraph "foundation/ Infrastructure Primitives"
+        Concurrency[concurrency/<br/>Concurrency Primitives]
+        Logger[logger/<br/>Structured Logging]
+        Store[store/<br/>SQLite Persistence]
+        Term[term/<br/>Terminal Detection]
     end
 
     CLI --> Wiring
@@ -279,84 +279,86 @@ graph TB
     style foundation fill:#f5f5f5
 ```
 
-**依赖方向：**
+**Dependency direction:**
 ```
 cmd/ → internal/wiring/ → core/*, feature/*
 cmd/ → internal/* → core/*
-foundation/ → stdlib only（零项目依赖）
+foundation/ → stdlib only (zero project dependencies)
 ```
 
 ---
 
-## 支持的 LLM 提供商
+## Supported LLM Providers
 
-| 提供商 | 本地/云 | 说明 |
-|--------|---------|------|
-| Ollama | 本地 | 完全离线 |
-| OpenAI | 云 | GPT-4o, GPT-4 |
-| Anthropic | 云 | Claude 3.5 Sonnet |
-| DeepSeek | 云 | DeepSeek Chat |
-| MiMo | 云 | 小米 MiMo |
-| Kimi | 云 | Moonshot |
-| GLM | 云 | 智谱 |
-| MiniMax | 云 | MiniMax |
-| Qwen | 云 | 通义千问 |
+| Provider | Local/Cloud | Notes |
+|----------|-------------|-------|
+| Ollama | Local | Fully offline |
+| OpenAI | Cloud | GPT-4o, GPT-4 |
+| Anthropic | Cloud | Claude 3.5 Sonnet |
+| DeepSeek | Cloud | DeepSeek Chat |
+| MiMo | Cloud | Xiaomi MiMo |
+| Kimi | Cloud | Moonshot |
+| GLM | Cloud | Zhipu |
+| MiniMax | Cloud | MiniMax |
+| Qwen | Cloud | Tongyi Qianwen |
 
-支持任何 OpenAI 兼容 API（vLLM, OpenRouter, LiteLLM）。
+Also supports any OpenAI-compatible API (vLLM, OpenRouter, LiteLLM).
 
 ---
 
 ## Gateway API
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/health` | 健康检查 |
-| GET | `/metrics` | Prometheus 指标 |
-| POST | `/api/chat` | 同步聊天 |
-| POST | `/api/chat/stream` | SSE 流式聊天 |
-| POST | `/v1/chat/completions` | OpenAI 兼容 API |
-| GET | `/v1/models` | 列出可用模型 |
-| GET | `/api/sessions/{id}/export` | 导出会话 |
-| POST | `/api/sessions/import` | 导入会话 |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| GET | `/metrics` | Prometheus metrics |
+| POST | `/api/chat` | Synchronous chat |
+| POST | `/api/chat/stream` | SSE streaming chat |
+| POST | `/v1/chat/completions` | OpenAI-compatible API |
+| GET | `/v1/models` | List available models |
+| GET | `/api/sessions/{id}/export` | Export session |
+| POST | `/api/sessions/import` | Import session |
 
 ---
 
-## 测试
+## Testing
 
 ```bash
-go test ./...                    # 41 个包
-go test -race ./...              # 竞态检测
-go test -coverprofile=out ./...  # 覆盖率
+go test ./...                    # 41 packages
+go test -race ./...              # Race detector
+go test -coverprofile=out ./...  # Coverage
 ```
 
 ---
 
-## 贡献
+## Contributing
 
-详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-核心原则：
-- `CGO_ENABLED=0` 强制执行
-- 严格分层架构（cmd → wiring → core → foundation）
-- 每个 PR 需要测试
-- 使用 Conventional Commits 格式
+Core principles:
+- `CGO_ENABLED=0` is mandatory
+- Layer boundaries must be strict (cmd → wiring → core → foundation)
+- Every PR needs tests
+- Use Conventional Commits format
 
 ---
 
-## 许可证
+## License
 
 MIT License
 
 ---
 
-## 致谢
+## Acknowledgments
 
-- 设计灵感来自 [PicoClaw](https://github.com/sipeed/picoclaw) by Sipeed
-- 架构参考 Docker Agent 的声明式配置理念
+- Design inspired by [PicoClaw](https://github.com/sipeed/picoclaw) by Sipeed
+- Architecture reference: Docker Agent's declarative configuration approach
 
 ---
 
 ## 中文说明
+
+[English](#golem) | **中文**
 
 Golem 是一个 Go 原生的数据库 AI Agent。它连接你的数据库，理解表结构，然后通过 MCP 协议把查询能力暴露给 Claude Code、Cursor 或任何支持 MCP 的 AI agent。
 
