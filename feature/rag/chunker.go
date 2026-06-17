@@ -1,6 +1,7 @@
 package rag
 
 import (
+	"strconv"
 	"unicode"
 )
 
@@ -60,7 +61,7 @@ func (c *Chunker) Split(text string, metadata map[string]string) []Chunk {
 				Index:    index,
 				Metadata: copyMetadata(metadata),
 			}
-			chunk.Metadata["chunk_index"] = string(rune('0' + index))
+			chunk.Metadata["chunk_index"] = strconv.Itoa(index)
 			chunks = append(chunks, chunk)
 			break
 		}
@@ -72,12 +73,13 @@ func (c *Chunker) Split(text string, metadata map[string]string) []Chunk {
 			Index:    index,
 			Metadata: copyMetadata(metadata),
 		}
-		chunk.Metadata["chunk_index"] = string(rune('0' + index))
+		chunk.Metadata["chunk_index"] = strconv.Itoa(index)
 		chunks = append(chunks, chunk)
 
+		prevStart := start
 		start = actualEnd - c.config.ChunkOverlap
-		if start <= chunks[len(chunks)-1].Index {
-			start = actualEnd
+		if start <= prevStart {
+			break // prevent infinite loop — remaining text is lost
 		}
 		index++
 	}

@@ -24,8 +24,23 @@ func NewHybridRetriever(embedder Embedder, store VectorStore, topK int) *HybridR
 }
 
 // AddDocument adds a document to both BM25 and vector indexes.
-func (h *HybridRetriever) AddDocument(id, content string) {
+func (h *HybridRetriever) AddDocument(ctx context.Context, id, content string) error {
+	// 1. Write to BM25 index
 	h.bm25.Add(id, content)
+
+	// 2. Embed and write to vector store (if embedder available)
+	if h.embedder != nil {
+		vec, err := h.embedder.Embed(ctx, content)
+		if err != nil {
+			return fmt.Errorf("embedding document %s: %w", id, err)
+		}
+		h.vectorStore.Add(ctx, []Document{{
+			ID:      id,
+			Content: content,
+			Vector:  vec,
+		}})
+	}
+	return nil
 }
 
 // Search performs hybrid search combining BM25 and vector similarity.

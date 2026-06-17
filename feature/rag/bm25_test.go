@@ -159,9 +159,9 @@ func TestHybridRetriever(t *testing.T) {
 
 	hybrid := NewHybridRetriever(embedder, store, 10)
 
-	hybrid.AddDocument("doc1", "the quick brown fox")
-	hybrid.AddDocument("doc2", "the lazy dog")
-	hybrid.AddDocument("doc3", "quick fox jumps")
+	hybrid.AddDocument(ctx, "doc1", "the quick brown fox")
+	hybrid.AddDocument(ctx, "doc2", "the lazy dog")
+	hybrid.AddDocument(ctx, "doc3", "quick fox jumps")
 
 	results, err := hybrid.Search(ctx, "quick fox", 3)
 	if err != nil {
