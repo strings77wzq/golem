@@ -72,7 +72,7 @@ func LoadRAGTools(ctx context.Context, cfg RagConfig) (*tools.Registry, error) {
 	if len(docs) > 0 {
 		// Add documents to hybrid retriever (indexes both BM25 and vector)
 		for _, doc := range docs {
-			hybrid.AddDocument(doc.ID, doc.Content)
+			hybrid.AddDocument(ctx, doc.ID, doc.Content)
 		}
 		// Also add to vector store for vector search
 		ragDocs := make([]rag.Document, len(docs))
