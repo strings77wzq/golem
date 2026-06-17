@@ -10,9 +10,6 @@ import (
 	"github.com/strings77wzq/golem/core/bus"
 	"github.com/strings77wzq/golem/core/config"
 	"github.com/strings77wzq/golem/core/providers"
-	"github.com/strings77wzq/golem/core/providers/anthropic"
-	"github.com/strings77wzq/golem/core/providers/ollama"
-	"github.com/strings77wzq/golem/core/providers/openai"
 	"github.com/strings77wzq/golem/core/session"
 	"github.com/strings77wzq/golem/core/tools"
 	toolexec "github.com/strings77wzq/golem/core/tools/exec"
@@ -111,58 +108,17 @@ func newProviderFactory(cfg *config.Config) *providers.Factory {
 		}
 		registered[vendor] = true
 
-		switch vendor {
-		case "openai":
-			var opts []openai.Option
-			if entry.APIBase != "" {
-				opts = append(opts, openai.WithAPIBase(entry.APIBase))
-			}
-			factory.Register(vendor, openai.New(entry.APIKey, opts...))
-		case "anthropic":
-			var opts []anthropic.Option
-			if entry.APIBase != "" {
-				opts = append(opts, anthropic.WithAPIBase(entry.APIBase))
-			}
-			factory.Register(vendor, anthropic.New(entry.APIKey, opts...))
-		case "ollama":
-			var opts []ollama.Option
-			if entry.APIBase != "" {
-				opts = append(opts, ollama.WithAPIBase(entry.APIBase))
-			}
-			factory.Register(vendor, ollama.New(opts...))
-		case "deepseek":
-			base := entry.APIBase
-			if base == "" {
-				base = "https://api.deepseek.com"
-			}
-			factory.Register(vendor, openai.New(entry.APIKey, openai.WithAPIBase(base)))
-		case "moonshot":
-			base := entry.APIBase
-			if base == "" {
-				base = "https://api.moonshot.cn"
-			}
-			factory.Register(vendor, openai.New(entry.APIKey, openai.WithAPIBase(base)))
-		case "zhipu":
-			base := entry.APIBase
-			if base == "" {
-				base = "https://open.bigmodel.cn/api/paas"
-			}
-			factory.Register(vendor, openai.New(entry.APIKey, openai.WithAPIBase(base)))
-		case "minimax":
-			base := entry.APIBase
-			if base == "" {
-				base = "https://api.minimax.chat"
-			}
-			factory.Register(vendor, openai.New(entry.APIKey, openai.WithAPIBase(base)))
-		case "dashscope":
-			base := entry.APIBase
-			if base == "" {
-				base = "https://dashscope.aliyuncs.com/compatible-mode"
-			}
-			factory.Register(vendor, openai.New(entry.APIKey, openai.WithAPIBase(base)))
-		case "mock":
-			factory.Register(vendor, providers.NewMockProvider("mock"))
+		// Use Provider Registry (vendors registered via init() in their packages)
+		provider, err := providers.GlobalRegistry.Create(providers.ProviderConfig{
+			Vendor:  vendor,
+			APIKey:  entry.APIKey,
+			APIBase: entry.APIBase,
+		})
+		if err != nil {
+			// Unknown vendor — skip
+			continue
 		}
+		factory.Register(vendor, provider)
 	}
 
 	if !registered["mock"] {
