@@ -4,7 +4,10 @@
 // session. Cost is displayed to the user after each agent turn.
 package usage
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type TokenUsage struct {
 	PromptTokens     int
@@ -63,6 +66,29 @@ func (t *Tracker) GetSession(sessionID string) *SessionUsage {
 	}
 	cp := *su
 	return &cp
+}
+
+// Summary returns a formatted string summarizing usage across all sessions.
+func (t *Tracker) Summary() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if len(t.sessions) == 0 {
+		return "No usage recorded"
+	}
+
+	total := &SessionUsage{}
+	for _, su := range t.sessions {
+		total.PromptTokens += su.PromptTokens
+		total.CompletionTokens += su.CompletionTokens
+		total.TotalTokens += su.TotalTokens
+		total.Requests += su.Requests
+		total.EstimatedCostUSD += su.EstimatedCostUSD
+	}
+
+	return fmt.Sprintf("Total: %d tokens (%d prompt, %d completion) across %d requests, est. cost: $%.4f",
+		total.TotalTokens, total.PromptTokens, total.CompletionTokens,
+		total.Requests, total.EstimatedCostUSD)
 }
 
 func (t *Tracker) GetTotal() *SessionUsage {
