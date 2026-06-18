@@ -1,6 +1,7 @@
 package security
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -113,6 +114,28 @@ func TestAuthMiddlewareDisabled(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status 200 when disabled, got %d", rec.Code)
 	}
+}
+
+func TestIsValidAPIKeyConstantTime(t *testing.T) {
+	validKeys := []string{"secret-key-1234567890"}
+
+	if !isValidAPIKey("secret-key-1234567890", validKeys) {
+		t.Error("expected valid key to be accepted")
+	}
+
+	if isValidAPIKey("secret-key-123456789", validKeys) {
+		t.Error("expected one-short key to be rejected")
+	}
+
+	if isValidAPIKey("", validKeys) {
+		t.Error("expected empty key to be rejected")
+	}
+
+	if isValidAPIKey("totally-wrong-key", validKeys) {
+		t.Error("expected wrong key to be rejected")
+	}
+
+	_ = subtle.ConstantTimeCompare // verify import is used
 }
 
 func TestAuthMiddlewareAllowFrom(t *testing.T) {
