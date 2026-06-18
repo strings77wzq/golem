@@ -1,3 +1,5 @@
+> Status: active — last reviewed 2026-06-18
+
 ## Why
 
 Golem publicly promises production-grade safety behaviors such as read-only database access by default, WHERE enforcement for destructive SQL, rollback SQL generation, audit logging, gateway security controls, metrics, and provider health visibility. The repository already contains many of the building blocks, but several are not wired into runtime execution paths, which creates trust debt: users may rely on protections that are documented but not actually enforced.

@@ -1,3 +1,5 @@
+> Status: active — last reviewed 2026-06-18
+
 ## Why
 
 Golem already has substantial engineering depth—ReAct agent loop, tools, providers, MCP, RAG, memory, skills, CLI/TUI/gateway surfaces, and deployment assets—but its public positioning still reads more like a broad feature inventory than a focused product promise. This change establishes a unified product positioning and open-source excellence standard so new users understand who Golem is for, why it differs from Python-first agent frameworks, and how to move from first local run to real usage.

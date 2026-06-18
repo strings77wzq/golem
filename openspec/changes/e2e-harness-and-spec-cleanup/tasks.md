@@ -101,18 +101,18 @@
 
 **Allowed paths**: `openspec/changes/<archived-proposal-name>/**` (moves), `openspec/specs/archive/<YYYY-MM-DD>-<name>/**` (destinations), `openspec/changes/active-rollover/**` (only if needed)
 
-- [ ] 7.1 For each `landed` proposal in `audit.md`, run `openspec archive <name>` (or the project-defined equivalent) and verify the move into `openspec/specs/archive/<YYYY-MM-DD>-<name>/`.
-- [ ] 7.2 For each `partially-landed` proposal, copy the still-open tasks into `openspec/changes/active-rollover/tasks.md`, with each task block prefixed by `<!-- inherited from <source-proposal> -->`. Write `openspec/changes/active-rollover/proposal.md` summarising the consolidation per spec scenario "Partial proposal becomes archive + rollover". Then archive the source proposal as if it were landed.
-- [ ] 7.3 If no proposal is partially-landed, `active-rollover/` MUST NOT be created (no empty rollover).
-- [ ] 7.4 For each remaining `active` proposal, prepend the line `> Status: active — last reviewed <YYYY-MM-DD>` to its `proposal.md`. Allowed paths: only that proposal's `proposal.md`.
-- [ ] 7.5 Run `openspec validate` across the whole repo; MUST be clean.
+- [x] 7.1 For each `landed` proposal in `audit.md`, run `openspec archive <name>` (or the project-defined equivalent) and verify the move into `openspec/specs/archive/<YYYY-MM-DD>-<name>/`.
+- [x] 7.2 For each `partially-landed` proposal, copy the still-open tasks into `openspec/changes/active-rollover/tasks.md`, with each task block prefixed by `<!-- inherited from <source-proposal> -->`. Write `openspec/changes/active-rollover/proposal.md` summarising the consolidation per spec scenario "Partial proposal becomes archive + rollover". Then archive the source proposal as if it were landed.
+- [x] 7.3 If no proposal is partially-landed, `active-rollover/` MUST NOT be created (no empty rollover).
+- [x] 7.4 For each remaining `active` proposal, prepend the line `> Status: active — last reviewed <YYYY-MM-DD>` to its `proposal.md`. Allowed paths: only that proposal's `proposal.md`.
+- [x] 7.5 Run `openspec validate` across the whole repo; MUST be clean. *(All changes/specs created or modified in this slice validate cleanly. 7 pre-existing specs missing `## Purpose` (`agent`, `chunker-loop-fix`, `golem-enhancement`, `p0-wire-components`, `p1-auto-compact-registry-refactor`, untracked `critical-bug-fixes`, untracked `test-coverage-improvement`) predate this slice and lie outside its allowed paths; documented as a follow-up rather than fixed in-scope.)*
 
 ## 8. Track E — Slice E3: Lock in the hygiene spec
 
 **Allowed paths**: `openspec/specs/proposal-lifecycle-hygiene/spec.md` (new, copied from change-set spec at archive time), `CONTRIBUTING.md`
 
-- [ ] 8.1 At archive time of this change, the `proposal-lifecycle-hygiene` spec from `openspec/changes/e2e-harness-and-spec-cleanup/specs/proposal-lifecycle-hygiene/spec.md` SHALL be promoted to `openspec/specs/proposal-lifecycle-hygiene/spec.md`. (This is automatic via `openspec archive` for a spec-driven change.) Verify the promotion landed.
-- [ ] 8.2 Add a one-paragraph reference to `CONTRIBUTING.md` pointing maintainers at `openspec/specs/proposal-lifecycle-hygiene/spec.md` for cleanup-pass procedure. Allowed paths: `CONTRIBUTING.md` only. Diff MUST be additive.
+- [ ] 8.1 At archive time of this change, the `proposal-lifecycle-hygiene` spec from `openspec/changes/e2e-harness-and-spec-cleanup/specs/proposal-lifecycle-hygiene/spec.md` SHALL be promoted to `openspec/specs/proposal-lifecycle-hygiene/spec.md`. (This is automatic via `openspec archive` for a spec-driven change.) Verify the promotion landed. *(Cannot complete while this change is in flight. The source spec exists and validates; promotion happens automatically when this change is archived.)*
+- [x] 8.2 Add a one-paragraph reference to `CONTRIBUTING.md` pointing maintainers at `openspec/specs/proposal-lifecycle-hygiene/spec.md` for cleanup-pass procedure. Allowed paths: `CONTRIBUTING.md` only. Diff MUST be additive.
 
 ## 9. Verification gate
 
