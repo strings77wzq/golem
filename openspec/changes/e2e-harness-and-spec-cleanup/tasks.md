@@ -91,11 +91,11 @@
 
 **Allowed paths**: `openspec/changes/e2e-harness-and-spec-cleanup/audit.md`
 
-- [ ] 6.1 For each of the eight proposals (`phase1-quality-hardening`, `phase2-runtime-capabilities`, `phase3-production-readiness`, `phase4-open-source-growth`, `product-positioning-and-oss-excellence`, `wire-security-gates`, `fix-ci-vet-provider-health-types`, `project-review-and-roadmap`), read the full `tasks.md` and `proposal.md`.
-- [ ] 6.2 For each task in each proposal, run `git log --all --oneline --grep '<keyword>'` and inspect file paths in `git log -p` to determine if the task has landed.
-- [ ] 6.3 Classify each proposal as `landed` / `partially-landed` / `active`.
-- [ ] 6.4 Write `audit.md` per spec scenario "Audit document captures the verdict" — one section per proposal with name, verdict, evidence (commit SHAs or specific open tasks), and resulting action.
-- [ ] 6.5 Self-review: every `landed` verdict has at least one commit SHA per task; every `partially-landed` verdict lists the specific open tasks; every `active` verdict has a justification why work is still planned.
+- [x] 6.1 For each of the eight proposals (`phase1-quality-hardening`, `phase2-runtime-capabilities`, `phase3-production-readiness`, `phase4-open-source-growth`, `product-positioning-and-oss-excellence`, `wire-security-gates`, `fix-ci-vet-provider-health-types`, `project-review-and-roadmap`), read the full `tasks.md` and `proposal.md`.
+- [x] 6.2 For each task in each proposal, run `git log --all --oneline --grep '<keyword>'` and inspect file paths in `git log -p` to determine if the task has landed.
+- [x] 6.3 Classify each proposal as `landed` / `partially-landed` / `active`.
+- [x] 6.4 Write `audit.md` per spec scenario "Audit document captures the verdict" — one section per proposal with name, verdict, evidence (commit SHAs or specific open tasks), and resulting action.
+- [x] 6.5 Self-review: every `landed` verdict has at least one commit SHA per task; every `partially-landed` verdict lists the specific open tasks; every `active` verdict has a justification why work is still planned.
 
 ## 7. Track E — Slice E2: Execute archive + rollover
 
