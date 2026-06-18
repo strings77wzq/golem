@@ -281,3 +281,25 @@ drainLoop:
 		t.Logf("received %d messages (some were dropped due to full buffer)", received)
 	}
 }
+
+func TestDroppedCountTracking(t *testing.T) {
+	bus := New()
+	defer bus.Close()
+
+	ch := bus.Subscribe("topic")
+
+	if bus.DroppedCount() != 0 {
+		t.Errorf("expected 0 dropped initially, got %d", bus.DroppedCount())
+	}
+
+	for i := 0; i < 110; i++ {
+		bus.Publish("topic", i)
+	}
+
+	dropped := bus.DroppedCount()
+	if dropped != 10 {
+		t.Errorf("expected 10 dropped messages (buffer=100, published=110), got %d", dropped)
+	}
+
+	_ = ch // consumed by drain
+}

@@ -5,13 +5,17 @@
 // exchange messages.
 package bus
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 // Bus defines the interface for a publish-subscribe message bus
 type Bus interface {
 	Publish(topic string, msg interface{})
 	Subscribe(topic string) <-chan interface{}
 	Unsubscribe(topic string, ch <-chan interface{})
+	DroppedCount() int64
 	Close()
 }
 
@@ -20,6 +24,7 @@ type memBus struct {
 	mu          sync.RWMutex
 	subscribers map[string][]chan interface{}
 	closed      bool
+	dropped     atomic.Int64
 }
 
 // New creates a new in-memory message bus
@@ -47,8 +52,14 @@ func (b *memBus) Publish(topic string, msg interface{}) {
 		select {
 		case ch <- msg:
 		default:
+			b.dropped.Add(1)
 		}
 	}
+}
+
+// DroppedCount returns the total number of messages dropped due to full subscriber buffers.
+func (b *memBus) DroppedCount() int64 {
+	return b.dropped.Load()
 }
 
 // Subscribe creates a new subscription channel for a topic

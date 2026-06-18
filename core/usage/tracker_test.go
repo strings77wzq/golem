@@ -1,6 +1,9 @@
 package usage
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestTrackerRecord(t *testing.T) {
 	tr := NewTracker()
@@ -75,6 +78,60 @@ func TestGetPricingCaseInsensitive(t *testing.T) {
 	p := GetPricing("GPT-4o")
 	if p.InputPerToken <= 0 {
 		t.Error("expected non-zero pricing for case-insensitive match")
+	}
+}
+
+func TestSummaryMultipleSessions(t *testing.T) {
+	tr := NewTracker()
+	tr.Record("a", "gpt-4o", TokenUsage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150})
+	tr.Record("b", "gpt-4o", TokenUsage{PromptTokens: 200, CompletionTokens: 100, TotalTokens: 300})
+
+	got := tr.Summary()
+	if !strings.Contains(got, "450") {
+		t.Errorf("Summary() should contain total 450, got %q", got)
+	}
+	if !strings.Contains(got, "300") {
+		t.Errorf("Summary() should contain prompt 300, got %q", got)
+	}
+	if !strings.Contains(got, "150") {
+		t.Errorf("Summary() should contain completion 150, got %q", got)
+	}
+	if !strings.Contains(got, "2 requests") {
+		t.Errorf("Summary() should contain '2 requests', got %q", got)
+	}
+}
+
+func TestSummarySingleSession(t *testing.T) {
+	tr := NewTracker()
+	tr.Record("sess1", "gpt-4o", TokenUsage{
+		PromptTokens:     100,
+		CompletionTokens: 50,
+		TotalTokens:      150,
+	})
+
+	got := tr.Summary()
+	if !strings.Contains(got, "150") {
+		t.Errorf("Summary() should contain total tokens 150, got %q", got)
+	}
+	if !strings.Contains(got, "100") {
+		t.Errorf("Summary() should contain prompt tokens 100, got %q", got)
+	}
+	if !strings.Contains(got, "50") {
+		t.Errorf("Summary() should contain completion tokens 50, got %q", got)
+	}
+	if !strings.Contains(got, "1 requests") {
+		t.Errorf("Summary() should contain '1 requests', got %q", got)
+	}
+	if !strings.Contains(got, "$") {
+		t.Errorf("Summary() should contain cost with $, got %q", got)
+	}
+}
+
+func TestSummaryEmpty(t *testing.T) {
+	tr := NewTracker()
+	got := tr.Summary()
+	if got != "No usage recorded" {
+		t.Errorf("Summary() = %q, want %q", got, "No usage recorded")
 	}
 }
 

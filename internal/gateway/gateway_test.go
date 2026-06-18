@@ -292,6 +292,42 @@ func TestChatEndpointInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestChatEndpointBodyTooLarge(t *testing.T) {
+	log := logger.NopLogger()
+	agent := &mockAgentHandler{response: "test"}
+	cfg := DefaultServerConfig()
+	server := NewServer(cfg, agent, log)
+
+	oversizedBody := strings.Repeat("x", 1<<20+1) // 1MB + 1 byte
+	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(oversizedBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("expected status 413 for oversized body, got %d", rec.Code)
+	}
+}
+
+func TestChatStreamEndpointBodyTooLarge(t *testing.T) {
+	log := logger.NopLogger()
+	agent := &mockAgentHandler{response: "test"}
+	cfg := DefaultServerConfig()
+	server := NewServer(cfg, agent, log)
+
+	oversizedBody := strings.Repeat("x", 1<<20+1) // 1MB + 1 byte
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/stream", strings.NewReader(oversizedBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("expected status 413 for oversized body, got %d", rec.Code)
+	}
+}
+
 func TestCORSHeaders(t *testing.T) {
 	log := logger.NopLogger()
 	agent := &mockAgentHandler{response: "test"}

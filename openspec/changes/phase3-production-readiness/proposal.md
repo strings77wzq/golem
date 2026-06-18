@@ -1,3 +1,5 @@
+> Status: active — last reviewed 2026-06-18
+
 ## Why
 
 Golem has solid core architecture and feature modules, but significant production readiness gaps remain: provider health checking and routing code exist in `feature/` but are not wired into the runtime, the metrics module is implemented but not registered in the gateway, security headers and audit logging are missing, and documentation claims metrics that don't exist. Phase 3 closes these gaps so the project can actually run in production and be maintained by other developers.

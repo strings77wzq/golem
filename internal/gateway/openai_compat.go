@@ -2,8 +2,8 @@ package gateway
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -94,8 +94,13 @@ func (s *Server) handleOpenAICompatModels(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleOpenAICompatChat(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+	body, err := readLimitedBody(w, r)
 	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "request body too large"})
+			return
+		}
 		s.logger.Error("failed to read request body", slog.Any("error", err))
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return

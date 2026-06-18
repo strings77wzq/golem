@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,6 +12,29 @@ import (
 	"github.com/strings77wzq/golem/core/session"
 	"github.com/strings77wzq/golem/internal/metrics"
 )
+
+const maxRequestBodyBytes = 1 << 20 // 1 MB
+
+func readLimitedBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			return nil, err
+		}
+		return nil, err
+	}
+	return body, nil
+}
+
+func writeJSON(w http.ResponseWriter, status int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		http.Error(w, "failed to encode JSON response", http.StatusInternalServerError)
+	}
+}
 
 type healthResponse struct {
 	Status    string `json:"status"`
@@ -78,8 +102,13 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+	body, err := readLimitedBody(w, r)
 	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large"})
+			return
+		}
 		s.logger.Error("failed to read request body", slog.Any("error", err))
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
@@ -112,14 +141,6 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func writeJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		http.Error(w, "failed to encode JSON response", http.StatusInternalServerError)
-	}
-}
-
 func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -127,8 +148,13 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
+	body, err := readLimitedBody(w, r)
 	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large"})
+			return
+		}
 		s.logger.Error("failed to read request body", slog.Any("error", err))
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
@@ -218,8 +244,13 @@ func (s *Server) handleSessionImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
+	body, err := readLimitedBody(w, r)
 	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large"})
+			return
+		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
 	}

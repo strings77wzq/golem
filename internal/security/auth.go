@@ -5,6 +5,7 @@
 package security
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -61,10 +62,11 @@ func AuthMiddleware(cfg AuthConfig) func(http.Handler) http.Handler {
 	}
 }
 
-// isValidAPIKey checks if the provided key is in the list of valid keys
+// isValidAPIKey checks if the provided key is in the list of valid keys.
+// Uses constant-time comparison to prevent timing side-channel attacks.
 func isValidAPIKey(key string, validKeys []string) bool {
 	for _, validKey := range validKeys {
-		if key == validKey {
+		if subtle.ConstantTimeCompare([]byte(key), []byte(validKey)) == 1 {
 			return true
 		}
 	}

@@ -1,0 +1,11 @@
+# Captured per-test transcripts. Uploaded as CI artifacts; never checked in.
+transcripts/
+
+# Built golem binary used by individual tests; cleaned in t.Cleanup.
+bin/
+
+# Temporary SQLite databases seeded for behavioural fixtures.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

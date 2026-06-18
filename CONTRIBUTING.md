@@ -111,6 +111,20 @@ Examples:
 - `docs/`: user docs and study guides
 - `openspec/`: specification-driven change artifacts
 
+## Spec Hygiene
+
+This project uses [OpenSpec](https://openspec.org/) to track proposed
+changes under `openspec/changes/` and stable capability specs under
+`openspec/specs/`. To keep that directory truthful — landed work
+archived, partial work tracked, active work clearly labelled —
+maintainers run a periodic cleanup pass. The procedure for that pass
+(audit verdicts, archive vs. rollover decisions, status banners on
+active proposals) is defined in
+[`openspec/specs/proposal-lifecycle-hygiene/spec.md`](openspec/specs/proposal-lifecycle-hygiene/spec.md).
+Read it before opening or archiving an OpenSpec change so the
+`openspec validate` gate stays green and contributors are not surprised
+by stale proposals.
+
 ## Reporting Issues and Requests
 
 Use GitHub issue templates:
