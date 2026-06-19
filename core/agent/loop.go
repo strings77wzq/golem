@@ -314,15 +314,36 @@ func (a *Agent) processMessage(
 	for i := 0; i < a.maxToolIterations; i++ {
 		contextMsgs := a.contextManager.BuildContext(sess, toolDefs, "")
 
-		provider, modelName, usedModel, err := a.providerFactory.GetProviderForModelWithFallback(
-			model, a.config.Agents.Defaults.FallbackModels,
-		)
-		if err != nil {
-			a.logger.Error("failed to get provider for model", err)
-			a.emitError(msg.SessionID, fmt.Sprintf("failed to get provider: %v", err), emit)
-			return "", nil, err
+		// Use router if set, otherwise fall back to factory
+		var resp *providers.LLMResponse
+		var err error
+		var provider providers.LLMProvider
+		var modelName string
+
+		if a.router != nil {
+			resp, err = a.router.Chat(ctx, model, contextMsgs, toolDefs, &providers.ChatOptions{})
+			if err != nil {
+				a.logger.Error("router chat failed", err)
+				a.emitError(msg.SessionID, fmt.Sprintf("router error: %v", err), emit)
+				return "", nil, err
+			}
+			if resp == nil {
+				return "", nil, fmt.Errorf("router returned nil response for model %q", model)
+			}
+			provider = nil // not needed for router path
+			modelName = model
+		} else {
+			var usedModel string
+			provider, modelName, usedModel, err = a.providerFactory.GetProviderForModelWithFallback(
+				model, a.config.Agents.Defaults.FallbackModels,
+			)
+			if err != nil {
+				a.logger.Error("failed to get provider for model", err)
+				a.emitError(msg.SessionID, fmt.Sprintf("failed to get provider: %v", err), emit)
+				return "", nil, err
+			}
+			_ = usedModel // available for logging if needed
 		}
-		_ = usedModel // available for logging if needed
 
 		// Hook: before LLM call
 		if a.hooks != nil && a.hooks.BeforeLLM != nil {
@@ -335,7 +356,12 @@ func (a *Agent) processMessage(
 		AgentLLMCalls.Inc()
 		llmStart := time.Now()
 
-		resp, streamed, err := a.invokeProvider(ctx, provider, contextMsgs, toolDefs, modelName, streamFinal, onToken, msg.SessionID, emit)
+		var streamed bool
+		if a.router == nil {
+			// Standard path: resolve provider from factory and invoke
+			resp, streamed, err = a.invokeProvider(ctx, provider, contextMsgs, toolDefs, modelName, streamFinal, onToken, msg.SessionID, emit)
+		}
+		// When router is set, resp is already populated from router.Chat() above
 		llmDuration := time.Since(llmStart)
 		AgentLLMLatency.Observe(llmDuration.Seconds())
 

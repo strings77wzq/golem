@@ -19,6 +19,11 @@ import (
 	"github.com/strings77wzq/golem/foundation/logger"
 )
 
+// Router abstracts the routing.Router for dependency injection.
+type Router interface {
+	Chat(ctx context.Context, modelName string, messages []providers.Message, toolDefs []tools.ToolDefinition, opts *providers.ChatOptions) (*providers.LLMResponse, error)
+}
+
 const (
 	DefaultMaxToolIterations = 25
 	TopicInbound             = "inbound"
@@ -44,6 +49,7 @@ type Agent struct {
 	bus               bus.Bus
 	toolRegistry      *tools.Registry
 	providerFactory   *providers.Factory
+	router            Router
 	sessionStore      session.SessionStore
 	contextManager    *golemctx.Manager
 	planner           *planner.Planner
@@ -104,6 +110,14 @@ func WithPlanner(llm providers.LLMProvider, model string) Option {
 func WithCompactor(compactor *Compactor) Option {
 	return func(a *Agent) {
 		a.compactor = compactor
+	}
+}
+
+// WithRouter sets a routing-aware provider resolver.
+// When set, the agent uses router.Chat() instead of direct factory resolution.
+func WithRouter(r Router) Option {
+	return func(a *Agent) {
+		a.router = r
 	}
 }
 

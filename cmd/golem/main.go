@@ -21,6 +21,7 @@ import (
 	"github.com/strings77wzq/golem/core/providers"
 	"github.com/strings77wzq/golem/core/session"
 	featureconfig "github.com/strings77wzq/golem/feature/config"
+	"github.com/strings77wzq/golem/feature/health"
 	"github.com/strings77wzq/golem/foundation/logger"
 	"github.com/strings77wzq/golem/foundation/term"
 	"github.com/strings77wzq/golem/internal/channels/telegram"
@@ -94,6 +95,8 @@ func newAgentCommand() *cobra.Command {
 	cmd.Flags().String("telegram", "", "Telegram bot token or JSON config for Telegram channel")
 	cmd.Flags().String("db", "", "Database path (SQLite) for SQL tools")
 	cmd.Flags().Bool("infra", false, "Enable infrastructure tools (kubectl, docker, helm)")
+	cmd.Flags().String("routing", "", "Routing config: JSON with model-to-provider fallback chains")
+	cmd.Flags().String("health", "", "Health check config: 'true' or JSON with interval")
 	return cmd
 }
 
@@ -168,6 +171,32 @@ func runAgent(cmd *cobra.Command) error {
 
 	factory := wiring.RegisterProviders(cfg)
 
+	// Optional: routing-aware provider resolution
+	var routerOpts []agent.Option
+	if routingFlag := mustGetString(cmd, "routing"); routingFlag != "" {
+		router, routerErr := LoadRoutingFactory(routingFlag, factory)
+		if routerErr != nil {
+			return fmt.Errorf("loading routing config: %w", routerErr)
+		}
+		if router != nil {
+			routerOpts = append(routerOpts, agent.WithRouter(router))
+			log.Info("routing enabled")
+		}
+	}
+
+	// Optional: health checks
+	var healthManager *health.Manager
+	if healthFlag := mustGetString(cmd, "health"); healthFlag != "" {
+		mgr, healthErr := LoadHealthManager(healthFlag, log)
+		if healthErr != nil {
+			return fmt.Errorf("loading health config: %w", healthErr)
+		}
+		if mgr != nil {
+			healthManager = mgr
+			log.Info("health checks enabled")
+		}
+	}
+
 	store, err := openAgentSessionStore(cmd)
 	if err != nil {
 		log.Warn("SQLite session store unavailable, using in-memory", "err", err)
@@ -197,6 +226,24 @@ func runAgent(cmd *cobra.Command) error {
 		agent.WithSystemPrompt(systemPrompt),
 		agent.WithCompactor(compactor),
 	)
+	// Apply routing options
+	for _, opt := range routerOpts {
+		opt(ag)
+	}
+
+	// Start health manager if enabled
+	if healthManager != nil {
+		// Register providers that implement HealthChecker
+		for _, vendor := range []string{"openai", "anthropic", "ollama"} {
+			if p, _, err := factory.GetProviderForModel(vendor + "/test"); err == nil {
+				if hc, ok := p.(providers.HealthChecker); ok {
+					healthManager.Register(hc)
+				}
+			}
+		}
+		healthManager.Start(cmd.Context())
+		defer healthManager.Stop()
+	}
 
 	// Telegram adapter
 	telegramFlag, _ := cmd.Flags().GetString("telegram")
@@ -330,6 +377,27 @@ func newGatewayCommand() *cobra.Command {
 			server := gateway.NewServerWithSecurity(serverCfg, secCfg, ag, log)
 			server.SetSessionStore(sessionStore)
 
+			// Optional: health checks for gateway
+			if healthFlag, _ := cmd.Flags().GetString("health"); healthFlag != "" {
+				mgr, healthErr := LoadHealthManager(healthFlag, log)
+				if healthErr != nil {
+					return fmt.Errorf("loading health config: %w", healthErr)
+				}
+				if mgr != nil {
+					for _, vendor := range []string{"openai", "anthropic", "ollama"} {
+						if p, _, err := factory.GetProviderForModel(vendor + "/test"); err == nil {
+							if hc, ok := p.(providers.HealthChecker); ok {
+								mgr.Register(hc)
+							}
+						}
+					}
+					mgr.Start(cmd.Context())
+					defer mgr.Stop()
+					server.SetHealthChecker(mgr)
+					log.Info("health checks enabled for gateway")
+				}
+			}
+
 			if cfg.Telegram.Token != "" && cfg.Telegram.Mode == "webhook" {
 				tgCfg := cfg.Telegram
 				tgCtx, tgCancel := context.WithCancel(context.Background())
@@ -355,6 +423,7 @@ func newGatewayCommand() *cobra.Command {
 
 	cmd.Flags().String("auth-token", "", "API token for authentication (can also set GOLEM_AUTH_TOKEN env)")
 	cmd.Flags().Int("rate-limit", 100, "Rate limit requests per second")
+	cmd.Flags().String("health", "", "Health check config: 'true' or JSON with interval")
 
 	return cmd
 }
