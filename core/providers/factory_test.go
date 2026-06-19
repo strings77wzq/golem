@@ -159,3 +159,48 @@ func TestGetProviderForModelWithFallback_PrimaryProviderError(t *testing.T) {
 		t.Errorf("expected 'openai/gpt-4o', got %q", usedModel)
 	}
 }
+
+func TestListVendors(t *testing.T) {
+	f := NewFactory()
+	f.Register("openai", NewMockProvider("openai"))
+	f.Register("anthropic", NewMockProvider("anthropic"))
+
+	vendors := f.ListVendors()
+	if len(vendors) != 2 {
+		t.Fatalf("expected 2 vendors, got %d", len(vendors))
+	}
+	vendorSet := make(map[string]bool)
+	for _, v := range vendors {
+		vendorSet[v] = true
+	}
+	if !vendorSet["openai"] || !vendorSet["anthropic"] {
+		t.Errorf("expected openai and anthropic, got %v", vendors)
+	}
+}
+
+func TestListVendorsEmpty(t *testing.T) {
+	f := NewFactory()
+	vendors := f.ListVendors()
+	if len(vendors) != 0 {
+		t.Errorf("expected 0 vendors, got %d", len(vendors))
+	}
+}
+
+func TestGetProviderByVendor(t *testing.T) {
+	f := NewFactory()
+	mock := NewMockProvider("openai")
+	f.Register("openai", mock)
+
+	p, ok := f.GetProviderByVendor("openai")
+	if !ok {
+		t.Fatal("expected provider to be found")
+	}
+	if p != mock {
+		t.Error("expected the registered provider")
+	}
+
+	_, ok = f.GetProviderByVendor("nonexistent")
+	if ok {
+		t.Error("expected no provider for nonexistent vendor")
+	}
+}

@@ -81,3 +81,22 @@ func (f *Factory) GetProviderForModelWithFallback(
 
 	return nil, "", "", fmt.Errorf("no provider available for model %q or any fallback", model)
 }
+
+// ListVendors returns all registered vendor names.
+func (f *Factory) ListVendors() []string {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	vendors := make([]string, 0, len(f.providers))
+	for v := range f.providers {
+		vendors = append(vendors, v)
+	}
+	return vendors
+}
+
+// GetProviderByVendor returns the provider directly by vendor name.
+func (f *Factory) GetProviderByVendor(vendor string) (LLMProvider, bool) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	p, ok := f.providers[vendor]
+	return p, ok
+}

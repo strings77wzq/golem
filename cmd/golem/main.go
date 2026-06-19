@@ -233,11 +233,12 @@ func runAgent(cmd *cobra.Command) error {
 
 	// Start health manager if enabled
 	if healthManager != nil {
-		// Register providers that implement HealthChecker
-		for _, vendor := range []string{"openai", "anthropic", "ollama"} {
-			if p, _, err := factory.GetProviderForModel(vendor + "/test"); err == nil {
+		// Register all providers that implement HealthChecker
+		for _, vendor := range factory.ListVendors() {
+			if p, ok := factory.GetProviderByVendor(vendor); ok {
 				if hc, ok := p.(providers.HealthChecker); ok {
 					healthManager.Register(hc)
+					log.Info("registered provider for health checks", "vendor", vendor)
 				}
 			}
 		}
@@ -384,8 +385,8 @@ func newGatewayCommand() *cobra.Command {
 					return fmt.Errorf("loading health config: %w", healthErr)
 				}
 				if mgr != nil {
-					for _, vendor := range []string{"openai", "anthropic", "ollama"} {
-						if p, _, err := factory.GetProviderForModel(vendor + "/test"); err == nil {
+					for _, vendor := range factory.ListVendors() {
+						if p, ok := factory.GetProviderByVendor(vendor); ok {
 							if hc, ok := p.(providers.HealthChecker); ok {
 								mgr.Register(hc)
 							}
