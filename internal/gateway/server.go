@@ -41,6 +41,7 @@ type StreamingAgentHandler interface {
 // ServerConfig holds HTTP server configuration
 type ServerConfig struct {
 	Addr            string
+	Version         string
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	ShutdownTimeout time.Duration
@@ -85,6 +86,7 @@ type Server struct {
 	agent           AgentHandler
 	healthChecker   HealthStatusProvider
 	sessionStore    SessionStore
+	version         string
 	shutdownTimeout time.Duration
 }
 
@@ -113,6 +115,7 @@ func NewServerWithSecurity(cfg ServerConfig, secCfg SecurityConfig, agentHandler
 		mux:             mux,
 		logger:          log,
 		agent:           agentHandler,
+		version:         cfg.Version,
 		shutdownTimeout: cfg.ShutdownTimeout,
 	}
 

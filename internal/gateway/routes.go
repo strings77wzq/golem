@@ -95,8 +95,12 @@ func (s *Server) handleProvidersHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
+	v := s.version
+	if v == "" {
+		v = "dev"
+	}
 	resp := versionResponse{
-		Version: "dev",
+		Version: v,
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

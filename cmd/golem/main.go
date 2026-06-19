@@ -199,15 +199,17 @@ func runAgent(cmd *cobra.Command) error {
 
 	store, err := openAgentSessionStore(cmd)
 	if err != nil {
-		log.Warn("SQLite session store unavailable, using in-memory", "err", err)
+		log.Warn("SQLite session store unavailable, using in-memory (sessions will not persist across restarts)", "err", err)
 		store = nil
 	}
 	var sessionStore session.SessionStore
 	if store != nil {
 		defer store.Close()
 		sessionStore = store
+		log.Info("session store ready", "type", "sqlite")
 	} else {
 		sessionStore = session.NewMemoryStore()
+		log.Info("session store ready", "type", "in-memory", "warning", "sessions will not persist across restarts")
 	}
 
 	systemPrompt := wiring.BuildSystemPrompt(cfg.Agents.Defaults.SystemPrompt, skillRegistry)
@@ -344,6 +346,7 @@ func newGatewayCommand() *cobra.Command {
 			go ag.Start(ctx)
 
 			serverCfg := gateway.DefaultServerConfig()
+			serverCfg.Version = version
 			secCfg := gateway.DefaultSecurityConfig()
 
 			if cfg.Gateway.Addr != "" {

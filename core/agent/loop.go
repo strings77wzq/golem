@@ -591,17 +591,11 @@ func (a *Agent) processMessage(
 }
 
 // isComplexTask determines if a message should use planning mode.
+// Uses word count as a signal — longer messages with multiple instructions
+// are more likely to benefit from decomposition.
 func (a *Agent) isComplexTask(message string) bool {
-	complexKeywords := []string{"plan", "deploy", "migrate", "setup", "configure",
-		"build and", "first", "then", "finally", "step by step",
-		"create a", "set up", "install and"}
-	lower := strings.ToLower(message)
-	for _, kw := range complexKeywords {
-		if strings.Contains(lower, kw) {
-			return true
-		}
-	}
-	return len(message) > 150
+	words := strings.Fields(message)
+	return len(words) > 30
 }
 
 // processWithPlan executes a message using the planner.

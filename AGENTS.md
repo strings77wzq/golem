@@ -62,6 +62,7 @@ internal/    → imports core/ + foundation/ only
 core/        → imports foundation/ only (never internal/ or feature/)
 feature/     → imports core/ + foundation/ only; wired into cmd/golem/ via adapters
 foundation/  → imports stdlib only (zero project dependencies)
+                 exception: github.com/mattn/go-isatty (CGO-free, used in term/detect.go for TTY detection)
 ```
 
 **Forbidden cross-layer imports:**
