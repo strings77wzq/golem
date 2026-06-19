@@ -1,0 +1,563 @@
+# Instincts generated from https://github.com/strings77wzq/golem
+# Generated: 2026-06-18T09:35:16.782Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: golem-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/strings77wzq/golem
+---
+
+# Golem Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: docs, test, fix, feat
+
+## Evidence
+
+- 13 commits analyzed
+- Detected conventional commit pattern
+- Examples: docs: add openspec proposal for e2e harness and spec cleanup, test: scaffold tests/e2e module for behavioural E2E suite
+
+---
+id: golem-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/strings77wzq/golem
+---
+
+# Golem Commit Length
+
+## Action
+
+Write moderate-length commit messages (~55 characters)
+
+## Evidence
+
+- Average commit message length: 55 chars
+- Based on 13 commits
+
+---
+id: golem-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/strings77wzq/golem
+---
+
+# Golem Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: golem-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/strings77wzq/golem
+---
+
+# Golem Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: golem-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/strings77wzq/golem
+---
+
+# Golem Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: golem-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/strings77wzq/golem
+---
+
+# Golem Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: golem-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/strings77wzq/golem
+---
+
+# Golem Test Naming
+
+## Action
+
+Name test files using the pattern: *_test.go
+
+## Evidence
+
+- File pattern: *_test.go
+- Consistent across test files
+
+---
+id: golem-test-types
+trigger: "when planning tests for a feature"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/strings77wzq/golem
+---
+
+# Golem Test Types
+
+## Action
+
+Write unit, e2e tests to match project standards
+
+## Evidence
+
+- Test types detected: unit, e2e
+- Coverage config: yes
+
+---
+id: golem-workflow-feature-development
+trigger: "when implementing a new feature"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/strings77wzq/golem
+---
+
+# Golem Workflow Feature Development
+
+## Action
+
+Follow the feature-development workflow:
+1. Add feature implementation
+2. Add tests for feature
+3. Update documentation
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~23x per month
+- Files: **/*.test.*, **/api/**
+
+---
+id: golem-workflow-refactoring
+trigger: "when refactoring code"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/strings77wzq/golem
+---
+
+# Golem Workflow Refactoring
+
+## Action
+
+Follow the refactoring workflow:
+1. Ensure tests pass before refactor
+2. Refactor code structure
+3. Verify tests still pass
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~14x per month
+- Files: src/**/*
+
+---
+id: golem-workflow-openspec-proposal-lifecycle
+trigger: "when doing openspec proposal lifecycle"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/strings77wzq/golem
+---
+
+# Golem Workflow Openspec Proposal Lifecycle
+
+## Action
+
+Follow the openspec-proposal-lifecycle workflow:
+1. Create or update proposal and design documents under openspec/changes/<proposal-name>/
+2. Add or update capability specs under openspec/changes/<proposal-name>/specs/
+3. Update tasks.md to reflect progress or new tasks
+4. Audit status of in-flight proposals, marking them as landed, active, or archived
+5. Archive completed/inactive proposals to openspec/changes/archive/ and promote stable specs to openspec/specs/
+6. Update references in CONTRIBUTING.md or related documentation
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: openspec/changes/*/proposal.md, openspec/changes/*/design.md, openspec/changes/*/specs/*.md
+
+---
+id: golem-workflow-feature-or-bugfix-with-test
+trigger: "when doing feature or bugfix with test"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/strings77wzq/golem
+---
+
+# Golem Workflow Feature Or Bugfix With Test
+
+## Action
+
+Follow the feature-or-bugfix-with-test workflow:
+1. Modify or add implementation code in core/ or internal/ directories
+2. Add or update corresponding *_test.go files for the affected module
+3. Commit both implementation and test changes together
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: core/*/*.go, core/*/*_test.go, internal/*/*.go
+
+---
+id: golem-workflow-scaffold-and-extend-e2e-test-module
+trigger: "when doing scaffold and extend e2e test module"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/strings77wzq/golem
+---
+
+# Golem Workflow Scaffold And Extend E2e Test Module
+
+## Action
+
+Follow the scaffold-and-extend-e2e-test-module workflow:
+1. Create or update scaffolding files for the E2E test module (go.mod, README.md, doc.go, .gitignore)
+2. Add new helpers or utilities under tests/e2e/helpers/
+3. Write or extend *_test.go files to cover new helpers or behaviors
+4. Update openspec/changes/<proposal>/tasks.md to track progress
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: tests/e2e/go.mod, tests/e2e/README.md, tests/e2e/doc.go
+
+---
+id: golem-camelcase-files
+trigger: "When creating or renaming a file in the repository"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: strings77wzq/golem
+---
+
+# Golem Camelcase Files
+
+## Action
+
+Name the file using camelCase convention
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.files: camelCase
+
+---
+id: golem-camelcase-functions
+trigger: "When defining a new function"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: strings77wzq/golem
+---
+
+# Golem Camelcase Functions
+
+## Action
+
+Use camelCase for function names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.functions: camelCase
+
+---
+id: golem-pascalcase-classes
+trigger: "When defining a new class or struct"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: strings77wzq/golem
+---
+
+# Golem Pascalcase Classes
+
+## Action
+
+Use PascalCase for class/struct names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.classes: PascalCase
+
+---
+id: golem-screaming-snake-constants
+trigger: "When declaring a constant"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: strings77wzq/golem
+---
+
+# Golem Screaming Snake Constants
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.constants: SCREAMING_SNAKE_CASE
+
+---
+id: golem-relative-imports
+trigger: "When importing modules in Go code"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: strings77wzq/golem
+---
+
+# Golem Relative Imports
+
+## Action
+
+Use relative import paths
+
+## Evidence
+
+- Pattern in codeStyle.importStyle: relative
+
+---
+id: golem-named-exports
+trigger: "When exporting functions or types from a Go package"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: strings77wzq/golem
+---
+
+# Golem Named Exports
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in codeStyle.exportStyle: named
+
+---
+id: golem-go-test-file-pattern
+trigger: "When adding test files for Go code"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: strings77wzq/golem
+---
+
+# Golem Go Test File Pattern
+
+## Action
+
+Name test files with the *_test.go suffix
+
+## Evidence
+
+- Pattern in testing.filePattern: *_test.go
+- Files: core/*/*_test.go, internal/*/*_test.go, tests/e2e/helpers/*_test.go
+
+---
+id: golem-unit-and-e2e-tests
+trigger: "When writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: strings77wzq/golem
+---
+
+# Golem Unit And E2e Tests
+
+## Action
+
+Write both unit tests and end-to-end (E2E) tests as appropriate
+
+## Evidence
+
+- Pattern in testing.testTypes: unit, e2e
+- Files: tests/e2e/helpers/*_test.go
+
+---
+id: golem-coverage-config
+trigger: "When configuring tests"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: strings77wzq/golem
+---
+
+# Golem Coverage Config
+
+## Action
+
+Ensure test coverage is configured and tracked
+
+## Evidence
+
+- Pattern in testing.coverageConfig: true
+
+---
+id: golem-conventional-commits
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: strings77wzq/golem
+---
+
+# Golem Conventional Commits
+
+## Action
+
+Use conventional commit prefixes (docs, test, fix, feat) and format
+
+## Evidence
+
+- Pattern in commits.prefixes: docs, test, fix, feat
+- Examples: fix(security): use constant-time comparison for API key validation
+
+---
+id: golem-commit-length
+trigger: "When composing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: strings77wzq/golem
+---
+
+# Golem Commit Length
+
+## Action
+
+Keep commit message length around 55 characters on average
+
+## Evidence
+
+- Pattern in commits.averageLength: 55
+
+---
+id: golem-openspec-proposal-lifecycle
+trigger: "When introducing, updating, auditing, or archiving an OpenSpec proposal or capability spec"
+confidence: 0.95
+domain: workflow
+source: repo-analysis
+source_repo: strings77wzq/golem
+---
+
+# Golem Openspec Proposal Lifecycle
+
+## Action
+
+Follow the OpenSpec proposal lifecycle workflow: update proposal/design/specs/tasks, audit status, archive or promote specs, and update documentation
+
+## Evidence
+
+- Workflow: openspec-proposal-lifecycle
+- Files: openspec/changes/*/proposal.md, openspec/changes/*/design.md, openspec/changes/*/specs/*.md, openspec/changes/*/tasks.md, openspec/changes/archive/*, openspec/specs/*.md, CONTRIBUTING.md
+
+---
+id: golem-feature-or-bugfix-with-test
+trigger: "When adding a new feature or fixing a bug in core or internal modules"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: strings77wzq/golem
+---
+
+# Golem Feature Or Bugfix With Test
+
+## Action
+
+Modify or add implementation code and corresponding *_test.go files, committing both together
+
+## Evidence
+
+- Workflow: feature-or-bugfix-with-test
+- Files: core/*/*.go, core/*/*_test.go, internal/*/*.go, internal/*/*_test.go
+
+---
+id: golem-scaffold-extend-e2e-test-module
+trigger: "When introducing or expanding E2E test coverage"
+confidence: 0.92
+domain: workflow
+source: repo-analysis
+source_repo: strings77wzq/golem
+---
+
+# Golem Scaffold Extend E2e Test Module
+
+## Action
+
+Scaffold or extend the E2E test module, add helpers/utilities, write/extend *_test.go files, and update tasks.md
+
+## Evidence
+
+- Workflow: scaffold-and-extend-e2e-test-module
+- Files: tests/e2e/go.mod, tests/e2e/README.md, tests/e2e/doc.go, tests/e2e/.gitignore, tests/e2e/helpers/*.go, tests/e2e/helpers/*_test.go, openspec/changes/*/tasks.md
+
