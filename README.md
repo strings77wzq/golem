@@ -10,36 +10,73 @@
 
 **Language:** [English](#golem) | [简体中文](#中文说明)
 
-> **Let AI see your data.** / **让 AI 看见你的数据。**
+> **AI can write code, read files, execute commands — but it can't see your data.**
+> **Golem fixes that. One binary. Zero trust assumptions.**
 
-Golem is a Go-native database AI agent. It connects to your databases, understands table schemas, and exposes query capabilities to Claude Code, Cursor, or any MCP-compatible agent via the Model Context Protocol.
+---
 
-**Zero Python. Zero Docker. Zero dependencies.** Download a 14MB binary, point it at your database, and start querying.
+AI agents are powerful, but they have a blind spot: **your database**.
+
+You can ask Claude to write a migration, review a query, debug a slow endpoint — but ask it "how many users signed up last month?" and it stares at you. The data exists. The agent exists. There's just no bridge between them.
+
+Golem is that bridge. A single Go binary that sits between your AI agent and your database, understanding schemas, enforcing safety, and exposing query capabilities through the Model Context Protocol. No Python runtime. No Docker stack. No dependency chain. Just a binary you point at SQLite and start asking questions.
+
+But Golem is more than a database connector. It's a bet on a specific idea: **that the future of AI infrastructure isn't bigger models — it's safer access patterns.** An LLM that can read your database is useful. An LLM that can read your database *and* is prevented from deleting it is trustworthy.
 
 ---
 
 ## Why Golem?
 
-If you use AI agents (Claude Code, Cursor, OpenClaw), you've hit a common problem: **they can't see your data.**
-
-You can ask AI to write code, read files, execute commands — but it can't directly query your SQLite database to answer "how many users signed up last month?"
+### The Problem
 
 ```
 Your Database (SQLite / PostgreSQL / MySQL / Redis / Qdrant)
         │
         ▼
 ┌─────────────────┐
-│  Golem Agent    │  ← Connects to DB, understands schema
-│  (14MB binary)  │
-└────────┬────────┘
+│  AI Agent       │  ← "I can help you write code about your data"
+│  (Claude, etc.) │
+└─────────────────┘
+        │
+        ✗  No bridge. The agent can't see your data.
+```
+
+### The Solution
+
+```
+Your Database (SQLite / PostgreSQL / MySQL / Redis / Qdrant)
+        │
+        ▼
+┌─────────────────┐
+│  Golem          │  ← Connects to DB, understands schema
+│  (14MB binary)  │     Enforces: read-only default, WHERE clause,
+└────────┬────────┘     rollback SQL, audit trail
          │ MCP Protocol
          ▼
 ┌─────────────────┐
 │  Claude Code    │
-│  Cursor         │  ← Queries data via sql_query tool
-│  Any MCP client │
+│  Cursor         │  ← "Show me users from last 7 days"
+│  Any MCP client │     Golem executes safely, returns results
 └─────────────────┘
 ```
+
+### What Makes It Different
+
+**Safety is the product, not a feature.** Most AI-to-database tools give the agent full access and hope for the best. Golem assumes the agent is untrusted:
+
+- **Read-only by default** — SELECT only, writes require explicit permission
+- **WHERE enforcement** — no `DELETE FROM users` without a WHERE clause
+- **Rollback SQL** — auto-generated for every destructive operation
+- **Audit trail** — every allowed and denied operation is logged
+- **SQL normalization** — strips comments, rejects multi-statement injection
+
+**One binary. One command. Your data.**
+
+```bash
+golem agent --db ./myapp.db -m "Show me users registered this week"
+```
+
+No setup wizard. No config file needed. No Python environment to break. Point it at a database and ask questions.
 
 ---
 
@@ -360,28 +397,31 @@ MIT License
 
 [English](#golem) | **中文**
 
-Golem 是一个 Go 原生的数据库 AI Agent。它连接你的数据库，理解表结构，然后通过 MCP 协议把查询能力暴露给 Claude Code、Cursor 或任何支持 MCP 的 AI agent。
+> **AI 能写代码、读文件、执行命令——但它看不到你的数据。**
+> **Golem 解决这个问题。一个二进制文件。零信任假设。**
 
-**零 Python。零 Docker。零依赖。** 下载一个 14MB 的二进制文件，指向你的数据库，即可开始查询。
+AI agent 很强大，但有一个盲区：**你的数据库**。
 
-### 为什么需要 Golem？
+你可以让 Claude 写迁移、审查查询、调试慢接口——但问它"上个月有多少用户注册？"，它无能为力。数据存在，agent 存在，只是两者之间没有桥梁。
 
-如果你使用 AI agent（Claude Code、Cursor、OpenClaw），你一定遇到过这个问题：**它们看不到你的数据。**
+Golem 就是这座桥梁。一个 Go 二进制文件，坐在 AI agent 和数据库之间，理解表结构、强制安全策略、通过 MCP 协议暴露查询能力。无需 Python 运行时，无需 Docker 栈，无需依赖链。指向 SQLite，开始提问。
 
-你可以让 AI 写代码、读文件、执行命令——但它无法直接查询你的 SQLite 数据库来回答"上个月有多少用户注册？"
+但 Golem 不只是数据库连接器。它基于一个信念：**AI 基础设施的未来不是更大的模型，而是更安全的访问模式。** 一个能读你数据库的 LLM 有用，一个能读你数据库**且被阻止删除数据的** LLM 才值得信任。
 
 ### 核心优势
 
-- **数据库安全模型** — 默认只读，写操作需要 WHERE 子句，自动生成回滚 SQL
+- **安全即产品** — 默认只读，写操作需显式授权，WHERE 子句强制，自动生成回滚 SQL
+- **SQL 注入防护** — 剥离注释、拒绝多语句、保守分类器
+- **审计追踪** — 每次允许和拒绝的操作都被记录
 - **零依赖单二进制** — 14MB，支持 Linux/macOS/Android Termux
 - **严格分层架构** — Go import 系统强制执行，不是文档约定
 - **LLM KV-Cache 优化** — 工具按字母序排列，最大化缓存复用
-- **9 家 LLM 提供商** — OpenAI、Anthropic、DeepSeek、Kimi、GLM、MiniMax、Qwen、Ollama、MiMo（2 个协议适配器覆盖全部）
+- **9 家 LLM 提供商** — 2 个协议适配器覆盖全部（OpenAI-compatible + Anthropic）
 - **消息总线解耦** — TUI/Gateway/Telegram 通道独立演进
 - **LLM 驱动压缩** — 替代简单截断，保留对话上下文
 - **BM25 + 向量混合检索** — 支持中英文，RRF 融合排序
 - **Provider Fallback 路由** — 自动故障转移，带 cooldown 追踪
-- **健康检查** — 定时探测 provider 状态，`/health/providers` 实时暴露
+- **健康检查** — 定时探测 provider 状态
 - **安全头 + 审计日志** — CSP、X-Frame-Options 等安全头，401/429/403 事件结构化日志
 - **Prometheus 指标** — LLM 调用、token 消耗、工具执行、成本估算全覆盖
 
@@ -392,65 +432,5 @@ go install github.com/strings77wzq/golem/cmd/golem@latest
 golem demo-db
 golem agent --db .golem-demo.db -m "分析这个数据库"
 ```
-
-### 架构概览
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        cmd/golem/ (组合根)                          │
-│  CLI 入口 │ debug tools/config │ status │ config validate │ init    │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────────┐
-│                  internal/wiring/ (依赖注入层)                       │
-│                  Provider Registry │ Tool Registration              │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────────┐
-│                        core/ (领域逻辑)                              │
-│                                                                     │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐   │
-│  │  Agent   │  │ Providers│  │  Tools   │  │     Session      │   │
-│  │ReAct 循环│  │ 9 个 LLM │  │ 12 个工具│  │    会话管理       │   │
-│  └────┬─────┘  └──────────┘  └──────────┘  └──────────────────┘   │
-│       │                                                             │
-│  ┌────▼─────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐   │
-│  │ Context  │  │ Compactor│  │Streaming │  │   Bus (pub/sub)  │   │
-│  │ 上下文管理│  │LLM 压缩  │  │  流式输出 │  │    消息总线       │   │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘   │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────────┐
-│                   feature/ (可选模块)                                │
-│                                                                     │
-│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌──────┐ │
-│  │ Config │ │  RAG   │ │  MCP   │ │ Skills │ │ Memory │ │Health│ │
-│  │ YAML v2│ │BM25+RRF│ │协议    │ │技能注册│ │长期记忆│ │健康检│ │
-│  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘ └──────┘ │
-│  ┌────────┐                                                         │
-│  │Routing │  Fallback 路由（带 cooldown 追踪）                       │
-│  └────────┘                                                         │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────────┐
-│                   internal/ (适配器层)                               │
-│                                                                     │
-│  ┌─────┐ ┌─────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌────────┐  │
-│  │ TUI │ │ CLI │ │Telegram │ │ Gateway │ │ Metrics │ │Security│  │
-│  │终端UI│ │命令行│ │机器人   │ │HTTP API │ │Prometheus│ │安全中间│  │
-│  └─────┘ └─────┘ └─────────┘ └─────────┘ └─────────┘ └────────┘  │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────────┐
-│              foundation/ (基础设施原语)                               │
-│                                                                     │
-│  ┌──────────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐             │
-│  │ Concurrency  │ │ Logger  │ │  Store  │ │  Term   │             │
-│  │并发原语       │ │结构化日志│ │SQLite   │ │终端检测  │             │
-│  └──────────────┘ └─────────┘ └─────────┘ └─────────┘             │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-**依赖方向：** `cmd/ → internal/ → core/ → foundation/`，foundation 层只导入标准库。
 
 详细文档请参考 [docs/](docs/) 目录。
