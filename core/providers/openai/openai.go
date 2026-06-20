@@ -46,9 +46,12 @@ type Provider struct {
 type Option func(*Provider)
 
 // WithAPIBase sets a custom API base URL (for OpenRouter, local models, etc.).
+// Automatically strips trailing /v1 to avoid double /v1 in the final URL.
 func WithAPIBase(base string) Option {
 	return func(p *Provider) {
-		p.apiBase = strings.TrimRight(base, "/")
+		base = strings.TrimRight(base, "/")
+		base = strings.TrimRight(base, "/v1")
+		p.apiBase = base
 	}
 }
 
