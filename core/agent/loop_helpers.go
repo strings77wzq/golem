@@ -49,6 +49,80 @@ func (a *Agent) executeTools(ctx context.Context, resp *providers.LLMResponse) (
 	return results, errors
 }
 
+// runToolExecution orchestrates the full tool execution pipeline:
+// PreToolShell hooks → parallel execution → result processing → PostToolShell hooks.
+func (a *Agent) runToolExecution(ctx context.Context, resp *providers.LLMResponse, sess *session.Session, msg bus.InboundMessage, emit func(bus.OutboundMessage)) {
+	// Pre-tool shell hooks: run sequentially before parallel execution
+	blockedTools := make(map[string]bool)
+	if a.hooks != nil && a.hooks.PreToolShell != nil {
+		for _, tc := range resp.ToolCalls {
+			output, hookErr := a.hooks.PreToolShell.Execute(&HookInput{
+				SessionID: msg.SessionID,
+				ToolName:  tc.Name,
+				ToolInput: tc.Arguments,
+			})
+			if hookErr != nil || !output.Allowed {
+				reason := "hook error"
+				if output != nil {
+					reason = output.Reason
+				}
+				blockedTools[tc.ID] = true
+				sess.AddMessage(providers.Message{
+					Role:       providers.RoleTool,
+					Content:    fmt.Sprintf("Tool blocked by policy: %s", reason),
+					ToolCallID: tc.ID,
+				})
+				if emit != nil {
+					emit(bus.OutboundMessage{
+						SessionID: msg.SessionID,
+						Content:   fmt.Sprintf("Tool %s blocked: %s", tc.Name, reason),
+						Role:      bus.RoleTool,
+						Done:      false,
+					})
+				}
+			}
+		}
+	}
+
+	// Filter out blocked tools and execute remaining in parallel
+	var filteredCalls []providers.ToolCall
+	for _, tc := range resp.ToolCalls {
+		if !blockedTools[tc.ID] {
+			filteredCalls = append(filteredCalls, tc)
+		}
+	}
+
+	var results []*tools.ToolResult
+	if len(filteredCalls) > 0 {
+		filteredResp := &providers.LLMResponse{ToolCalls: filteredCalls}
+		var errors []error
+		results, errors = a.executeTools(ctx, filteredResp)
+		a.processToolResults(sess, filteredResp, results, errors, msg.SessionID, emit)
+	}
+
+	// Post-tool shell hooks
+	if a.hooks != nil && a.hooks.PostToolShell != nil {
+		for _, tc := range resp.ToolCalls {
+			if blockedTools[tc.ID] {
+				continue
+			}
+			for j, fc := range filteredCalls {
+				if fc.ID == tc.ID && results != nil && j < len(results) {
+					if results[j] != nil {
+						a.hooks.PostToolShell.Execute(&HookInput{
+							SessionID:  msg.SessionID,
+							ToolName:   tc.Name,
+							ToolInput:  tc.Arguments,
+							ToolOutput: results[j].ForLLM,
+						})
+					}
+					break
+				}
+			}
+		}
+	}
+}
+
 // processToolResults processes tool execution results and appends them to the session.
 func (a *Agent) processToolResults(sess *session.Session, resp *providers.LLMResponse, results []*tools.ToolResult, errors []error, sessionID string, emit func(bus.OutboundMessage)) {
 	for i, tc := range resp.ToolCalls {

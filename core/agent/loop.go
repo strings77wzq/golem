@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/strings77wzq/golem/core/bus"
 	"github.com/strings77wzq/golem/core/planner"
 	"github.com/strings77wzq/golem/core/providers"
@@ -487,127 +485,7 @@ func (a *Agent) processMessage(
 			ToolCalls: resp.ToolCalls,
 		})
 
-		// Execute tool calls in parallel for better performance
-		var wg errgroup.Group
-		results := make([]*tools.ToolResult, len(resp.ToolCalls))
-		errors := make([]error, len(resp.ToolCalls))
-
-		// Pre-tool shell hooks: run sequentially before parallel execution
-		blockedTools := make(map[string]bool)
-		if a.hooks != nil && a.hooks.PreToolShell != nil {
-			for _, tc := range resp.ToolCalls {
-				output, hookErr := a.hooks.PreToolShell.Execute(&HookInput{
-					SessionID: msg.SessionID,
-					ToolName:  tc.Name,
-					ToolInput: tc.Arguments,
-				})
-				if hookErr != nil || !output.Allowed {
-					reason := "hook error"
-					if output != nil {
-						reason = output.Reason
-					}
-					blockedTools[tc.ID] = true
-					sess.AddMessage(providers.Message{
-						Role:       providers.RoleTool,
-						Content:    fmt.Sprintf("Tool blocked by policy: %s", reason),
-						ToolCallID: tc.ID,
-					})
-					if emit != nil {
-						emit(bus.OutboundMessage{
-							SessionID: msg.SessionID,
-							Content:   fmt.Sprintf("Tool %s blocked: %s", tc.Name, reason),
-							Role:      bus.RoleTool,
-							Done:      false,
-						})
-					}
-				}
-			}
-		}
-
-		for i, tc := range resp.ToolCalls {
-			i, tc := i, tc // capture loop variables
-			wg.Go(func() error {
-				// Skip blocked tools
-				if blockedTools[tc.ID] {
-					return nil
-				}
-				// Observability: record tool call
-				AgentToolCalls.Inc()
-				toolStart := time.Now()
-
-				tool, found := a.toolRegistry.Get(tc.Name)
-				if !found {
-					errors[i] = fmt.Errorf("tool %q not found", tc.Name)
-					AgentToolErrors.Inc()
-					return nil
-				}
-
-				result, err := tool.Execute(ctx, tc.Arguments)
-				toolDuration := time.Since(toolStart)
-				AgentToolLatency.Observe(toolDuration.Seconds())
-
-				results[i] = result
-				errors[i] = err
-				if err != nil {
-					AgentToolErrors.Inc()
-				}
-				return nil
-			})
-		}
-
-		// Wait for all tool executions to complete
-		if err := wg.Wait(); err != nil {
-			a.logger.Error("tool execution failed", err)
-		}
-
-		// Process results in order (but execution was parallel)
-		for i, tc := range resp.ToolCalls {
-			if errors[i] != nil {
-				// Build informative error message for LLM feedback loop
-				errMsg := a.buildToolErrorMessage(tc, errors[i])
-
-				sess.AddMessage(providers.Message{
-					Role:       providers.RoleTool,
-					Content:    errMsg,
-					ToolCallID: tc.ID,
-				})
-				continue
-			}
-
-			result := results[i]
-			if result == nil {
-				continue
-			}
-
-			sess.AddMessage(providers.Message{
-				Role:       providers.RoleTool,
-				Content:    result.ForLLM,
-				ToolCallID: tc.ID,
-			})
-
-			// Post-tool shell hook
-			if a.hooks != nil && a.hooks.PostToolShell != nil && !blockedTools[tc.ID] {
-				a.hooks.PostToolShell.Execute(&HookInput{
-					SessionID:  msg.SessionID,
-					ToolName:   tc.Name,
-					ToolInput:  tc.Arguments,
-					ToolOutput: result.ForLLM,
-				})
-			}
-
-			if result.ForUser != "" && !result.Silent {
-				// ForUser: user-visible feedback (e.g., "Searched for X", "Downloaded file Y")
-				// Silent: suppress display for noisy tools that produce too much output
-				if emit != nil {
-					emit(bus.OutboundMessage{
-						SessionID: msg.SessionID,
-						Content:   result.ForUser,
-						Role:      bus.RoleTool,
-						Done:      false,
-					})
-				}
-			}
-		}
+		a.runToolExecution(ctx, resp, sess, msg, emit)
 
 		if err := a.sessionStore.Save(sess); err != nil {
 			a.logger.Error("failed to save session", err)
