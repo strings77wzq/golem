@@ -15,77 +15,53 @@
 
 ---
 
-AI agents can write code, review PRs, debug systems — but they can't answer "how many users signed up last month?" The data exists. The AI exists. There's no bridge.
+### The Problem
 
-Golem is that bridge. It connects AI to your database, understands schemas, translates natural language to SQL, and enforces safety at every step. Not because AI is untrustworthy — because **unconstrained access to data is always risky**, whether the caller is a human or an LLM.
-
-```bash
-# Ask your database a question
-golem agent --db ./myapp.db -m "Show me users registered this week"
-
-# Let Claude Code query your database
-golem mcp-server --db ./myapp.db
-
-# Team API gateway
-golem gateway    # OpenAI-compatible on :18790
+```
+  You: "How many users signed up last week?"
+  AI:   "I can't access your database."
+  
+  The data exists. The AI exists. No bridge.
 ```
 
-One binary. Three modes. Zero dependencies.
+### The Solution
+
+```bash
+$ golem agent --db ./myapp.db -m "Show me users from last week"
+```
+
+```
+  Golem: ✓ Understands schema → SELECT * FROM users WHERE created_at > ...
+         ✓ Enforces safety    → Read-only. WHERE required. Rollback ready.
+         ✓ Returns results    → 47 users registered in the last 7 days.
+```
+
+**One binary. Three modes. Zero dependencies.**
+
+| Mode | Command | Use Case |
+|------|---------|----------|
+| **Agent** | `golem agent --db ./myapp.db` | Standalone: ask your database directly |
+| **MCP Server** | `golem mcp-server --db ./myapp.db` | Let Claude Code / Cursor query your data |
+| **API Gateway** | `golem gateway` | Team deployment, OpenAI-compatible on `:18790` |
 
 ---
 
 ## Why Golem?
 
-### The Problem
+### Understanding (AI side)
 
-```
-Your Database (SQLite / PostgreSQL / MySQL / Redis / Qdrant)
-        │
-        ▼
-┌─────────────────┐
-│  AI Agent       │  ← Can write code, but can't see your data
-│  (Claude, etc.) │
-└─────────────────┘
-        │
-        ✗  No bridge.
-```
+- **Schema-aware** — knows your tables, columns, relationships
+- **Natural language → SQL** — ask in plain English, get results
+- **Query optimization** — suggests indexes and improvements
+- **Multi-database** — SQLite, PostgreSQL, MySQL, Redis, Qdrant
 
-### The Solution
+### Safety (Proxy side)
 
-```
-Your Database (SQLite / PostgreSQL / MySQL / Redis / Qdrant)
-        │
-        ▼
-┌─────────────────┐
-│  Golem          │  ← Understands schema + enforces safety
-│  (14MB binary)  │     Read-only default, WHERE enforcement,
-└────────┬────────┘     rollback SQL, audit trail
-         │
-    ┌────┴────┐
-    │  MCP    │  ← Claude Code, Cursor, any MCP client
-    │  Agent  │  ← Standalone: no external agent needed
-    │  API    │  ← OpenAI-compatible HTTP gateway
-    └─────────┘
-```
-
-### What Makes It Different
-
-**It understands your data AND knows its limits.**
-
-Most database AI tools focus on one side: either they give AI full access (dangerous) or they block AI entirely (useless). Golem does both:
-
-**Understanding (AI side):**
-- Schema-aware: knows your tables, columns, relationships
-- Natural language → SQL translation
-- Query optimization suggestions
-- Multi-database support (SQLite, PostgreSQL, MySQL, Redis, Qdrant)
-
-**Safety (Proxy side):**
-- Read-only by default — writes require explicit permission
-- WHERE enforcement — no `DELETE FROM users` without a WHERE clause
-- Rollback SQL — auto-generated for every destructive operation
-- SQL normalization — strips comments, rejects multi-statement injection
-- Audit trail — every allowed and denied operation is logged
+- **Read-only by default** — writes require explicit permission
+- **WHERE enforcement** — no `DELETE FROM users` without a WHERE clause
+- **Rollback SQL** — auto-generated for every destructive operation
+- **SQL normalization** — strips comments, rejects multi-statement injection
+- **Audit trail** — every allowed and denied operation is logged
 
 ---
 
@@ -408,22 +384,34 @@ MIT License
 
 > **AI 理解你的数据——也知道自己的边界。**
 
-AI agent 能写代码、审查 PR、调试系统——但无法回答"上个月有多少用户注册？" 数据存在，AI 存在，只是缺少桥梁。
+### 问题
 
-Golem 就是这座桥梁。它连接 AI 和数据库，理解表结构，将自然语言翻译为 SQL，并在每一步强制安全策略。不是因为 AI 不可信——而是**无论调用者是人还是 LLM，不受约束的数据访问始终是风险。**
+```
+  你："上周有多少用户注册？"
+  AI： "我无法访问你的数据库。"
 
-```bash
-# 向数据库提问
-golem agent --db ./myapp.db -m "查询本周注册的用户"
-
-# 让 Claude Code 查询数据库
-golem mcp-server --db ./myapp.db
-
-# 团队 API 网关
-golem gateway    # OpenAI 兼容，端口 :18790
+  数据存在。AI 存在。没有桥梁。
 ```
 
-一个二进制文件。三种模式。零依赖。
+### 解决方案
+
+```bash
+$ golem agent --db ./myapp.db -m "查询上周注册的用户"
+```
+
+```
+  Golem：✓ 理解 schema → SELECT * FROM users WHERE created_at > ...
+         ✓ 强制安全    → 只读。需要 WHERE。回滚 SQL 就绪。
+         ✓ 返回结果    → 上周注册了 47 个用户。
+```
+
+**一个二进制文件。三种模式。零依赖。**
+
+| 模式 | 命令 | 场景 |
+|------|------|------|
+| **Agent** | `golem agent --db ./myapp.db` | 独立运行：直接向数据库提问 |
+| **MCP Server** | `golem mcp-server --db ./myapp.db` | 让 Claude Code / Cursor 查询数据 |
+| **API Gateway** | `golem gateway` | 团队部署，OpenAI 兼容，端口 `:18790` |
 
 ### 核心优势
 
@@ -439,12 +427,6 @@ golem gateway    # OpenAI 兼容，端口 :18790
 - 回滚 SQL——每次破坏性操作自动生成
 - SQL 归一化——剥离注释、拒绝多语句注入
 - 审计追踪——每次允许和拒绝的操作都被记录
-
-**基础设施：**
-- 零依赖单二进制（14MB），支持 Linux/macOS/Android Termux
-- 9 家 LLM 提供商（2 个协议适配器覆盖全部）
-- Provider Fallback 路由 + 健康检查
-- 安全头 + Prometheus 指标 + 结构化审计日志
 
 ### 快速开始
 
