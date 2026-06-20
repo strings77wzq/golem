@@ -294,6 +294,36 @@ func (a *Agent) initSession(ctx context.Context, msg bus.InboundMessage) (*sessi
 	return sess, nil
 }
 
+// preProcess runs pre-processing hooks, planning dispatch, and auto-compaction.
+func (a *Agent) preProcess(ctx context.Context, msg bus.InboundMessage, sess *session.Session, model string, toolDefs []tools.ToolDefinition, streamFinal bool, onToken func(string), emit func(bus.OutboundMessage)) (string, *bus.TokenUsage, bool, error) {
+	// Hook: before message processing
+	if a.hooks != nil && a.hooks.BeforeMessage != nil {
+		if err := a.hooks.BeforeMessage(ctx, msg.SessionID, msg.Content); err != nil {
+			a.logger.Error("before_message hook failed", err)
+		}
+	}
+
+	// Planning mode: decompose complex tasks
+	if a.planEnabled && a.planner != nil && a.isComplexTask(msg.Content) {
+		content, usage, err := a.processWithPlan(ctx, msg, sess, model, toolDefs, streamFinal, onToken, emit)
+		return content, usage, true, err
+	}
+
+	// Auto-compact if context is getting too large (80% of token budget)
+	if a.compactor != nil {
+		budget := a.config.Agents.Defaults.MaxTokens * 8 / 10
+		if budget <= 0 {
+			budget = 8192 * 8 / 10
+		}
+		if result, err := a.compactor.Compact(ctx, sess, budget); err == nil && strings.HasPrefix(result, "compacted") {
+			a.logger.Info("auto-compacted session", "result", result)
+		}
+	}
+
+	return "", nil, false, nil
+}
+
+// processMessage is the main message processing entry point.
 func (a *Agent) processMessage(
 	ctx context.Context,
 	msg bus.InboundMessage,
@@ -315,30 +345,14 @@ func (a *Agent) processMessage(
 	model := a.config.Agents.Defaults.ModelName
 	toolDefs := a.toolRegistry.ListDefinitions()
 
-	// Hook: before message processing
-	if a.hooks != nil && a.hooks.BeforeMessage != nil {
-		if err := a.hooks.BeforeMessage(ctx, msg.SessionID, msg.Content); err != nil {
-			a.logger.Error("before_message hook failed", err)
-		}
+	// Pre-processing: hooks, planning dispatch, auto-compaction
+	content, tokenUsage, handled, err := a.preProcess(ctx, msg, sess, model, toolDefs, streamFinal, onToken, emit)
+	if handled {
+		return content, tokenUsage, err
 	}
 
-	// Planning mode: decompose complex tasks
-	if a.planEnabled && a.planner != nil && a.isComplexTask(msg.Content) {
-		return a.processWithPlan(ctx, msg, sess, model, toolDefs, streamFinal, onToken, emit)
-	}
-
-	// Auto-compact if context is getting too large (80% of token budget)
-	if a.compactor != nil {
-		budget := a.config.Agents.Defaults.MaxTokens * 8 / 10
-		if budget <= 0 {
-			budget = 8192 * 8 / 10
-		}
-		if result, err := a.compactor.Compact(ctx, sess, budget); err == nil && strings.HasPrefix(result, "compacted") {
-			a.logger.Info("auto-compacted session", "result", result)
-		}
-	}
-
-	content, tokenUsage, err := a.reactLoop(ctx, msg, sess, model, toolDefs, streamFinal, onToken, emit)
+	// Core ReAct loop
+	content, tokenUsage, err = a.reactLoop(ctx, msg, sess, model, toolDefs, streamFinal, onToken, emit)
 
 	// Hook: after message processing
 	if a.hooks != nil && a.hooks.AfterMessage != nil {
