@@ -56,3 +56,7 @@ vet:
 # Full CI check: deps + fmt check + vet + test
 check: deps vet test
 	@echo "All checks passed!"
+
+# E2E tests (requires Ollama with qwen3:0.5b pulled)
+e2e:
+	cd tests/e2e && go test ./... -count=1

@@ -7,6 +7,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/strings77wzq/golem)](https://github.com/strings77wzq/golem/releases)
 [![Tests](https://img.shields.io/badge/tests-41%20packages-brightgreen)](https://github.com/strings77wzq/golem/actions)
 [![Coverage](https://img.shields.io/badge/coverage-82.5%25-brightgreen)](https://github.com/strings77wzq/golem)
+[![E2E](https://img.shields.io/badge/E2E-passing-brightgreen)](https://github.com/strings77wzq/golem/actions/workflows/e2e.yml)
 
 **Language:** [English](#golem) | [简体中文](#中文说明)
 

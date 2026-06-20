@@ -1,0 +1,56 @@
+name: E2E
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'core/agent/**'
+      - 'core/providers/**'
+      - 'core/tools/**'
+      - 'internal/security/**'
+      - 'internal/gateway/**'
+      - 'feature/mcp/**'
+      - 'tests/e2e/**'
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Install Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Cache Ollama models
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama
+          key: ollama-models-${{ hashFiles('tests/e2e/**') }}
+          restore-keys: |
+            ollama-models-
+
+      - name: Pull model
+        run: |
+          ollama pull qwen3:0.5b
+
+      - name: Start Ollama
+        run: |
+          ollama serve &
+          sleep 3
+
+      - name: Run E2E tests
+        run: make e2e
+
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-transcripts
+          path: tests/e2e/transcripts/
+          if-no-files-found: ignore
