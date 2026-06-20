@@ -231,6 +231,18 @@ func runAgent(cmd *cobra.Command) error {
 
 	systemPrompt := wiring.BuildSystemPrompt(cfg.Agents.Defaults.SystemPrompt, skillRegistry)
 
+	// Add data integrity instruction when database tools are available
+	if dbFlag != "" {
+		systemPrompt += "\n\n## Data Integrity Rules\n" +
+			"- You MUST ONLY use data retrieved from database tools (sql_query, sql_schema, etc.)\n" +
+			"- Do NOT use external knowledge or assumptions about the data\n" +
+			"- If the database returns specific numbers, use those EXACT numbers\n" +
+			"- If the database doesn't have data for a query, say so explicitly\n" +
+			"- Always query the database first before answering data-related questions\n" +
+			"- NEVER use web_search to find data that should come from the database\n" +
+			"- If a database query fails, report the error — do NOT fall back to web search"
+	}
+
 	// Create LLM-driven compactor for session compression
 	compactor := agent.NewCompactor(
 		providers.NewMockProvider("compact"),
