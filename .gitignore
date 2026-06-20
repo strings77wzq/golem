@@ -20,6 +20,7 @@ coverage.txt
 # OS
 .DS_Store
 Thumbs.db
+test-scenarios/
 
 # Config with secrets
 config/config.json
