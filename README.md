@@ -37,80 +37,49 @@ $ golem agent --db ./myapp.db -m "Show me users from last week"
          ✓ Returns results    → 47 users registered in the last 7 days.
 ```
 
-**One binary. Three modes. Zero dependencies.**
-
-| Mode | Command | Use Case |
-|------|---------|----------|
-| **Agent** | `golem agent --db ./myapp.db` | Standalone: ask your database directly |
-| **MCP Server** | `golem mcp-server --db ./myapp.db` | Let Claude Code / Cursor query your data |
-| **API Gateway** | `golem gateway` | Team deployment, OpenAI-compatible on `:18790` |
-
 ---
 
-## Why Golem?
-
-### Understanding (AI side)
-
-- **Schema-aware** — knows your tables, columns, relationships
-- **Natural language → SQL** — ask in plain English, get results
-- **Query optimization** — suggests indexes and improvements
-- **Multi-database** — SQLite, PostgreSQL, MySQL, Redis, Qdrant
-
-### Safety (Proxy side)
-
-- **Read-only by default** — writes require explicit permission
-- **WHERE enforcement** — no `DELETE FROM users` without a WHERE clause
-- **Rollback SQL** — auto-generated for every destructive operation
-- **SQL normalization** — strips comments, rejects multi-statement injection
-- **Audit trail** — every allowed and denied operation is logged
-
----
-
-## Quick Start (5 minutes)
+## Quick Start
 
 ```bash
-# 1. Install
+# Install
 go install github.com/strings77wzq/golem/cmd/golem@latest
 
-# 2. Create demo database
+# Create demo database
 golem demo-db
 
-# 3. Let the agent analyze your data
+# Ask your database
 golem agent --db .golem-demo.db -m "What tables exist? Any performance issues?"
 ```
 
 ---
 
-## Core Features
+## Why Golem?
 
-### Database Intelligence
+Most AI database tools give you intelligence but no safety. Most database proxies give you safety but no intelligence. Golem is both — an AI agent that understands your schema **and** enforces security policies on every query.
+
+| Capability | What Golem does |
+|------------|-----------------|
+| **Schema-aware** | Knows your tables, columns, relationships |
+| **Natural language → SQL** | Ask in plain English, get results |
+| **Read-only by default** | Writes require explicit permission |
+| **WHERE enforcement** | No `DELETE FROM users` without a WHERE clause |
+| **Rollback SQL** | Auto-generated for every destructive operation |
+| **Audit trail** | Every allowed and denied operation is logged |
+
+---
+
+## Three Modes
+
+**One binary. Three ways to use it.**
+
+### Agent — Ask Your Database Directly
 
 ```bash
-# Connect to database, query with natural language
 golem agent --db ./myapp.db -m "Show me users registered in the last 7 days"
-
-# Analyze table structure
-golem agent --db ./myapp.db -m "Check if orders table indexes are optimal"
-
-# Find performance issues
-golem agent --db ./myapp.db -m "What needs optimization in this database?"
 ```
 
-### Safety Model
-
-| Operation | Default | With Permission |
-|-----------|---------|-----------------|
-| SELECT queries | ✅ Allowed | ✅ |
-| INSERT/UPDATE | ❌ Blocked | ✅ (requires WHERE) |
-| DELETE | ❌ Blocked | ✅ (requires WHERE) |
-| Shell commands | ⚠️ Allowlist only | ✅ |
-
-- **PermissionChecker** — operation-level access control
-- **QualityGate** — WHERE clause enforcement
-- **Rollback SQL** — auto-generated for DELETE/UPDATE
-- **Audit logging** — all operations traceable
-
-### MCP Server — Let Other Agents Query Your Database
+### MCP Server — Let Claude Code / Cursor Query Your Data
 
 ```bash
 golem mcp-server --db ./myapp.db
@@ -139,10 +108,32 @@ curl http://localhost:18790/v1/chat/completions \
   -d '{"messages":[{"role":"user","content":"List all admins"}]}'
 ```
 
-### YAML Declarative Configuration
+---
+
+## Safety Model
+
+Golem enforces a 3-layer security model on every database operation:
+
+| Operation | Default | With Permission |
+|-----------|---------|-----------------|
+| SELECT queries | ✅ Allowed | ✅ |
+| INSERT/UPDATE | ❌ Blocked | ✅ (requires WHERE) |
+| DELETE | ❌ Blocked | ✅ (requires WHERE) |
+| Shell commands | ⚠️ Allowlist only | ✅ |
+
+- **PermissionChecker** — operation-level access control (read/write/admin)
+- **QualityGate** — WHERE clause enforcement on DELETE/UPDATE
+- **Rollback SQL** — auto-generated for every destructive operation
+- **SQL normalization** — strips comments, rejects multi-statement injection
+- **Audit logging** — all operations traceable via structured events
+
+---
+
+## Configuration
+
+### YAML Declarative Config
 
 ```yaml
-# agent.yaml (v2)
 version: 2
 agent:
   model: openai/gpt-4o
@@ -151,9 +142,6 @@ agent:
   system_prompt: |
     You are a database assistant. Help users query their data.
   max_tokens: 8192
-  commands:
-    schema: "Analyze the database schema and list all tables"
-    optimize: "Review the last query and suggest optimizations"
 database:
   path: ./myapp.db
 tools:
@@ -162,8 +150,6 @@ tools:
   - type: mcp
     command: npx
     args: ["-y", "@modelcontextprotocol/server-duckduckgo"]
-  - type: memory
-    path: ./memory.db
 hooks:
   pre_tool_use:
     command: ./scripts/validate.sh
@@ -190,7 +176,7 @@ golem gateway --health '{"interval":"60s"}'  # Custom interval
 
 Real-time provider health status at `GET /health/providers`.
 
-### Debug & Validation Commands
+### Debug Commands
 
 ```bash
 golem debug tools      # List all registered tools
@@ -350,6 +336,7 @@ Golem exposes Prometheus-compatible metrics at `GET /metrics`:
 go test ./...                    # 41 packages
 go test -race ./...              # Race detector
 go test -coverprofile=out ./...  # Coverage
+make e2e                         # E2E tests (requires Ollama)
 ```
 
 ---
@@ -389,7 +376,7 @@ MIT License
 
 ```
   你："上周有多少用户注册？"
-  AI： "我无法访问你的数据库。"
+  AI： "我无法访问你的数据库。”
 
   数据存在。AI 存在。没有桥梁。
 ```
