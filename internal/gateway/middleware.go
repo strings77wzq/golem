@@ -161,3 +161,46 @@ func RequestIDMiddleware() Middleware {
 func MetricsMiddleware() Middleware {
 	return metrics.MetricsMiddleware(metrics.DefaultRegistry)
 }
+
+func SecurityHeadersMiddleware() Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("X-XSS-Protection", "1; mode=block")
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			w.Header().Set("Content-Security-Policy", "default-src 'self'")
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func AuditMiddleware(log logger.Logger) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+			next.ServeHTTP(wrapped, r)
+
+			switch wrapped.statusCode {
+			case http.StatusUnauthorized:
+				log.Warn("audit: unauthorized access attempt",
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.String("remote_addr", r.RemoteAddr),
+				)
+			case http.StatusTooManyRequests:
+				log.Warn("audit: rate limit exceeded",
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.String("remote_addr", r.RemoteAddr),
+				)
+			case http.StatusForbidden:
+				log.Warn("audit: forbidden access",
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.String("remote_addr", r.RemoteAddr),
+				)
+			}
+		})
+	}
+}

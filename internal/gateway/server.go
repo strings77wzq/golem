@@ -126,6 +126,8 @@ func NewServerWithSecurity(cfg ServerConfig, secCfg SecurityConfig, agentHandler
 		LoggingMiddleware(log),
 		RecoveryMiddleware(log),
 		MetricsMiddleware(),
+		SecurityHeadersMiddleware(),
+		AuditMiddleware(log),
 	}
 
 	if secCfg.EnableAuth && secCfg.AuthToken != "" {
