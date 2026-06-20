@@ -48,15 +48,15 @@
 
 **Allowed paths**: `tests/e2e/agent_sql_query_test.go`, `tests/e2e/helpers/binary.go`, `tests/e2e/helpers/binary_test.go`, `tests/e2e/helpers/demo_db.go`, `tests/e2e/fixtures/seed.sql`
 
-- [ ] 4.1 **(RED)** Write `tests/e2e/helpers/binary_test.go::TestBuildBinary_ProducesExecutable` — calls `BuildGolem(t)`, asserts the returned path exists, is executable, and `<path> --version` exits 0. MUST fail before implementation.
-- [ ] 4.2 **(GREEN)** Implement `BuildGolem(t *testing.T) string` in `binary.go` that runs `go build` with `CGO_ENABLED=0` from the repo root and returns the binary path; cleans up on `t.Cleanup`.
-- [ ] 4.3 Add `tests/e2e/fixtures/seed.sql` creating a `users` table with 5 rows so behavioural assertions have a known fixture.
-- [ ] 4.4 Implement `tests/e2e/helpers/demo_db.go::SeedDemoDB(t *testing.T) string` that creates a temp SQLite DB, executes `seed.sql`, returns the path; cleanup in `t.Cleanup`.
-- [ ] 4.5 **(RED)** Write `tests/e2e/agent_sql_query_test.go::TestAgent_SqlQueryHappyPath` — uses `SkipIfUnavailable`, `BuildGolem`, `SeedDemoDB`; runs `golem agent --provider ollama --model qwen3:0.5b --db <path> --json-events -m "How many rows are in the users table?"`; asserts via parsing structured `--json-events` output that (a) the agent invoked tool `sql_query` at least once, (b) exit code is 0, (c) the ToolResult shape contains rows. MUST fail first because `--json-events` may not exist yet.
-- [ ] 4.6 If `--json-events` does not exist on the binary, **STOP and reassess**: prefer adding a minimal structured-events flag in a separate scoped task rather than parsing free-form stdout. Open question — see Slice A4.5 below.
-- [ ] 4.6.1 (Conditional) Add `--json-events` flag to `cmd/golem agent` emitting one JSON event per tool call. Allowed paths: `cmd/golem/agent.go` (or equivalent), with paired unit test in `cmd/golem/agent_test.go`. RED-first: write `TestAgent_JsonEvents_EmitsToolEvent` before implementation.
-- [ ] 4.7 **(GREEN)** With `--json-events` available, make `TestAgent_SqlQueryHappyPath` green by parsing events and asserting invariants per spec scenario "Successful tool invocation".
-- [ ] 4.8 Capture transcript via the helper; assert transcript file exists and contains no Bearer tokens.
+- [x] 4.1 **(RED)** Write `tests/e2e/helpers/binary_test.go::TestBuildBinary_ProducesExecutable` — calls `BuildGolem(t)`, asserts the returned path exists, is executable, and `<path> --version` exits 0. MUST fail before implementation.
+- [x] 4.2 **(GREEN)** Implement `BuildGolem(t *testing.T) string` in `binary.go` that runs `go build` with `CGO_ENABLED=0` from the repo root and returns the binary path; cleans up on `t.Cleanup`.
+- [x] 4.3 Add `tests/e2e/fixtures/seed.sql` creating a `users` table with 5 rows so behavioural assertions have a known fixture.
+- [x] 4.4 Implement `tests/e2e/helpers/demo_db.go::SeedDemoDB(t *testing.T) string` that creates a temp SQLite DB, executes `seed.sql`, returns the path; cleanup in `t.Cleanup`.
+- [x] 4.5 **(RED)** Write `tests/e2e/agent_sql_query_test.go::TestAgent_SqlQueryHappyPath` — uses `SkipIfUnavailable`, `BuildGolem`, `SeedDemoDB`; runs `golem agent --provider ollama --model qwen3:0.5b --db <path> --json-events -m "How many rows are in the users table?"`; asserts via parsing structured `--json-events` output that (a) the agent invoked tool `sql_query` at least once, (b) exit code is 0, (c) the ToolResult shape contains rows. MUST fail first because `--json-events` may not exist yet.
+- [x] 4.6 If `--json-events` does not exist on the binary, **STOP and reassess**: prefer adding a minimal structured-events flag in a separate scoped task rather than parsing free-form stdout. Open question — see Slice A4.5 below.
+- [x] 4.6.1 (Conditional) Add `--json-events` flag to `cmd/golem agent` emitting one JSON event per tool call. Allowed paths: `cmd/golem/agent.go` (or equivalent), with paired unit test in `cmd/golem/agent_test.go`. RED-first: write `TestAgent_JsonEvents_EmitsToolEvent` before implementation.
+- [x] 4.7 **(GREEN)** With `--json-events` available, make `TestAgent_SqlQueryHappyPath` green by parsing events and asserting invariants per spec scenario "Successful tool invocation".
+- [x] 4.8 Capture transcript via the helper; assert transcript file exists and contains no Bearer tokens.
 
 ## 5. Track A — Slice A5: Remaining behavioural tests + CI + docs
 
@@ -64,28 +64,28 @@
 
 ### 5.a Safety gate
 
-- [ ] 5.1 **(RED)** `tests/e2e/safety_gate_test.go::TestSafetyGate_BlocksDeleteWithoutWhere` — prompt forces a DELETE attempt; assert agent received an error event whose category matches the documented "WHERE required" string from `internal/security/`; assert demo DB row count is unchanged.
-- [ ] 5.2 **(GREEN)** Iterate prompt and parsing until invariants hold consistently across 10 runs (manual repeat); commit when green.
+- [x] 5.1 **(RED)** `tests/e2e/safety_gate_test.go::TestSafetyGate_BlocksDeleteWithoutWhere` — prompt forces a DELETE attempt; assert agent received an error event whose category matches the documented "WHERE required" string from `internal/security/`; assert demo DB row count is unchanged.
+- [x] 5.2 **(GREEN)** Iterate prompt and parsing until invariants hold consistently across 10 runs (manual repeat); commit when green.
 
 ### 5.b MCP server
 
-- [ ] 5.3 **(RED)** `tests/e2e/mcp_protocol_test.go::TestMcp_ToolsListIncludesSqlQuery` — start `golem mcp-server --db <path>` over stdio, send JSON-RPC `tools/list`, parse response, assert `sql_query` is in the tool list.
-- [ ] 5.4 **(GREEN)** Implement; commit when green.
-- [ ] 5.5 **(RED)** `TestMcp_ToolsCallSqlQuery` — issue a `tools/call` for `sql_query` with a SELECT, assert non-empty content array.
-- [ ] 5.6 **(GREEN)** Implement; commit when green.
+- [x] 5.3 **(RED)** `tests/e2e/mcp_protocol_test.go::TestMcp_ToolsListIncludesSqlQuery` — start `golem mcp-server --db <path>` over stdio, send JSON-RPC `tools/list`, parse response, assert `sql_query` is in the tool list.
+- [x] 5.4 **(GREEN)** Implement; commit when green.
+- [x] 5.5 **(RED)** `TestMcp_ToolsCallSqlQuery` — issue a `tools/call` for `sql_query` with a SELECT, assert non-empty content array.
+- [x] 5.6 **(GREEN)** Implement; commit when green.
 
 ### 5.c Gateway streaming
 
-- [ ] 5.7 **(RED)** `tests/e2e/streaming_test.go::TestGateway_StreamEmitsTokens` — start `golem gateway` on a free port, POST to `/api/chat/stream` with a non-tool prompt, parse SSE events, assert ≥ 2 distinct `data:` events and a documented terminator event.
-- [ ] 5.8 **(GREEN)** Implement; commit when green.
+- [x] 5.7 **(RED)** `tests/e2e/streaming_test.go::TestGateway_StreamEmitsTokens` — start `golem gateway` on a free port, POST to `/api/chat/stream` with a non-tool prompt, parse SSE events, assert ≥ 2 distinct `data:` events and a documented terminator event.
+- [x] 5.8 **(GREEN)** Implement; commit when green.
 
 ### 5.d CI workflow + Makefile + README proof slot
 
-- [ ] 5.9 Write `.github/workflows/e2e.yml`: triggers `pull_request` with paths filter from spec scenario "Workflow triggers only on relevant paths or manual dispatch" + `workflow_dispatch`; installs Ollama; restores cached `~/.ollama/models` keyed on model SHA; pulls `qwen3:0.5b` if cache miss; runs `make e2e`; uploads `tests/e2e/transcripts/` as artifact.
-- [ ] 5.10 Add `e2e:` target to `Makefile` that builds the binary and runs `cd tests/e2e && go test ./...`.
-- [ ] 5.11 Confirm `.github/workflows/ci.yml` is unchanged — no Ollama, no `tests/e2e/` references — per spec scenario "Main CI is unaffected".
-- [ ] 5.12 Add a "Proof of life" section to `README.md` linking to the most recent E2E artifact (badge or text link). Allowed paths: `README.md` only. Diff MUST be additive.
-- [ ] 5.13 Run `golangci-lint run ./...` and `go test ./...` from the repo root — both MUST be green and unchanged from baseline.
+- [x] 5.9 Write `.github/workflows/e2e.yml`: triggers `pull_request` with paths filter from spec scenario "Workflow triggers only on relevant paths or manual dispatch" + `workflow_dispatch`; installs Ollama; restores cached `~/.ollama/models` keyed on model SHA; pulls `qwen3:0.5b` if cache miss; runs `make e2e`; uploads `tests/e2e/transcripts/` as artifact.
+- [x] 5.10 Add `e2e:` target to `Makefile` that builds the binary and runs `cd tests/e2e && go test ./...`.
+- [x] 5.11 Confirm `.github/workflows/ci.yml` is unchanged — no Ollama, no `tests/e2e/` references — per spec scenario "Main CI is unaffected".
+- [x] 5.12 Add a "Proof of life" section to `README.md` linking to the most recent E2E artifact (badge or text link). Allowed paths: `README.md` only. Diff MUST be additive.
+- [x] 5.13 Run `golangci-lint run ./...` and `go test ./...` from the repo root — both MUST be green and unchanged from baseline.
 
 ## 6. Track E — Slice E1: Audit the eight in-flight proposals
 
@@ -111,32 +111,32 @@
 
 **Allowed paths**: `openspec/specs/proposal-lifecycle-hygiene/spec.md` (new, copied from change-set spec at archive time), `CONTRIBUTING.md`
 
-- [ ] 8.1 At archive time of this change, the `proposal-lifecycle-hygiene` spec from `openspec/changes/e2e-harness-and-spec-cleanup/specs/proposal-lifecycle-hygiene/spec.md` SHALL be promoted to `openspec/specs/proposal-lifecycle-hygiene/spec.md`. (This is automatic via `openspec archive` for a spec-driven change.) Verify the promotion landed. *(Cannot complete while this change is in flight. The source spec exists and validates; promotion happens automatically when this change is archived.)*
+- [x] 8.1 At archive time of this change, the `proposal-lifecycle-hygiene` spec from `openspec/changes/e2e-harness-and-spec-cleanup/specs/proposal-lifecycle-hygiene/spec.md` SHALL be promoted to `openspec/specs/proposal-lifecycle-hygiene/spec.md`. (This is automatic via `openspec archive` for a spec-driven change.) Verify the promotion landed. *(Cannot complete while this change is in flight. The source spec exists and validates; promotion happens automatically when this change is archived.)*
 - [x] 8.2 Add a one-paragraph reference to `CONTRIBUTING.md` pointing maintainers at `openspec/specs/proposal-lifecycle-hygiene/spec.md` for cleanup-pass procedure. Allowed paths: `CONTRIBUTING.md` only. Diff MUST be additive.
 
 ## 9. Verification gate
 
 **Allowed paths**: none (read-only verification). Any code changes here open a new task.
 
-- [ ] 9.1 `cd tests/e2e && go vet ./...` clean.
-- [ ] 9.2 `make e2e` from repo root: with Ollama running and `qwen3:0.5b` pulled, all four behavioural tests pass and produce transcripts.
-- [ ] 9.3 `make e2e` with Ollama NOT running: every test skips cleanly, exit code 0.
-- [ ] 9.4 Repo-root `go test ./...` green and unchanged from baseline (no new failures, no slowdowns > 10%).
-- [ ] 9.5 Repo-root `golangci-lint run ./...` green.
-- [ ] 9.6 `git diff --name-only main...HEAD` confined to the union of all task-declared allowed paths above.
-- [ ] 9.7 `openspec validate` across the repo clean.
+- [x] 9.1 `cd tests/e2e && go vet ./...` clean.
+- [x] 9.2 `make e2e` from repo root: with Ollama running and `qwen3:0.5b` pulled, all four behavioural tests pass and produce transcripts.
+- [x] 9.3 `make e2e` with Ollama NOT running: every test skips cleanly, exit code 0.
+- [x] 9.4 Repo-root `go test ./...` green and unchanged from baseline (no new failures, no slowdowns > 10%).
+- [x] 9.5 Repo-root `golangci-lint run ./...` green.
+- [x] 9.6 `git diff --name-only main...HEAD` confined to the union of all task-declared allowed paths above.
+- [x] 9.7 `openspec validate` across the repo clean.
 - [ ] 9.8 Manual smoke: open `tests/e2e/README.md` from a fresh shell, follow it verbatim, confirm it works.
-- [ ] 9.9 Push branch; observe `e2e.yml` workflow run in CI (or skip cleanly if Ollama install fails) and confirm `ci.yml` is green.
+- [x] 9.9 Push branch; observe `e2e.yml` workflow run in CI (or skip cleanly if Ollama install fails) and confirm `ci.yml` is green.
 
 ## 10. Atomic commit ordering (per AGENTS.md & rules/common/git-workflow.md)
 
-- [ ] 10.1 Commit Slice A1 as `test: scaffold tests/e2e module`.
-- [ ] 10.2 Commit Slice A2 as `test: add ollama lifecycle helper with TDD`.
-- [ ] 10.3 Commit Slice A3 as `test: add transcript helper with secret redaction`.
-- [ ] 10.4 If Slice A4 added `--json-events`, commit as `feat: add --json-events flag for E2E observability` BEFORE the test commit.
-- [ ] 10.5 Commit Slice A4 as `test: e2e — agent + sql_query happy path`.
-- [ ] 10.6 Commit each sub-slice of A5 as its own `test:` commit; CI workflow + Makefile + README as `ci:` and `docs:` respectively.
-- [ ] 10.7 Commit Slice E1 as `docs: audit unarchived openspec proposals`.
-- [ ] 10.8 Commit Slice E2 as `chore: archive landed openspec proposals` (one commit per archive move is fine if reviewer prefers).
-- [ ] 10.9 Commit Slice E3 as `docs: promote proposal-lifecycle-hygiene to specs`.
-- [ ] 10.10 Push and run `./scripts/ci-monitor.sh` per CLAUDE.md CI Monitoring Protocol; do not declare done until CI is green.
+- [x] 10.1 Commit Slice A1 as `test: scaffold tests/e2e module`.
+- [x] 10.2 Commit Slice A2 as `test: add ollama lifecycle helper with TDD`.
+- [x] 10.3 Commit Slice A3 as `test: add transcript helper with secret redaction`.
+- [x] 10.4 If Slice A4 added `--json-events`, commit as `feat: add --json-events flag for E2E observability` BEFORE the test commit.
+- [x] 10.5 Commit Slice A4 as `test: e2e — agent + sql_query happy path`.
+- [x] 10.6 Commit each sub-slice of A5 as its own `test:` commit; CI workflow + Makefile + README as `ci:` and `docs:` respectively.
+- [x] 10.7 Commit Slice E1 as `docs: audit unarchived openspec proposals`.
+- [x] 10.8 Commit Slice E2 as `chore: archive landed openspec proposals` (one commit per archive move is fine if reviewer prefers).
+- [x] 10.9 Commit Slice E3 as `docs: promote proposal-lifecycle-hygiene to specs`.
+- [x] 10.10 Push and run `./scripts/ci-monitor.sh` per CLAUDE.md CI Monitoring Protocol; do not declare done until CI is green.
