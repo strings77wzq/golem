@@ -99,6 +99,7 @@ func newAgentCommand() *cobra.Command {
 	cmd.Flags().String("routing", "", "Routing config: JSON with model-to-provider fallback chains")
 	cmd.Flags().String("health", "", "Health check config: 'true' or JSON with interval")
 	cmd.Flags().String("sandbox", "", "Sandbox config: JSON with allowed/denied paths and commands")
+	cmd.Flags().Bool("json-events", false, "Emit structured JSON events to stderr for each tool call (E2E observability)")
 	return cmd
 }
 
@@ -112,6 +113,7 @@ func runAgent(cmd *cobra.Command) error {
 	skillsFilter, _ := cmd.Flags().GetString("skills")
 	dbFlag, _ := cmd.Flags().GetString("db")
 	infraFlag, _ := cmd.Flags().GetBool("infra")
+	jsonEvents, _ := cmd.Flags().GetBool("json-events")
 
 	cfg, err := loadConfig(cmd)
 	if err != nil {
@@ -309,6 +311,9 @@ func runAgent(cmd *cobra.Command) error {
 
 	// Dispatch to run mode
 	if message != "" {
+		if jsonEvents {
+			return runAgentOneShotWithEvents(ag, b, message, sessionID)
+		}
 		return runAgentOneShot(ag, b, message, sessionID)
 	}
 

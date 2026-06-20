@@ -5,6 +5,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -25,6 +26,47 @@ func runAgentOneShot(ag *agent.Agent, b bus.Bus, message string, existingSession
 	}
 
 	response, err := ag.HandleMessage(context.Background(), sessionID, message)
+	if err != nil {
+		return err
+	}
+	fmt.Print(response)
+	fmt.Println()
+	return nil
+}
+
+// jsonEvent represents a structured event emitted when --json-events is enabled.
+type jsonEvent struct {
+	Type       string `json:"type"`
+	ToolName   string `json:"tool_name,omitempty"`
+	ToolInput  string `json:"tool_input,omitempty"`
+	ToolOutput string `json:"tool_output,omitempty"`
+}
+
+// runAgentOneShotWithEvents sends a single message, prints the response,
+// and writes structured JSON events to stderr for each tool call.
+func runAgentOneShotWithEvents(ag *agent.Agent, b bus.Bus, message string, existingSessionID string) error {
+	sessionID := existingSessionID
+	if sessionID == "" {
+		sessionID = uuid.New().String()
+	}
+
+	emitFunc := func(msg bus.OutboundMessage) {
+		var evt jsonEvent
+		switch msg.Role {
+		case bus.RoleTool:
+			evt = jsonEvent{Type: "tool_result", ToolName: msg.ToolName, ToolOutput: msg.Content}
+		case bus.RoleProgress:
+			if msg.ProgressType == bus.ProgressToolCall {
+				evt = jsonEvent{Type: "tool_call", ToolName: msg.ToolName}
+			}
+		}
+		if evt.Type != "" {
+			data, _ := json.Marshal(evt)
+			fmt.Fprintln(os.Stderr, string(data))
+		}
+	}
+
+	response, err := ag.HandleMessageWithEvents(context.Background(), sessionID, message, emitFunc)
 	if err != nil {
 		return err
 	}

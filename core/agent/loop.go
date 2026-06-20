@@ -38,6 +38,20 @@ func (a *Agent) HandleMessage(ctx context.Context, sessionID string, message str
 	return resp, err
 }
 
+// HandleMessageWithEvents is like HandleMessage but emits structured events
+// for each tool call via the emit callback. Used by --json-events for E2E observability.
+func (a *Agent) HandleMessageWithEvents(ctx context.Context, sessionID string, message string, emit func(bus.OutboundMessage)) (string, error) {
+	AgentSessionsActive.Inc()
+	defer AgentSessionsActive.Dec()
+
+	resp, _, err := a.processMessage(ctx, bus.InboundMessage{
+		SessionID: sessionID,
+		Content:   message,
+		Role:      bus.RoleUser,
+	}, false, nil, emit)
+	return resp, err
+}
+
 func (a *Agent) HandleMessageStream(ctx context.Context, sessionID string, message string, tokens chan<- string) error {
 	defer close(tokens)
 	AgentSessionsActive.Inc()

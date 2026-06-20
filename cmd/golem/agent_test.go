@@ -54,10 +54,21 @@ func TestAgentNoInputNoTTY(t *testing.T) {
 
 func TestAgentCommandHasAllFlags(t *testing.T) {
 	cmd := newAgentCommand()
-	expectedFlags := []string{"message", "model", "continue", "no-tui", "skills-dir", "skills", "db", "infra", "rag", "mcp", "memory", "telegram"}
+	expectedFlags := []string{"message", "model", "continue", "no-tui", "skills-dir", "skills", "db", "infra", "rag", "mcp", "memory", "telegram", "json-events"}
 	for _, name := range expectedFlags {
 		if flag := cmd.Flags().Lookup(name); flag == nil {
 			t.Errorf("expected flag %q to be defined", name)
 		}
+	}
+}
+
+func TestAgentJsonEventsFlag(t *testing.T) {
+	cmd := newAgentCommand()
+	flag := cmd.Flags().Lookup("json-events")
+	if flag == nil {
+		t.Fatal("expected --json-events flag to be defined")
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("expected --json-events default to be false, got %q", flag.DefValue)
 	}
 }
