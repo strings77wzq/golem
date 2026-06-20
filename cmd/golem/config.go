@@ -181,17 +181,20 @@ func ensureConfigDir(configPath string) error {
 }
 
 // runConfigModelWizard is the 3-step interactive LLM configuration wizard.
-// Step 1: Base URL (chat-compatible or Anthropic-compatible)
+// Step 1: Base URL (any OpenAI-compatible or Anthropic-compatible endpoint)
 // Step 2: Model name
 // Step 3: API key
+//
+// Golem doesn't care which provider you use. It tries OpenAI-compatible
+// protocol first, then Anthropic. The adapter layer handles the rest.
 func runConfigModelWizard(configPath string) error {
 	r := bufio.NewReader(os.Stdin)
 
-	fmt.Println("=== Configure LLM Provider ===")
+	fmt.Println("=== Configure LLM ===")
 	fmt.Println()
 
 	// Step 1: Base URL
-	fmt.Print("Base URL (e.g. https://api.deepseek.com): ")
+	fmt.Print("Base URL: ")
 	baseURL, err := r.ReadString('\n')
 	if err != nil {
 		return fmt.Errorf("reading base URL: %w", err)
@@ -202,7 +205,7 @@ func runConfigModelWizard(configPath string) error {
 	}
 
 	// Step 2: Model name
-	fmt.Print("Model name (e.g. deepseek-chat): ")
+	fmt.Print("Model: ")
 	model, err := r.ReadString('\n')
 	if err != nil {
 		return fmt.Errorf("reading model name: %w", err)
@@ -223,21 +226,17 @@ func runConfigModelWizard(configPath string) error {
 		return fmt.Errorf("API key cannot be empty")
 	}
 
-	// Derive vendor from base URL
-	vendor := deriveVendor(baseURL)
-	fullModel := vendor + "/" + model
-
 	// Load existing config or create new
 	cfg, loadErr := config.Load(configPath)
 	if loadErr != nil || cfg == nil {
 		cfg = config.DefaultConfig()
 	}
 
-	// Update config
-	cfg.Agents.Defaults.ModelName = fullModel
+	// Update config — generic, no provider-specific logic
+	cfg.Agents.Defaults.ModelName = model
 	cfg.ModelList = []config.ModelEntry{{
-		ModelName: fullModel,
-		Model:     fullModel,
+		ModelName: model,
+		Model:     model,
 		APIKey:    apiKey,
 		APIBase:   baseURL,
 	}}
@@ -257,38 +256,10 @@ func runConfigModelWizard(configPath string) error {
 
 	fmt.Println()
 	fmt.Printf("✅ Config saved to %s\n", configPath)
-	fmt.Printf("   Provider: %s\n", vendor)
-	fmt.Printf("   Model:    %s\n", fullModel)
 	fmt.Printf("   Base URL: %s\n", baseURL)
+	fmt.Printf("   Model:    %s\n", model)
 	fmt.Println()
 	fmt.Printf("Try it: golem agent -m \"Hello\"\n")
 
 	return nil
-}
-
-// deriveVendor infers the vendor name from the base URL.
-func deriveVendor(baseURL string) string {
-	lower := strings.ToLower(baseURL)
-	switch {
-	case strings.Contains(lower, "deepseek"):
-		return "deepseek"
-	case strings.Contains(lower, "openai"):
-		return "openai"
-	case strings.Contains(lower, "anthropic"):
-		return "anthropic"
-	case strings.Contains(lower, "moonshot") || strings.Contains(lower, "kimi"):
-		return "moonshot"
-	case strings.Contains(lower, "bigmodel") || strings.Contains(lower, "zhipu"):
-		return "zhipu"
-	case strings.Contains(lower, "minimax"):
-		return "minimax"
-	case strings.Contains(lower, "dashscope") || strings.Contains(lower, "aliyuncs"):
-		return "dashscope"
-	case strings.Contains(lower, "localhost:11434"):
-		return "ollama"
-	case strings.Contains(lower, "xiaomimimo"):
-		return "mimo"
-	default:
-		return "custom"
-	}
 }
