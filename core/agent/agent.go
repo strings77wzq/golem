@@ -61,6 +61,7 @@ type Agent struct {
 	maxToolIterations int
 	tracker           *usage.Tracker
 	hooks             *Hooks
+	hookChain         *HookChain
 	compactor         *Compactor
 	planEnabled       bool
 }
@@ -152,6 +153,8 @@ func New(
 	for _, opt := range opts {
 		opt(a)
 	}
+
+	a.hookChain = NewHookChain(func() *Hooks { return a.hooks })
 
 	return a
 }

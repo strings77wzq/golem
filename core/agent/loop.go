@@ -297,11 +297,7 @@ func (a *Agent) initSession(ctx context.Context, msg bus.InboundMessage) (*sessi
 // preProcess runs pre-processing hooks, planning dispatch, and auto-compaction.
 func (a *Agent) preProcess(ctx context.Context, msg bus.InboundMessage, sess *session.Session, model string, toolDefs []tools.ToolDefinition, streamFinal bool, onToken func(string), emit func(bus.OutboundMessage)) (string, *bus.TokenUsage, bool, error) {
 	// Hook: before message processing
-	if a.hooks != nil && a.hooks.BeforeMessage != nil {
-		if err := a.hooks.BeforeMessage(ctx, msg.SessionID, msg.Content); err != nil {
-			a.logger.Error("before_message hook failed", err)
-		}
-	}
+	a.hookChain.RunBeforeMessage(ctx, msg.SessionID, msg.Content)
 
 	// Planning mode: decompose complex tasks
 	if a.planEnabled && a.planner != nil && a.isComplexTask(msg.Content) {
@@ -355,15 +351,11 @@ func (a *Agent) processMessage(
 	content, tokenUsage, err = a.reactLoop(ctx, msg, sess, model, toolDefs, streamFinal, onToken, emit)
 
 	// Hook: after message processing
-	if a.hooks != nil && a.hooks.AfterMessage != nil {
-		hookMsg := content
-		if hookMsg == "" {
-			hookMsg = "max tool iterations reached"
-		}
-		if err := a.hooks.AfterMessage(ctx, msg.SessionID, hookMsg); err != nil {
-			a.logger.Error("after_message hook failed", err)
-		}
+	hookMsg := content
+	if hookMsg == "" {
+		hookMsg = "max tool iterations reached"
 	}
+	a.hookChain.RunAfterMessage(ctx, msg.SessionID, hookMsg)
 
 	AgentPlanDuration.Observe(time.Since(startTime).Seconds())
 
@@ -421,11 +413,7 @@ func (a *Agent) reactLoop(
 		}
 
 		// Hook: before LLM call
-		if a.hooks != nil && a.hooks.BeforeLLM != nil {
-			if err := a.hooks.BeforeLLM(ctx, contextMsgs); err != nil {
-				a.logger.Error("before_llm hook failed", err)
-			}
-		}
+		a.hookChain.RunBeforeLLM(ctx, contextMsgs)
 
 		AgentLLMCalls.Inc()
 		llmStart := time.Now()
@@ -439,9 +427,7 @@ func (a *Agent) reactLoop(
 
 		if err != nil {
 			AgentLLMErrors.Inc()
-			if a.hooks != nil && a.hooks.OnError != nil {
-				a.hooks.OnError(ctx, err)
-			}
+			a.hookChain.RunOnError(ctx, err)
 			a.emitError(msg.SessionID, fmt.Sprintf("LLM error: %v", err), emit)
 			return "", nil, err
 		}
@@ -449,11 +435,7 @@ func (a *Agent) reactLoop(
 		AgentLLMTokens.Add(int64(resp.Usage.TotalTokens))
 
 		// Hook: after LLM call
-		if a.hooks != nil && a.hooks.AfterLLM != nil {
-			if err := a.hooks.AfterLLM(ctx, resp); err != nil {
-				a.logger.Error("after_llm hook failed", err)
-			}
-		}
+		a.hookChain.RunAfterLLM(ctx, resp)
 
 		// No tool calls — final response
 		if len(resp.ToolCalls) == 0 {
