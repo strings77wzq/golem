@@ -20,10 +20,11 @@ const (
 
 // SQLQueryTool executes SQL queries on a database.
 type SQLQueryTool struct {
-	registry  *database.Registry
-	maxRows   int
-	permLevel security.PermissionLevel
-	auditFn   func(entry security.AuditEntry)
+	registry   *database.Registry
+	maxRows    int
+	permLevel  security.PermissionLevel
+	auditFn    func(entry security.AuditEntry)
+	secHandler security.SecurityEventHandler
 }
 
 // NewSQLQueryTool creates a new SQL query tool (read-only by default).
@@ -44,6 +45,11 @@ func NewSQLQueryToolWithPermission(registry *database.Registry, permLevel securi
 // SetAuditFunc sets the audit callback function.
 func (t *SQLQueryTool) SetAuditFunc(fn func(entry security.AuditEntry)) {
 	t.auditFn = fn
+}
+
+// SetSecurityEventHandler sets the security event handler for metrics.
+func (t *SQLQueryTool) SetSecurityEventHandler(h security.SecurityEventHandler) {
+	t.secHandler = h
 }
 
 func (t *SQLQueryTool) Name() string { return "sql_query" }
@@ -70,6 +76,22 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 	opLevel := classifyOperation(sqlQuery)
 	checker := security.NewPermissionChecker(t.permLevel)
 	if err := checker.Check(opLevel, dbName, sqlQuery); err != nil {
+		if t.auditFn != nil {
+			t.auditFn(security.AuditEntry{
+				Operation: classifyOpName(sqlQuery),
+				Database:  dbName,
+				Table:     extractTableName(sqlQuery),
+				SQL:       sqlQuery,
+				Status:    "denied",
+			})
+		}
+		if t.secHandler != nil {
+			t.secHandler(security.EventSQLDenied, map[string]string{
+				"operation": classifyOpName(sqlQuery),
+				"database":  dbName,
+				"reason":    err.Error(),
+			})
+		}
 		return &tools.ToolResult{
 			ForLLM:  fmt.Sprintf("Security: %v", err),
 			ForUser: "Operation not permitted",
@@ -82,6 +104,22 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 		gate := security.NewQualityGate()
 		gateResult := gate.CheckSQL(ctx, sqlQuery, 0)
 		if !gateResult.Passed {
+			if t.auditFn != nil {
+				t.auditFn(security.AuditEntry{
+					Operation: classifyOpName(sqlQuery),
+					Database:  dbName,
+					Table:     extractTableName(sqlQuery),
+					SQL:       sqlQuery,
+					Status:    "denied",
+				})
+			}
+			if t.secHandler != nil {
+				t.secHandler(security.EventSQLDenied, map[string]string{
+					"operation": classifyOpName(sqlQuery),
+					"database":  dbName,
+					"reason":    "quality gate",
+				})
+			}
 			return &tools.ToolResult{
 				ForLLM:  fmt.Sprintf("Safety check failed: %v", gateResult.Warnings),
 				ForUser: "Operation blocked by safety gate",
@@ -174,9 +212,13 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 
 // classifyOperation determines the permission level needed for a SQL operation.
 func classifyOperation(sql string) security.PermissionLevel {
-	upper := strings.TrimSpace(strings.ToUpper(sql))
+	normalized := normalizeSQL(sql)
+	if normalized == "" {
+		return security.PermAdmin
+	}
+	upper := strings.ToUpper(normalized)
 	switch {
-	case strings.HasPrefix(upper, "SELECT"):
+	case strings.HasPrefix(upper, "SELECT"), strings.HasPrefix(upper, "WITH"):
 		return security.PermRead
 	case strings.HasPrefix(upper, "INSERT"):
 		return security.PermWrite
@@ -191,11 +233,62 @@ func classifyOperation(sql string) security.PermissionLevel {
 	}
 }
 
+// normalizeSQL strips comments, collapses whitespace, and rejects multi-statement SQL.
+// Conservative: if we can't confidently classify it, we deny it.
+func normalizeSQL(sql string) string {
+	s := sql
+
+	// Strip block comments /* ... */ (iterate to handle nesting)
+	for {
+		start := strings.Index(s, "/*")
+		if start == -1 {
+			break
+		}
+		end := strings.Index(s[start+2:], "*/")
+		if end == -1 {
+			s = s[:start]
+			break
+		}
+		s = s[:start] + s[start+2+end+2:]
+	}
+
+	// Strip single-line comments -- ... and # ...
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		if idx := strings.Index(line, "--"); idx != -1 {
+			lines[i] = line[:idx]
+		}
+		if idx := strings.Index(line, "#"); idx != -1 {
+			lines[i] = line[:idx]
+		}
+	}
+	s = strings.Join(lines, " ")
+
+	// Collapse whitespace
+	s = strings.Join(strings.Fields(s), " ")
+	s = strings.TrimSpace(s)
+
+	if s == "" {
+		return ""
+	}
+
+	// Reject multi-statement (semicolon indicates injection attempt)
+	if strings.Contains(s, ";") {
+		return ""
+	}
+
+	return s
+}
+
 // classifyOpName returns the operation name for audit logging.
 func classifyOpName(sql string) string {
-	upper := strings.TrimSpace(strings.ToUpper(sql))
+	normalized := normalizeSQL(sql)
+	if normalized == "" {
+		return "UNKNOWN"
+	}
+	upper := strings.ToUpper(normalized)
 	switch {
-	case strings.HasPrefix(upper, "SELECT"):
+	case strings.HasPrefix(upper, "SELECT"), strings.HasPrefix(upper, "WITH"):
 		return "SELECT"
 	case strings.HasPrefix(upper, "INSERT"):
 		return "INSERT"
@@ -203,6 +296,8 @@ func classifyOpName(sql string) string {
 		return "UPDATE"
 	case strings.HasPrefix(upper, "DELETE"):
 		return "DELETE"
+	case strings.HasPrefix(upper, "DROP"), strings.HasPrefix(upper, "ALTER"), strings.HasPrefix(upper, "TRUNCATE"):
+		return "ADMIN"
 	default:
 		return "UNKNOWN"
 	}

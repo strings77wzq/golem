@@ -43,7 +43,7 @@ func TestBuildDBTools(t *testing.T) {
 	dbRegistry.RegisterSQL("test", driver)
 	dbRegistry.SetDefault("test")
 
-	dbReg, toolReg := BuildDBTools(dbPath)
+	dbReg, toolReg := BuildDBTools(dbPath, nil, nil)
 	if dbReg == nil {
 		t.Fatal("expected non-nil dbRegistry")
 	}
@@ -69,7 +69,7 @@ func TestBuildDBTools(t *testing.T) {
 }
 
 func TestBuildDBToolsEmpty(t *testing.T) {
-	dbReg, toolReg := BuildDBTools("")
+	dbReg, toolReg := BuildDBTools("", nil, nil)
 	if dbReg != nil {
 		t.Error("expected nil dbRegistry for empty path")
 	}

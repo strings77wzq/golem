@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/strings77wzq/golem/core/database"
+	"github.com/strings77wzq/golem/core/security"
 	"github.com/strings77wzq/golem/core/tools"
 	dbtools "github.com/strings77wzq/golem/core/tools/database"
 	toolexec "github.com/strings77wzq/golem/core/tools/exec"
@@ -18,10 +19,10 @@ import (
 )
 
 // BuildToolRegistry creates the default tool registry with built-in tools.
-func BuildToolRegistry(workspace string) *tools.Registry {
+func BuildToolRegistry(workspace string, execOpts ...toolexec.Option) *tools.Registry {
 	registry := tools.NewRegistry()
 	registry.Register(think.New())
-	registry.Register(toolexec.New(workspace))
+	registry.Register(toolexec.New(workspace, execOpts...))
 	registry.Register(fileops.NewFileReadTool(workspace))
 	registry.Register(fileops.NewFileWriteTool(workspace))
 	registry.Register(fileops.NewFileListTool(workspace))
@@ -31,7 +32,7 @@ func BuildToolRegistry(workspace string) *tools.Registry {
 
 // BuildDBTools creates database tools from a database path.
 // Returns nil registries if dbPath is empty or connection fails.
-func BuildDBTools(dbPath string) (*database.Registry, *tools.Registry) {
+func BuildDBTools(dbPath string, auditFn func(entry security.AuditEntry), secHandler security.SecurityEventHandler) (*database.Registry, *tools.Registry) {
 	if dbPath == "" {
 		return nil, nil
 	}
@@ -47,7 +48,14 @@ func BuildDBTools(dbPath string) (*database.Registry, *tools.Registry) {
 	dbRegistry.SetDefault(driverName)
 
 	toolRegistry := tools.NewRegistry()
-	toolRegistry.Register(dbtools.NewSQLQueryTool(dbRegistry))
+	sqlTool := dbtools.NewSQLQueryTool(dbRegistry)
+	if auditFn != nil {
+		sqlTool.SetAuditFunc(auditFn)
+	}
+	if secHandler != nil {
+		sqlTool.SetSecurityEventHandler(secHandler)
+	}
+	toolRegistry.Register(sqlTool)
 	toolRegistry.Register(dbtools.NewSQLSchemaTool(dbRegistry))
 	toolRegistry.Register(dbtools.NewSQLAnalyzeTool(dbRegistry))
 

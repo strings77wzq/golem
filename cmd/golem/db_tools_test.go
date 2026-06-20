@@ -16,7 +16,7 @@ func TestBuildDBToolsCreatesRegistry(t *testing.T) {
 		t.Fatalf("createTestDB: %v", err)
 	}
 
-	dbReg, toolReg := wiring.BuildDBTools(dbPath)
+	dbReg, toolReg := wiring.BuildDBTools(dbPath, nil, nil)
 	if dbReg == nil {
 		t.Fatal("expected dbRegistry to be non-nil")
 	}
@@ -49,7 +49,7 @@ func TestBuildDBToolsQueryReturnsRealData(t *testing.T) {
 		t.Fatalf("createTestDB: %v", err)
 	}
 
-	_, toolReg := wiring.BuildDBTools(dbPath)
+	_, toolReg := wiring.BuildDBTools(dbPath, nil, nil)
 	tool, found := toolReg.Get("sql_query")
 	if !found {
 		t.Fatal("sql_query not found")
@@ -70,7 +70,7 @@ func TestBuildDBToolsQueryReturnsRealData(t *testing.T) {
 }
 
 func TestBuildDBToolsEmptyPath(t *testing.T) {
-	dbReg, toolReg := wiring.BuildDBTools("")
+	dbReg, toolReg := wiring.BuildDBTools("", nil, nil)
 	if dbReg != nil {
 		t.Error("expected nil dbRegistry for empty path")
 	}

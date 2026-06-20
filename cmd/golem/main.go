@@ -20,6 +20,7 @@ import (
 	"github.com/strings77wzq/golem/core/config"
 	"github.com/strings77wzq/golem/core/providers"
 	"github.com/strings77wzq/golem/core/session"
+	toolexec "github.com/strings77wzq/golem/core/tools/exec"
 	featureconfig "github.com/strings77wzq/golem/feature/config"
 	"github.com/strings77wzq/golem/feature/health"
 	"github.com/strings77wzq/golem/foundation/logger"
@@ -97,6 +98,7 @@ func newAgentCommand() *cobra.Command {
 	cmd.Flags().Bool("infra", false, "Enable infrastructure tools (kubectl, docker, helm)")
 	cmd.Flags().String("routing", "", "Routing config: JSON with model-to-provider fallback chains")
 	cmd.Flags().String("health", "", "Health check config: 'true' or JSON with interval")
+	cmd.Flags().String("sandbox", "", "Sandbox config: JSON with allowed/denied paths and commands")
 	return cmd
 }
 
@@ -139,11 +141,24 @@ func runAgent(cmd *cobra.Command) error {
 	skillRegistry := wiring.LoadSkills(log, skillsDir, skillsFilter)
 	b := bus.New()
 	workspace, _ := os.Getwd()
-	registry := wiring.BuildToolRegistry(workspace)
+
+	// Optional: exec sandbox
+	var execOpts []toolexec.Option
+	if sandboxFlag := mustGetString(cmd, "sandbox"); sandboxFlag != "" {
+		sandboxCfg, sandboxErr := ParseSandboxConfig(sandboxFlag)
+		if sandboxErr != nil {
+			return fmt.Errorf("parsing sandbox config: %w", sandboxErr)
+		}
+		validator := NewSandboxValidator(*sandboxCfg)
+		execOpts = append(execOpts, toolexec.WithValidator(validator))
+		log.Info("exec sandbox enabled")
+	}
+
+	registry := wiring.BuildToolRegistry(workspace, execOpts...)
 
 	// Load database tools
 	if dbFlag != "" {
-		_, dbTools := wiring.BuildDBTools(dbFlag)
+		_, dbTools := wiring.BuildDBTools(dbFlag, nil, nil)
 		if dbTools != nil {
 			for _, t := range dbTools.ListTools() {
 				registry.Register(t)

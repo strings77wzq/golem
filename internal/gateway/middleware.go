@@ -162,14 +162,49 @@ func MetricsMiddleware() Middleware {
 	return metrics.MetricsMiddleware(metrics.DefaultRegistry)
 }
 
-func SecurityHeadersMiddleware() Middleware {
+// SecurityHeadersConfig holds configurable security header values.
+// Empty string means the header is not set.
+type SecurityHeadersConfig struct {
+	ContentTypeOptions string
+	FrameOptions       string
+	XSSProtection      string
+	ReferrerPolicy     string
+	ContentSecurityPolicy string
+}
+
+// DefaultSecurityHeadersConfig returns the default secure headers.
+func DefaultSecurityHeadersConfig() SecurityHeadersConfig {
+	return SecurityHeadersConfig{
+		ContentTypeOptions:    "nosniff",
+		FrameOptions:          "DENY",
+		XSSProtection:         "1; mode=block",
+		ReferrerPolicy:        "strict-origin-when-cross-origin",
+		ContentSecurityPolicy: "default-src 'self'",
+	}
+}
+
+func SecurityHeadersMiddleware(cfg ...SecurityHeadersConfig) Middleware {
+	c := DefaultSecurityHeadersConfig()
+	if len(cfg) > 0 {
+		c = cfg[0]
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("X-Content-Type-Options", "nosniff")
-			w.Header().Set("X-Frame-Options", "DENY")
-			w.Header().Set("X-XSS-Protection", "1; mode=block")
-			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-			w.Header().Set("Content-Security-Policy", "default-src 'self'")
+			if c.ContentTypeOptions != "" {
+				w.Header().Set("X-Content-Type-Options", c.ContentTypeOptions)
+			}
+			if c.FrameOptions != "" {
+				w.Header().Set("X-Frame-Options", c.FrameOptions)
+			}
+			if c.XSSProtection != "" {
+				w.Header().Set("X-XSS-Protection", c.XSSProtection)
+			}
+			if c.ReferrerPolicy != "" {
+				w.Header().Set("Referrer-Policy", c.ReferrerPolicy)
+			}
+			if c.ContentSecurityPolicy != "" {
+				w.Header().Set("Content-Security-Policy", c.ContentSecurityPolicy)
+			}
 			next.ServeHTTP(w, r)
 		})
 	}
