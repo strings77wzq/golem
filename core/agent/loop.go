@@ -338,47 +338,72 @@ func (a *Agent) processMessage(
 		}
 	}
 
-	// Guard against infinite loops if the LLM repeatedly calls tools without converging.
-	// Default maxToolIterations=25 prevents runaway agents while allowing complex tasks.
+	content, tokenUsage, err := a.reactLoop(ctx, msg, sess, model, toolDefs, streamFinal, onToken, emit)
+
+	// Hook: after message processing
+	if a.hooks != nil && a.hooks.AfterMessage != nil {
+		hookMsg := content
+		if hookMsg == "" {
+			hookMsg = "max tool iterations reached"
+		}
+		if err := a.hooks.AfterMessage(ctx, msg.SessionID, hookMsg); err != nil {
+			a.logger.Error("after_message hook failed", err)
+		}
+	}
+
+	AgentPlanDuration.Observe(time.Since(startTime).Seconds())
+
+	return content, tokenUsage, err
+}
+
+// resolveProvider returns the LLM provider and model name for the given model.
+// Uses router if set, otherwise falls back to factory with fallback models.
+func (a *Agent) resolveProvider(ctx context.Context, model string, contextMsgs []providers.Message, toolDefs []tools.ToolDefinition) (*providers.LLMResponse, providers.LLMProvider, string, error) {
+	if a.router != nil {
+		resp, err := a.router.Chat(ctx, model, contextMsgs, toolDefs, &providers.ChatOptions{})
+		if err != nil {
+			return nil, nil, "", fmt.Errorf("router chat: %w", err)
+		}
+		if resp == nil {
+			return nil, nil, "", fmt.Errorf("router returned nil response for model %q", model)
+		}
+		return resp, nil, model, nil
+	}
+
+	provider, modelName, _, err := a.providerFactory.GetProviderForModelWithFallback(
+		model, a.config.Agents.Defaults.FallbackModels,
+	)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("resolve provider: %w", err)
+	}
+	return nil, provider, modelName, nil
+}
+
+// reactLoop runs the core ReAct (Reason + Act) loop.
+// It is shared by processMessage and processWithPlan for consistent behavior.
+func (a *Agent) reactLoop(
+	ctx context.Context,
+	msg bus.InboundMessage,
+	sess *session.Session,
+	model string,
+	toolDefs []tools.ToolDefinition,
+	streamFinal bool,
+	onToken func(string),
+	emit func(bus.OutboundMessage),
+) (string, *bus.TokenUsage, error) {
 	for i := 0; i < a.maxToolIterations; i++ {
 		contextMsgs := a.contextManager.BuildContext(sess, toolDefs, "")
 
-		// Observability: track context token usage
 		totalCtxTokens := 0
 		for _, msg := range contextMsgs {
 			totalCtxTokens += len(msg.Content)
 		}
 		AgentContextTokens.Set(float64(totalCtxTokens))
 
-		// Use router if set, otherwise fall back to factory
-		var resp *providers.LLMResponse
-		var err error
-		var provider providers.LLMProvider
-		var modelName string
-
-		if a.router != nil {
-			resp, err = a.router.Chat(ctx, model, contextMsgs, toolDefs, &providers.ChatOptions{})
-			if err != nil {
-				a.logger.Error("router chat failed", err)
-				a.emitError(msg.SessionID, fmt.Sprintf("router error: %v", err), emit)
-				return "", nil, err
-			}
-			if resp == nil {
-				return "", nil, fmt.Errorf("router returned nil response for model %q", model)
-			}
-			provider = nil // not needed for router path
-			modelName = model
-		} else {
-			var usedModel string
-			provider, modelName, usedModel, err = a.providerFactory.GetProviderForModelWithFallback(
-				model, a.config.Agents.Defaults.FallbackModels,
-			)
-			if err != nil {
-				a.logger.Error("failed to get provider for model", err)
-				a.emitError(msg.SessionID, fmt.Sprintf("failed to get provider: %v", err), emit)
-				return "", nil, err
-			}
-			_ = usedModel // available for logging if needed
+		resp, provider, modelName, err := a.resolveProvider(ctx, model, contextMsgs, toolDefs)
+		if err != nil {
+			a.emitError(msg.SessionID, fmt.Sprintf("provider error: %v", err), emit)
+			return "", nil, err
 		}
 
 		// Hook: before LLM call
@@ -388,21 +413,17 @@ func (a *Agent) processMessage(
 			}
 		}
 
-		// Observability: record LLM call
 		AgentLLMCalls.Inc()
 		llmStart := time.Now()
 
 		var streamed bool
 		if a.router == nil {
-			// Standard path: resolve provider from factory and invoke
 			resp, streamed, err = a.invokeProvider(ctx, provider, contextMsgs, toolDefs, modelName, streamFinal, onToken, msg.SessionID, emit)
 		}
-		// When router is set, resp is already populated from router.Chat() above
 		llmDuration := time.Since(llmStart)
 		AgentLLMLatency.Observe(llmDuration.Seconds())
 
 		if err != nil {
-			a.logger.Error("LLM chat failed", err)
 			AgentLLMErrors.Inc()
 			if a.hooks != nil && a.hooks.OnError != nil {
 				a.hooks.OnError(ctx, err)
@@ -411,7 +432,6 @@ func (a *Agent) processMessage(
 			return "", nil, err
 		}
 
-		// Observability: record token usage
 		AgentLLMTokens.Add(int64(resp.Usage.TotalTokens))
 
 		// Hook: after LLM call
@@ -421,6 +441,7 @@ func (a *Agent) processMessage(
 			}
 		}
 
+		// No tool calls — final response
 		if len(resp.ToolCalls) == 0 {
 			sess.AddMessage(providers.Message{
 				Role:    providers.RoleAssistant,
@@ -436,14 +457,12 @@ func (a *Agent) processMessage(
 				TotalTokens:      resp.Usage.TotalTokens,
 			}
 
-			// Record usage for cost tracking
 			if a.tracker != nil && tokenUsage != nil {
 				a.tracker.Record(msg.SessionID, modelName, usage.TokenUsage{
 					PromptTokens:     tokenUsage.PromptTokens,
 					CompletionTokens: tokenUsage.CompletionTokens,
 					TotalTokens:      tokenUsage.TotalTokens,
 				})
-				// Track cost in metric (scaled by 10000 for integer storage)
 				pricing := usage.GetPricing(modelName)
 				costCents := float64(tokenUsage.PromptTokens)*pricing.InputPerToken +
 					float64(tokenUsage.CompletionTokens)*pricing.OutputPerToken
@@ -452,8 +471,6 @@ func (a *Agent) processMessage(
 
 			if emit != nil {
 				finalContent := resp.Content
-				// When streaming, tokens already emitted via onToken callback.
-				// Final emit only carries Done flag + Usage for completion signal.
 				if streamed {
 					finalContent = ""
 				}
@@ -466,19 +483,10 @@ func (a *Agent) processMessage(
 				})
 			}
 
-			// Hook: after message processing (success)
-			if a.hooks != nil && a.hooks.AfterMessage != nil {
-				if err := a.hooks.AfterMessage(ctx, msg.SessionID, resp.Content); err != nil {
-					a.logger.Error("after_message hook failed", err)
-				}
-			}
-
-			// Observability: record plan duration
-			AgentPlanDuration.Observe(time.Since(startTime).Seconds())
-
 			return resp.Content, tokenUsage, nil
 		}
 
+		// Tool calls — execute and continue loop
 		sess.AddMessage(providers.Message{
 			Role:      providers.RoleAssistant,
 			Content:   resp.Content,
@@ -499,13 +507,6 @@ func (a *Agent) processMessage(
 			Role:      bus.RoleAssistant,
 			Done:      true,
 		})
-	}
-
-	// Hook: after message processing
-	if a.hooks != nil && a.hooks.AfterMessage != nil {
-		if err := a.hooks.AfterMessage(ctx, msg.SessionID, "max tool iterations reached"); err != nil {
-			a.logger.Error("after_message hook failed", err)
-		}
 	}
 
 	return "max tool iterations reached", nil, nil
