@@ -44,6 +44,23 @@ func (r *Registry) Get(name string) (Tool, bool) {
 	return tool, ok
 }
 
+// Has returns true if a tool with the given name is registered.
+func (r *Registry) Has(name string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	_, ok := r.tools[name]
+	return ok
+}
+
+// Remove removes a tool by name. No-op if the tool is not found.
+func (r *Registry) Remove(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	delete(r.tools, name)
+}
+
 // ListTools returns all tools sorted alphabetically by name.
 // CRITICAL: Alphabetical ordering is required for LLM KV cache optimization.
 // When tools are always presented in the same order, the LLM can reuse its KV cache.

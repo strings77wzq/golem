@@ -167,6 +167,12 @@ func runAgent(cmd *cobra.Command) error {
 			}
 			log.Info("loaded database tools", "db", dbFlag, "tools", dbTools.Count())
 		}
+		// When database tools are available, remove web_search to prevent
+		// the LLM from using external data instead of database data
+		if registry.Has("web_search") {
+			registry.Remove("web_search")
+			log.Info("removed web_search tool (database mode)")
+		}
 	}
 
 	// Load infrastructure tools
@@ -233,14 +239,13 @@ func runAgent(cmd *cobra.Command) error {
 
 	// Add data integrity instruction when database tools are available
 	if dbFlag != "" {
-		systemPrompt += "\n\n## Data Integrity Rules\n" +
-			"- You MUST ONLY use data retrieved from database tools (sql_query, sql_schema, etc.)\n" +
-			"- Do NOT use external knowledge or assumptions about the data\n" +
-			"- If the database returns specific numbers, use those EXACT numbers\n" +
-			"- If the database doesn't have data for a query, say so explicitly\n" +
-			"- Always query the database first before answering data-related questions\n" +
-			"- NEVER use web_search to find data that should come from the database\n" +
-			"- If a database query fails, report the error — do NOT fall back to web search"
+		systemPrompt += "\n\n## CRITICAL: Data Integrity Rules\n" +
+			"- You are connected to a database. ALL data answers MUST come from the database.\n" +
+			"- IGNORE your training data for any data that exists in the database.\n" +
+			"- When the database returns specific numbers, use those EXACT numbers.\n" +
+			"- NEVER substitute database values with values from your training data.\n" +
+			"- If you need data, query the database first. Do NOT use your training knowledge.\n" +
+			"- The database is the single source of truth. Your training data may be outdated or wrong."
 	}
 
 	// Create LLM-driven compactor for session compression
