@@ -268,25 +268,16 @@ func (a *Agent) HandleMessageStreamWithProgress(ctx context.Context, sessionID s
 	return err
 }
 
-func (a *Agent) processMessage(
-	ctx context.Context,
-	msg bus.InboundMessage,
-	streamFinal bool,
-	onToken func(string),
-	emit func(bus.OutboundMessage),
-) (string, *bus.TokenUsage, error) {
-	// Observability: generate trace ID and record metrics
-	traceID := NewTraceID()
-	ctx = WithTraceID(ctx, traceID)
+// initSession gets or creates a session, injects system prompt, and appends the user message.
+func (a *Agent) initSession(ctx context.Context, msg bus.InboundMessage) (*session.Session, error) {
 	AgentMessagesTotal.Inc()
-	startTime := time.Now()
+
 	sess, found := a.sessionStore.Get(msg.SessionID)
 	if !found {
 		sess = session.NewSession(msg.SessionID)
 		if err := a.sessionStore.Save(sess); err != nil {
 			a.logger.Error("failed to save new session", err)
-			a.emitError(msg.SessionID, "failed to create session", emit)
-			return "", nil, fmt.Errorf("failed to create session: %w", err)
+			return nil, fmt.Errorf("failed to create session: %w", err)
 		}
 	}
 
@@ -301,6 +292,27 @@ func (a *Agent) processMessage(
 		Role:    providers.RoleUser,
 		Content: msg.Content,
 	})
+
+	return sess, nil
+}
+
+func (a *Agent) processMessage(
+	ctx context.Context,
+	msg bus.InboundMessage,
+	streamFinal bool,
+	onToken func(string),
+	emit func(bus.OutboundMessage),
+) (string, *bus.TokenUsage, error) {
+	// Observability: generate trace ID and record metrics
+	traceID := NewTraceID()
+	ctx = WithTraceID(ctx, traceID)
+	startTime := time.Now()
+
+	sess, err := a.initSession(ctx, msg)
+	if err != nil {
+		a.emitError(msg.SessionID, "failed to create session", emit)
+		return "", nil, err
+	}
 
 	model := a.config.Agents.Defaults.ModelName
 	toolDefs := a.toolRegistry.ListDefinitions()
