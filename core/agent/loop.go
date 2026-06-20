@@ -27,6 +27,9 @@ func (a *Agent) handleMessage(ctx context.Context, msg bus.InboundMessage) {
 }
 
 func (a *Agent) HandleMessage(ctx context.Context, sessionID string, message string) (string, error) {
+	AgentSessionsActive.Inc()
+	defer AgentSessionsActive.Dec()
+
 	resp, _, err := a.processMessage(ctx, bus.InboundMessage{
 		SessionID: sessionID,
 		Content:   message,
@@ -37,6 +40,8 @@ func (a *Agent) HandleMessage(ctx context.Context, sessionID string, message str
 
 func (a *Agent) HandleMessageStream(ctx context.Context, sessionID string, message string, tokens chan<- string) error {
 	defer close(tokens)
+	AgentSessionsActive.Inc()
+	defer AgentSessionsActive.Dec()
 	streamed := false
 	content, _, err := a.processMessage(ctx, bus.InboundMessage{
 		SessionID: sessionID,
@@ -314,6 +319,13 @@ func (a *Agent) processMessage(
 	for i := 0; i < a.maxToolIterations; i++ {
 		contextMsgs := a.contextManager.BuildContext(sess, toolDefs, "")
 
+		// Observability: track context token usage
+		totalCtxTokens := 0
+		for _, msg := range contextMsgs {
+			totalCtxTokens += len(msg.Content)
+		}
+		AgentContextTokens.Set(float64(totalCtxTokens))
+
 		// Use router if set, otherwise fall back to factory
 		var resp *providers.LLMResponse
 		var err error
@@ -407,6 +419,11 @@ func (a *Agent) processMessage(
 					CompletionTokens: tokenUsage.CompletionTokens,
 					TotalTokens:      tokenUsage.TotalTokens,
 				})
+				// Track cost in metric (scaled by 10000 for integer storage)
+				pricing := usage.GetPricing(modelName)
+				costCents := float64(tokenUsage.PromptTokens)*pricing.InputPerToken +
+					float64(tokenUsage.CompletionTokens)*pricing.OutputPerToken
+				AgentLLMCostUSD.Add(int64(costCents * 10000))
 			}
 
 			if emit != nil {
@@ -755,6 +772,12 @@ func (a *Agent) executeStep(
 	var lastContent string
 	for i := 0; i < maxIter; i++ {
 		contextMsgs := a.contextManager.BuildContext(sess, toolDefs, "")
+		totalCtxTokens := 0
+		for _, msg := range contextMsgs {
+			totalCtxTokens += len(msg.Content)
+		}
+		AgentContextTokens.Set(float64(totalCtxTokens))
+
 		provider, modelName, _, err := a.providerFactory.GetProviderForModelWithFallback(
 			model, a.config.Agents.Defaults.FallbackModels,
 		)
@@ -847,6 +870,11 @@ func (a *Agent) processMessageFallback(
 ) (string, *bus.TokenUsage, error) {
 	for i := 0; i < a.maxToolIterations; i++ {
 		contextMsgs := a.contextManager.BuildContext(sess, toolDefs, "")
+		totalCtxTokens := 0
+		for _, msg := range contextMsgs {
+			totalCtxTokens += len(msg.Content)
+		}
+		AgentContextTokens.Set(float64(totalCtxTokens))
 
 		provider, modelName, _, err := a.providerFactory.GetProviderForModelWithFallback(
 			model, a.config.Agents.Defaults.FallbackModels,

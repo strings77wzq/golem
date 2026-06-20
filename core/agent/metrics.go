@@ -33,6 +33,9 @@ var (
 	// Security metrics
 	AgentSecurityGates  *metrics.Counter
 	AgentSecurityDenied *metrics.Counter
+
+	// Cost metrics
+	AgentLLMCostUSD *metrics.Counter
 )
 
 func init() {
@@ -59,4 +62,6 @@ func init() {
 
 	AgentSecurityGates = reg.NewCounter("agent_security_gates_triggered", "Total security gate checks")
 	AgentSecurityDenied = reg.NewCounter("agent_security_operations_denied", "Total operations denied")
+
+	AgentLLMCostUSD = reg.NewCounter("agent_llm_cost_usd_total", "Total estimated LLM cost in USD (scaled by 10000)")
 }
