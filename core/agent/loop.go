@@ -545,7 +545,7 @@ func (a *Agent) processWithPlan(
 	plan, err := a.planner.Decompose(ctx, msg.Content, toolDefs)
 	if err != nil {
 		a.logger.Error("planner decompose failed", err)
-		return a.processMessageFallback(ctx, msg, sess, model, toolDefs, streamFinal, onToken, emit)
+		return a.processMessage(ctx, msg, streamFinal, onToken, emit)
 	}
 
 	AgentPlanSteps.Set(float64(len(plan.Steps)))
@@ -758,66 +758,6 @@ func (a *Agent) executeStep(
 	}
 
 	return lastContent
-}
-
-// processMessageFallback is the regular ReAct loop (used when planning fails).
-// It delegates to shared helpers for tool execution and result processing.
-func (a *Agent) processMessageFallback(
-	ctx context.Context,
-	msg bus.InboundMessage,
-	sess *session.Session,
-	model string,
-	toolDefs []tools.ToolDefinition,
-	streamFinal bool,
-	onToken func(string),
-	emit func(bus.OutboundMessage),
-) (string, *bus.TokenUsage, error) {
-	for i := 0; i < a.maxToolIterations; i++ {
-		contextMsgs := a.contextManager.BuildContext(sess, toolDefs, "")
-		totalCtxTokens := 0
-		for _, msg := range contextMsgs {
-			totalCtxTokens += len(msg.Content)
-		}
-		AgentContextTokens.Set(float64(totalCtxTokens))
-
-		provider, modelName, _, err := a.providerFactory.GetProviderForModelWithFallback(
-			model, a.config.Agents.Defaults.FallbackModels,
-		)
-		if err != nil {
-			a.emitError(msg.SessionID, fmt.Sprintf("failed to get provider: %v", err), emit)
-			return "", nil, err
-		}
-
-		AgentLLMCalls.Inc()
-		llmStart := time.Now()
-		resp, streamed, err := a.invokeProvider(ctx, provider, contextMsgs, toolDefs, modelName, streamFinal, onToken, msg.SessionID, emit)
-		AgentLLMLatency.Observe(time.Since(llmStart).Seconds())
-
-		if err != nil {
-			AgentLLMErrors.Inc()
-			a.emitError(msg.SessionID, fmt.Sprintf("LLM error: %v", err), emit)
-			return "", nil, err
-		}
-
-		AgentLLMTokens.Add(int64(resp.Usage.TotalTokens))
-
-		// No tool calls — final response
-		if len(resp.ToolCalls) == 0 {
-			tokenUsage := a.saveAndEmitFinal(sess, resp, streamed, modelName, msg, emit)
-			return resp.Content, tokenUsage, nil
-		}
-
-		// Tool calls — execute and continue loop
-		sess.AddMessage(providers.Message{Role: providers.RoleAssistant, Content: resp.Content, ToolCalls: resp.ToolCalls})
-		results, errors := a.executeTools(ctx, resp)
-		a.processToolResults(sess, resp, results, errors, msg.SessionID, emit)
-
-		if err := a.sessionStore.Save(sess); err != nil {
-			a.logger.Error("failed to save session", err)
-		}
-	}
-
-	return "max tool iterations reached", nil, nil
 }
 
 // buildToolErrorMessage creates an informative error message for the LLM feedback loop.

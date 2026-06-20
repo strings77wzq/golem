@@ -11,7 +11,6 @@ import (
 	"github.com/strings77wzq/golem/core/providers"
 	"github.com/strings77wzq/golem/core/session"
 	"github.com/strings77wzq/golem/core/tools"
-	"github.com/strings77wzq/golem/core/usage"
 )
 
 // executeTools runs tool calls in parallel and returns results and errors.
@@ -156,45 +155,4 @@ func (a *Agent) processToolResults(sess *session.Session, resp *providers.LLMRes
 			})
 		}
 	}
-}
-
-// saveAndEmitFinal saves the session and emits the final response.
-func (a *Agent) saveAndEmitFinal(sess *session.Session, resp *providers.LLMResponse, streamed bool, modelName string, msg bus.InboundMessage, emit func(bus.OutboundMessage)) *bus.TokenUsage {
-	sess.AddMessage(providers.Message{
-		Role:    providers.RoleAssistant,
-		Content: resp.Content,
-	})
-	if err := a.sessionStore.Save(sess); err != nil {
-		a.logger.Error("failed to save session", err)
-	}
-
-	tokenUsage := &bus.TokenUsage{
-		PromptTokens:     resp.Usage.PromptTokens,
-		CompletionTokens: resp.Usage.CompletionTokens,
-		TotalTokens:      resp.Usage.TotalTokens,
-	}
-
-	if a.tracker != nil {
-		a.tracker.Record(msg.SessionID, modelName, usage.TokenUsage{
-			PromptTokens:     tokenUsage.PromptTokens,
-			CompletionTokens: tokenUsage.CompletionTokens,
-			TotalTokens:      tokenUsage.TotalTokens,
-		})
-	}
-
-	if emit != nil {
-		finalContent := resp.Content
-		if streamed {
-			finalContent = ""
-		}
-		emit(bus.OutboundMessage{
-			SessionID: msg.SessionID,
-			Content:   finalContent,
-			Role:      bus.RoleAssistant,
-			Done:      true,
-			Usage:     tokenUsage,
-		})
-	}
-
-	return tokenUsage
 }
