@@ -20,7 +20,7 @@ Inspired by [PicoClaw](https://github.com/sipeed/picoclaw). Its purpose is:
    MiniMax, Qwen, Ollama), tool calling, streaming output, session persistence, and a
    Bubble Tea TUI for interactive database exploration.
 
-**Current stable version**: v0.9.0
+**Current stable version**: v0.9.1
 **Target platform**: Linux amd64 + Android/Termux ARM64
 **Build constraint**: `CGO_ENABLED=0` — pure Go, zero CGO dependencies, single static binary
 
@@ -187,7 +187,7 @@ TUI (tui.go)                    Agent (loop.go)
 | Active channels | CLI, TUI, HTTP Gateway, Telegram |
 | Providers wired | OpenAI, Anthropic, DeepSeek, Kimi, GLM, MiniMax, Qwen, Ollama |
 | TUI commands | /tools, /new, /sessions, /model, /compact, /clear, /fork, /help, /quit |
-| Features | Debug tools, Config validate, YAML v2, LLM compaction, RetryProvider, BM25+RRF, Provider Registry, Auto-compaction |
+| Features | Debug tools, Config validate, YAML v2, LLM compaction, RetryProvider, BM25+RRF, Provider Registry, Auto-compaction, Routing, Health Checks, Security Headers, Audit Logging, Prometheus Metrics |
 
 ---
 

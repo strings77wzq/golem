@@ -180,8 +180,8 @@ mkdir -p k8s/helm/golem
 cat > k8s/helm/golem/Chart.yaml << 'EOF'
 apiVersion: v2
 name: golem
-description: A progressive Go AI assistant
-version: 0.1.0
+description: Go-native database AI agent
+version: 0.9.1
 EOF
 
 # Create values.yaml

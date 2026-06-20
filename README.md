@@ -8,7 +8,9 @@
 [![Tests](https://img.shields.io/badge/tests-41%20packages-brightgreen)](https://github.com/strings77wzq/golem/actions)
 [![Coverage](https://img.shields.io/badge/coverage-82.5%25-brightgreen)](https://github.com/strings77wzq/golem)
 
-> **Let AI see your data.**
+**Language:** [English](#golem) | [简体中文](#中文说明)
+
+> **Let AI see your data.** / **让 AI 看见你的数据。**
 
 Golem is a Go-native database AI agent. It connects to your databases, understands table schemas, and exposes query capabilities to Claude Code, Cursor, or any MCP-compatible agent via the Model Context Protocol.
 
@@ -148,6 +150,23 @@ hooks:
 golem agent --config agent.yaml
 ```
 
+### Routing & Failover
+
+```bash
+golem agent --routing '{"routes":{"gpt-4o":["openai/gpt-4o","anthropic/claude-3-haiku"]}}'
+```
+
+Automatic fallback with cooldown tracking — if the primary provider fails, Golem retries with the next provider in the chain.
+
+### Health Checks
+
+```bash
+golem gateway --health          # Default 5-minute interval
+golem gateway --health '{"interval":"60s"}'  # Custom interval
+```
+
+Real-time provider health status at `GET /health/providers`.
+
 ### Debug & Validation Commands
 
 ```bash
@@ -155,18 +174,6 @@ golem debug tools      # List all registered tools
 golem debug config     # Show parsed config (API keys masked)
 golem config validate  # Validate config file
 golem status           # Show system status with tools and features
-```
-
-### Provider Fallback — Automatic Failover
-
-If the primary model is unavailable, Golem automatically tries fallback models with exponential backoff:
-
-```yaml
-agent:
-  model: openai/gpt-4o
-  fallback_models:
-    - anthropic/claude-3-haiku
-    - ollama/qwen3
 ```
 
 ### TUI Slash Commands
@@ -206,7 +213,7 @@ graph TB
         Agent[agent/<br/>ReAct Loop]
         Compactor[compactor.go<br/>LLM Compaction]
         Streaming[streaming.go<br/>Streaming Output]
-        Providers[providers/<br/>8 LLMs + Retry]
+        Providers[providers/<br/>9 LLMs + Retry]
         Registry[registry.go<br/>Provider Registry]
         Tools[tools/<br/>12 Tools]
         Session[session/<br/>Session Management]
@@ -220,6 +227,8 @@ graph TB
         MCP[mcp/<br/>MCP Protocol]
         Skills[skills/<br/>Skill Registry]
         Memory[memory/<br/>Long-term Memory]
+        Routing[routing/<br/>Fallback Routing]
+        Health[health/<br/>Provider Health]
     end
 
     subgraph "internal/ Internal Adapters"
@@ -228,7 +237,7 @@ graph TB
         TG[Telegram/<br/>Bot Adapter]
         Gateway[Gateway/<br/>HTTP API]
         Metrics[Metrics/<br/>Prometheus]
-        Security[Security/<br/>Auth/Rate Limit]
+        Security[Security/<br/>Auth/Rate Limit/Headers]
     end
 
     subgraph "foundation/ Infrastructure Primitives"
@@ -296,7 +305,6 @@ foundation/ → stdlib only (zero project dependencies)
 | OpenAI | Cloud | GPT-4o, GPT-4 |
 | Anthropic | Cloud | Claude 3.5 Sonnet |
 | DeepSeek | Cloud | DeepSeek Chat |
-| MiMo | Cloud | Xiaomi MiMo |
 | Kimi | Cloud | Moonshot |
 | GLM | Cloud | Zhipu |
 | MiniMax | Cloud | MiniMax |
@@ -311,6 +319,8 @@ Also supports any OpenAI-compatible API (vLLM, OpenRouter, LiteLLM).
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check |
+| GET | `/health/providers` | Provider health status |
+| GET | `/api/version` | Version info |
 | GET | `/metrics` | Prometheus metrics |
 | POST | `/api/chat` | Synchronous chat |
 | POST | `/api/chat/stream` | SSE streaming chat |
@@ -318,6 +328,25 @@ Also supports any OpenAI-compatible API (vLLM, OpenRouter, LiteLLM).
 | GET | `/v1/models` | List available models |
 | GET | `/api/sessions/{id}/export` | Export session |
 | POST | `/api/sessions/import` | Import session |
+
+---
+
+## Metrics
+
+Golem exposes Prometheus-compatible metrics at `GET /metrics`:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `agent_llm_calls_total` | Counter | Total LLM calls |
+| `agent_llm_latency_seconds` | Histogram | LLM call latency |
+| `agent_llm_tokens_total` | Counter | Total tokens consumed |
+| `agent_llm_cost_usd_total` | Counter | Estimated cost (×10000) |
+| `agent_tool_calls_total` | Counter | Total tool executions |
+| `agent_tool_latency_seconds` | Histogram | Tool execution latency |
+| `agent_sessions_active` | Gauge | Concurrent active sessions |
+| `agent_context_tokens_used` | Gauge | Context window usage |
+| `http_requests_total` | Counter | Total HTTP requests |
+| `http_request_duration_seconds` | Histogram | HTTP request latency |
 
 ---
 
@@ -362,16 +391,28 @@ MIT License
 
 Golem 是一个 Go 原生的数据库 AI Agent。它连接你的数据库，理解表结构，然后通过 MCP 协议把查询能力暴露给 Claude Code、Cursor 或任何支持 MCP 的 AI agent。
 
+**零 Python。零 Docker。零依赖。** 下载一个 14MB 的二进制文件，指向你的数据库，即可开始查询。
+
+### 为什么需要 Golem？
+
+如果你使用 AI agent（Claude Code、Cursor、OpenClaw），你一定遇到过这个问题：**它们看不到你的数据。**
+
+你可以让 AI 写代码、读文件、执行命令——但它无法直接查询你的 SQLite 数据库来回答"上个月有多少用户注册？"
+
 ### 核心优势
 
 - **数据库安全模型** — 默认只读，写操作需要 WHERE 子句，自动生成回滚 SQL
 - **零依赖单二进制** — 14MB，支持 Linux/macOS/Android Termux
 - **严格分层架构** — Go import 系统强制执行，不是文档约定
 - **LLM KV-Cache 优化** — 工具按字母序排列，最大化缓存复用
-- **9 家国产模型** — DeepSeek、Kimi、GLM、MiniMax、Qwen、MiMo 开箱即用
+- **9 家 LLM 提供商** — OpenAI、Anthropic、DeepSeek、Kimi、GLM、MiniMax、Qwen、Ollama
 - **消息总线解耦** — TUI/Gateway/Telegram 通道独立演进
 - **LLM 驱动压缩** — 替代简单截断，保留对话上下文
 - **BM25 + 向量混合检索** — 支持中英文，RRF 融合排序
+- **Provider Fallback 路由** — 自动故障转移，带 cooldown 追踪
+- **健康检查** — 定时探测 provider 状态，`/health/providers` 实时暴露
+- **安全头 + 审计日志** — CSP、X-Frame-Options 等安全头，401/429/403 事件结构化日志
+- **Prometheus 指标** — LLM 调用、token 消耗、工具执行、成本估算全覆盖
 
 ### 快速开始
 
@@ -380,5 +421,17 @@ go install github.com/strings77wzq/golem/cmd/golem@latest
 golem demo-db
 golem agent --db .golem-demo.db -m "分析这个数据库"
 ```
+
+### 架构概览
+
+```
+cmd/golem/     → 组合根，CLI 入口
+internal/      → 适配器层（TUI、Gateway、Telegram、Security、Metrics）
+core/          → 领域逻辑（Agent、Providers、Tools、Session、Bus）
+feature/       → 可选模块（MCP、RAG、Skills、Memory、Routing、Health）
+foundation/    → 基础设施原语（并发、日志、存储、终端检测）
+```
+
+**依赖方向：** `cmd/ → internal/ → core/ → foundation/`，foundation 层只导入标准库。
 
 详细文档请参考 [docs/](docs/) 目录。
