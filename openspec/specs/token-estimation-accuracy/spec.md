@@ -1,7 +1,7 @@
 # token-estimation-accuracy Specification
 
 ## Purpose
-TBD - created by archiving change phase2-runtime-capabilities. Update Purpose after archive.
+Defines CJK-aware token estimation — different weights for ASCII (4 chars/token) vs CJK (2 chars/token) vs mixed content.
 ## Requirements
 ### Requirement: Token estimation SHALL account for CJK characters
 The system SHALL detect CJK runes in message content and apply a higher per-character token weight than ASCII characters.

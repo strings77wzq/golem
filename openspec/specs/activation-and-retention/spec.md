@@ -1,7 +1,7 @@
 # activation-and-retention Specification
 
 ## Purpose
-TBD - created by archiving change phase4-open-source-growth. Update Purpose after archive.
+Defines requirements for first-run activation experience, reusable examples, and retention hooks to reduce friction and encourage repeat usage of Golem.
 ## Requirements
 ### Requirement: First-run experience creates an activation moment
 The product SHALL provide one or more curated first-run experiences that quickly demonstrate meaningful user value.

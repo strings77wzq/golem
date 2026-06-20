@@ -1,7 +1,7 @@
 # memory-runtime-wiring Specification
 
 ## Purpose
-TBD - created by archiving change phase2-runtime-capabilities. Update Purpose after archive.
+Defines how long-term memory is enabled via --memory flag, how memory_store/memory_recall tools work, and session-bound memory isolation.
 ## Requirements
 ### Requirement: Long-term memory SHALL be enabled via CLI flag
 The system SHALL provide a `--memory` CLI flag on the agent command that enables the long-term memory feature. When omitted, the agent operates without memory.

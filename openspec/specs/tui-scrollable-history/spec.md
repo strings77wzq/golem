@@ -1,7 +1,7 @@
 # tui-scrollable-history Specification
 
 ## Purpose
-TBD - created by archiving change phase1-quality-hardening. Update Purpose after archive.
+Defines scrollable TUI transcript via Bubble Tea viewport, terminal resize handling, and input buffer preservation during scroll.
 ## Requirements
 ### Requirement: TUI transcript SHALL be scrollable
 The system SHALL render the interactive transcript through a Bubble Tea viewport so users can review conversations that exceed the visible terminal height.

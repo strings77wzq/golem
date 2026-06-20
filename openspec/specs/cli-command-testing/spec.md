@@ -1,7 +1,7 @@
 # cli-command-testing Specification
 
 ## Purpose
-TBD - created by archiving change phase1-quality-hardening. Update Purpose after archive.
+Defines automated test requirements for the cmd/golem composition root — root command wiring, config/session flows, provider flags, and session export/import.
 ## Requirements
 ### Requirement: Root command wiring SHALL be executable through automated tests
 The system SHALL provide automated tests for the `cmd/golem` composition root that execute Cobra commands through `NewRootCommand()` and verify that core command wiring remains functional.

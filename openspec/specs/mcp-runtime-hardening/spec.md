@@ -1,7 +1,7 @@
 # mcp-runtime-hardening Specification
 
 ## Purpose
-TBD - created by archiving change phase1-quality-hardening. Update Purpose after archive.
+Defines automated test requirements for MCP transport lifecycle, client error paths, tool registration, and integration test coverage.
 ## Requirements
 ### Requirement: MCP transport lifecycle SHALL be verified by automated tests
 The system SHALL provide automated tests for `feature/mcp/transport.go` covering transport construction, process startup, request sending, notification sending, response receiving, and close behavior.

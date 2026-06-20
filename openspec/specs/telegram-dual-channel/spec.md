@@ -1,7 +1,7 @@
 # telegram-dual-channel Specification
 
 ## Purpose
-TBD - created by archiving change phase2-runtime-capabilities. Update Purpose after archive.
+Defines polling vs webhook mode support for Telegram, webhook handler mountable on the gateway, and session isolation between channels.
 ## Requirements
 ### Requirement: Telegram adapter SHALL support both polling and webhook modes
 The system SHALL allow the user to select between polling and webhook modes for the Telegram channel via configuration.
