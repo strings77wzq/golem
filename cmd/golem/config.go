@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/strings77wzq/golem/core/config"
 )
 
 func newConfigCommand() *cobra.Command {
@@ -21,9 +25,25 @@ func newConfigCommand() *cobra.Command {
 		newConfigGetCommand(),
 		newConfigListCommand(),
 		newConfigValidateCommand(),
+		newConfigModelCommand(),
 	)
 
 	return cmd
+}
+
+func newConfigModelCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "model",
+		Short: "Configure LLM provider interactively",
+		Long:  "Set up your LLM provider: base URL, model name, and API key",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			configPath, err := getConfigPath(cmd)
+			if err != nil {
+				return err
+			}
+			return runConfigModelWizard(configPath)
+		},
+	}
 }
 
 func newConfigSetCommand() *cobra.Command {
@@ -158,4 +178,117 @@ func ensureConfigDir(configPath string) error {
 		return fmt.Errorf("creating config directory: %w", err)
 	}
 	return nil
+}
+
+// runConfigModelWizard is the 3-step interactive LLM configuration wizard.
+// Step 1: Base URL (chat-compatible or Anthropic-compatible)
+// Step 2: Model name
+// Step 3: API key
+func runConfigModelWizard(configPath string) error {
+	r := bufio.NewReader(os.Stdin)
+
+	fmt.Println("=== Configure LLM Provider ===")
+	fmt.Println()
+
+	// Step 1: Base URL
+	fmt.Print("Base URL (e.g. https://api.deepseek.com): ")
+	baseURL, err := r.ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("reading base URL: %w", err)
+	}
+	baseURL = strings.TrimSpace(baseURL)
+	if baseURL == "" {
+		return fmt.Errorf("base URL cannot be empty")
+	}
+
+	// Step 2: Model name
+	fmt.Print("Model name (e.g. deepseek-chat): ")
+	model, err := r.ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("reading model name: %w", err)
+	}
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return fmt.Errorf("model name cannot be empty")
+	}
+
+	// Step 3: API key
+	fmt.Print("API key: ")
+	apiKey, err := r.ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("reading API key: %w", err)
+	}
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return fmt.Errorf("API key cannot be empty")
+	}
+
+	// Derive vendor from base URL
+	vendor := deriveVendor(baseURL)
+	fullModel := vendor + "/" + model
+
+	// Load existing config or create new
+	cfg, loadErr := config.Load(configPath)
+	if loadErr != nil || cfg == nil {
+		cfg = config.DefaultConfig()
+	}
+
+	// Update config
+	cfg.Agents.Defaults.ModelName = fullModel
+	cfg.ModelList = []config.ModelEntry{{
+		ModelName: fullModel,
+		Model:     fullModel,
+		APIKey:    apiKey,
+		APIBase:   baseURL,
+	}}
+
+	// Write config
+	if err := ensureConfigDir(configPath); err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("serializing config: %w", err)
+	}
+	if err := os.WriteFile(configPath, data, 0600); err != nil {
+		return fmt.Errorf("writing config: %w", err)
+	}
+
+	fmt.Println()
+	fmt.Printf("✅ Config saved to %s\n", configPath)
+	fmt.Printf("   Provider: %s\n", vendor)
+	fmt.Printf("   Model:    %s\n", fullModel)
+	fmt.Printf("   Base URL: %s\n", baseURL)
+	fmt.Println()
+	fmt.Printf("Try it: golem agent -m \"Hello\"\n")
+
+	return nil
+}
+
+// deriveVendor infers the vendor name from the base URL.
+func deriveVendor(baseURL string) string {
+	lower := strings.ToLower(baseURL)
+	switch {
+	case strings.Contains(lower, "deepseek"):
+		return "deepseek"
+	case strings.Contains(lower, "openai"):
+		return "openai"
+	case strings.Contains(lower, "anthropic"):
+		return "anthropic"
+	case strings.Contains(lower, "moonshot") || strings.Contains(lower, "kimi"):
+		return "moonshot"
+	case strings.Contains(lower, "bigmodel") || strings.Contains(lower, "zhipu"):
+		return "zhipu"
+	case strings.Contains(lower, "minimax"):
+		return "minimax"
+	case strings.Contains(lower, "dashscope") || strings.Contains(lower, "aliyuncs"):
+		return "dashscope"
+	case strings.Contains(lower, "localhost:11434"):
+		return "ollama"
+	case strings.Contains(lower, "xiaomimimo"):
+		return "mimo"
+	default:
+		return "custom"
+	}
 }
