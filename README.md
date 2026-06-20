@@ -194,98 +194,60 @@ golem status           # Show system status with tools and features
 
 ## Architecture
 
-```mermaid
-graph TB
-    subgraph "cmd/golem/ Composition Root"
-        CLI[CLI Entry]
-        Debug[debug tools/config]
-        Status[status]
-        Validate[config validate]
-        Init[init wizard]
-    end
-
-    subgraph "internal/wiring/ Dependency Creation"
-        Wiring[Provider Registry]
-        ToolWiring[Tool Registration]
-    end
-
-    subgraph "core/ Domain Logic"
-        Agent[agent/<br/>ReAct Loop]
-        Compactor[compactor.go<br/>LLM Compaction]
-        Streaming[streaming.go<br/>Streaming Output]
-        Providers[providers/<br/>9 LLMs + Retry]
-        Registry[registry.go<br/>Provider Registry]
-        Tools[tools/<br/>12 Tools]
-        Session[session/<br/>Session Management]
-        Context[context/<br/>Context Management]
-        Bus[bus/<br/>Message Bus]
-    end
-
-    subgraph "feature/ Optional Modules"
-        Config[config/<br/>YAML v2]
-        RAG[rag/<br/>BM25+RRF]
-        MCP[mcp/<br/>MCP Protocol]
-        Skills[skills/<br/>Skill Registry]
-        Memory[memory/<br/>Long-term Memory]
-        Routing[routing/<br/>Fallback Routing]
-        Health[health/<br/>Provider Health]
-    end
-
-    subgraph "internal/ Internal Adapters"
-        TUI[TUI/<br/>Bubble Tea]
-        CLI_Ch[CLI/<br/>readline]
-        TG[Telegram/<br/>Bot Adapter]
-        Gateway[Gateway/<br/>HTTP API]
-        Metrics[Metrics/<br/>Prometheus]
-        Security[Security/<br/>Auth/Rate Limit/Headers]
-    end
-
-    subgraph "foundation/ Infrastructure Primitives"
-        Concurrency[concurrency/<br/>Concurrency Primitives]
-        Logger[logger/<br/>Structured Logging]
-        Store[store/<br/>SQLite Persistence]
-        Term[term/<br/>Terminal Detection]
-    end
-
-    CLI --> Wiring
-    Debug --> ToolWiring
-    Status --> ToolWiring
-    Validate --> Config
-    Init --> Config
-
-    Wiring --> Providers
-    Wiring --> Registry
-    ToolWiring --> Tools
-
-    Agent --> Context
-    Agent --> Providers
-    Agent --> Tools
-    Agent --> Session
-    Agent --> Bus
-    Agent --> Compactor
-    Agent --> Streaming
-
-    Compactor --> Providers
-    Streaming --> Providers
-
-    TUI --> Bus
-    CLI_Ch --> Bus
-    TG --> Bus
-    Gateway --> Bus
-
-    Config --> Context
-    RAG --> Tools
-    MCP --> Tools
-
-    Session --> Store
-    Logger --> Term
-
-    style cmd fill:#e1f5fe
-    style wiring fill:#f3e5f5
-    style core fill:#e8f5e9
-    style feature fill:#fff3e0
-    style internal fill:#fce4ec
-    style foundation fill:#f5f5f5
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        cmd/golem/ (Composition Root)                │
+│  CLI Entry │ debug tools/config │ status │ config validate │ init   │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────────┐
+│                    internal/wiring/ (Dependency Creation)           │
+│                  Provider Registry │ Tool Registration              │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────────┐
+│                          core/ (Domain Logic)                       │
+│                                                                     │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐   │
+│  │  Agent   │  │ Providers│  │  Tools   │  │     Session      │   │
+│  │ReAct Loop│  │ 9 LLMs  │  │ 12 Tools │  │Session Management│   │
+│  └────┬─────┘  └──────────┘  └──────────┘  └──────────────────┘   │
+│       │                                                             │
+│  ┌────▼─────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐   │
+│  │ Context  │  │ Compactor│  │Streaming │  │   Bus (pub/sub)  │   │
+│  │ Management│  │LLM Comp. │  │  Output  │  │  Message Bus     │   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘   │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────────┐
+│                     feature/ (Optional Modules)                     │
+│                                                                     │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌──────┐ │
+│  │ Config │ │  RAG   │ │  MCP   │ │ Skills │ │ Memory │ │Health│ │
+│  │ YAML v2│ │BM25+RRF│ │Protocol│ │Registry│ │Long-term│ │Checks│ │
+│  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘ └──────┘ │
+│  ┌────────┐                                                         │
+│  │Routing │  Fallback Routing (cooldown-aware)                     │
+│  └────────┘                                                         │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────────┐
+│                    internal/ (Internal Adapters)                     │
+│                                                                     │
+│  ┌─────┐ ┌─────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌────────┐  │
+│  │ TUI │ │ CLI │ │Telegram │ │ Gateway │ │ Metrics │ │Security│  │
+│  │Bubble│ │readln│ │Bot Adpt.│ │HTTP API │ │Prometheus│ │Auth/RL │  │
+│  └─────┘ └─────┘ └─────────┘ └─────────┘ └─────────┘ └────────┘  │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────────┐
+│                foundation/ (Infrastructure Primitives)               │
+│                                                                     │
+│  ┌──────────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐             │
+│  │ Concurrency  │ │ Logger  │ │  Store  │ │  Term   │             │
+│  │Pool/Semaphore│ │slog     │ │SQLite   │ │isatty   │             │
+│  └──────────────┘ └─────────┘ └─────────┘ └─────────┘             │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 **Dependency direction:**
