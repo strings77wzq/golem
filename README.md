@@ -12,7 +12,7 @@
 **Language:** [English](#golem) | [简体中文](#中文说明)
 
 > **AI that understands your data — and knows its limits.**
-> **AI 理解你的数据——也知道自己的边界。**
+> **AI 数据库安全代理——理解数据，强制安全。**
 
 ---
 
@@ -383,7 +383,7 @@ MIT License
 
 [English](#golem) | **中文**
 
-> **AI 理解你的数据——也知道自己的边界。**
+> **AI 数据库安全代理——理解数据，强制安全。**
 
 ### 问题
 
