@@ -52,3 +52,12 @@ release:
   draft: false
   prerelease: auto
   name_template: "Golem {{.Version}}"
+
+brews:
+  - name: golem
+    repository:
+      owner: strings77wzq
+      name: homebrew-tap
+    homepage: "https://github.com/strings77wzq/golem"
+    description: "AI database agent with built-in SQL safety"
+    license: "MIT"
