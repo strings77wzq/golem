@@ -4,17 +4,52 @@ run:
   timeout: 5m
 
 linters:
-  default: none
-  enable:
-    - govet
-    - staticcheck
-    - unused
+  default: all
+  disable:
+    # Too noisy for this codebase
+    - exhaustruct       # requires filling all struct fields
+    - depguard          # dependency guard (not needed yet)
+    - forbidigo         # forbid certain patterns
+    - funlen            # function length warnings
+    - gochecknoglobals  # complains about global vars
+    - gochecknoinits    # complains about init()
+    - ireturn           # interface return type
+    - lll               # line length limit
+    - mnd               # magic number detector
+    - tagliatelle       # JSON tag naming
+    - testpackage       # test package naming
+    - varnamelen        # variable name length
+    - wrapcheck         # wrap all errors
+    - wsl               # whitespace linter
+
   settings:
     staticcheck:
       checks:
         - all
-        - -QF1012
+        - -QF1012       # disable QR-code-like structures warning
+
+    gosec:
+      # High/medium severity security issues
+      severity: medium
+      excludes:
+        - G104  # checks unsafe (audit mode)
+        - G115  # integer overflow conversion
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+
+  # Exclude test files from some linters
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck
+    - path: core/database/
+      linters:
+        - gosec      # SQL driver needs dynamic queries
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
