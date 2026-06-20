@@ -1,8 +1,10 @@
 # Golem Enhancement SDD — Docker-Agent Inspired Improvements
 
+> **Status: COMPLETED** (all 15 tasks implemented as of v0.9.1)
+
 ## [S1] Problem
 
-Golem v0.5.0 has strong foundations (zero-CGO binary, database safety model, strict layering, KV-cache optimization) but lacks discoverability, configuration ergonomics, and advanced agent capabilities that Docker Agent demonstrates at scale. Users cannot easily discover golem's tools, must pass 8+ CLI flags per invocation, and the agent loop has accumulated technical debt (80% code duplication in loop.go).
+Golem v0.5.0 (now at v0.9.1) has strong foundations (zero-CGO binary, database safety model, strict layering, KV-cache optimization) but lacks discoverability, configuration ergonomics, and advanced agent capabilities that Docker Agent demonstrates at scale. Users cannot easily discover golem's tools, must pass 8+ CLI flags per invocation, and the agent loop has accumulated technical debt (80% code duplication in loop.go).
 
 **Root causes:**
 1. CLI-flag-only configuration creates cognitive overhead and prevents "declare once, run everywhere"
