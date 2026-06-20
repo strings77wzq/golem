@@ -10,18 +10,27 @@
 
 **Language:** [English](#golem) | [简体中文](#中文说明)
 
-> **AI can write code, read files, execute commands — but it can't see your data.**
-> **Golem fixes that. One binary. Zero trust assumptions.**
+> **AI that understands your data — and knows its limits.**
+> **AI 理解你的数据——也知道自己的边界。**
 
 ---
 
-AI agents are powerful, but they have a blind spot: **your database**.
+AI agents can write code, review PRs, debug systems — but they can't answer "how many users signed up last month?" The data exists. The AI exists. There's no bridge.
 
-You can ask Claude to write a migration, review a query, debug a slow endpoint — but ask it "how many users signed up last month?" and it stares at you. The data exists. The agent exists. There's just no bridge between them.
+Golem is that bridge. It connects AI to your database, understands schemas, translates natural language to SQL, and enforces safety at every step. Not because AI is untrustworthy — because **unconstrained access to data is always risky**, whether the caller is a human or an LLM.
 
-Golem is that bridge. A single Go binary that sits between your AI agent and your database, understanding schemas, enforcing safety, and exposing query capabilities through the Model Context Protocol. No Python runtime. No Docker stack. No dependency chain. Just a binary you point at SQLite and start asking questions.
+```bash
+# Ask your database a question
+golem agent --db ./myapp.db -m "Show me users registered this week"
 
-But Golem is more than a database connector. It's a bet on a specific idea: **that the future of AI infrastructure isn't bigger models — it's safer access patterns.** An LLM that can read your database is useful. An LLM that can read your database *and* is prevented from deleting it is trustworthy.
+# Let Claude Code query your database
+golem mcp-server --db ./myapp.db
+
+# Team API gateway
+golem gateway    # OpenAI-compatible on :18790
+```
+
+One binary. Three modes. Zero dependencies.
 
 ---
 
@@ -34,11 +43,11 @@ Your Database (SQLite / PostgreSQL / MySQL / Redis / Qdrant)
         │
         ▼
 ┌─────────────────┐
-│  AI Agent       │  ← "I can help you write code about your data"
+│  AI Agent       │  ← Can write code, but can't see your data
 │  (Claude, etc.) │
 └─────────────────┘
         │
-        ✗  No bridge. The agent can't see your data.
+        ✗  No bridge.
 ```
 
 ### The Solution
@@ -48,35 +57,35 @@ Your Database (SQLite / PostgreSQL / MySQL / Redis / Qdrant)
         │
         ▼
 ┌─────────────────┐
-│  Golem          │  ← Connects to DB, understands schema
-│  (14MB binary)  │     Enforces: read-only default, WHERE clause,
+│  Golem          │  ← Understands schema + enforces safety
+│  (14MB binary)  │     Read-only default, WHERE enforcement,
 └────────┬────────┘     rollback SQL, audit trail
-         │ MCP Protocol
-         ▼
-┌─────────────────┐
-│  Claude Code    │
-│  Cursor         │  ← "Show me users from last 7 days"
-│  Any MCP client │     Golem executes safely, returns results
-└─────────────────┘
+         │
+    ┌────┴────┐
+    │  MCP    │  ← Claude Code, Cursor, any MCP client
+    │  Agent  │  ← Standalone: no external agent needed
+    │  API    │  ← OpenAI-compatible HTTP gateway
+    └─────────┘
 ```
 
 ### What Makes It Different
 
-**Safety is the product, not a feature.** Most AI-to-database tools give the agent full access and hope for the best. Golem assumes the agent is untrusted:
+**It understands your data AND knows its limits.**
 
-- **Read-only by default** — SELECT only, writes require explicit permission
-- **WHERE enforcement** — no `DELETE FROM users` without a WHERE clause
-- **Rollback SQL** — auto-generated for every destructive operation
-- **Audit trail** — every allowed and denied operation is logged
-- **SQL normalization** — strips comments, rejects multi-statement injection
+Most database AI tools focus on one side: either they give AI full access (dangerous) or they block AI entirely (useless). Golem does both:
 
-**One binary. One command. Your data.**
+**Understanding (AI side):**
+- Schema-aware: knows your tables, columns, relationships
+- Natural language → SQL translation
+- Query optimization suggestions
+- Multi-database support (SQLite, PostgreSQL, MySQL, Redis, Qdrant)
 
-```bash
-golem agent --db ./myapp.db -m "Show me users registered this week"
-```
-
-No setup wizard. No config file needed. No Python environment to break. Point it at a database and ask questions.
+**Safety (Proxy side):**
+- Read-only by default — writes require explicit permission
+- WHERE enforcement — no `DELETE FROM users` without a WHERE clause
+- Rollback SQL — auto-generated for every destructive operation
+- SQL normalization — strips comments, rejects multi-statement injection
+- Audit trail — every allowed and denied operation is logged
 
 ---
 
@@ -397,33 +406,45 @@ MIT License
 
 [English](#golem) | **中文**
 
-> **AI 能写代码、读文件、执行命令——但它看不到你的数据。**
-> **Golem 解决这个问题。一个二进制文件。零信任假设。**
+> **AI 理解你的数据——也知道自己的边界。**
 
-AI agent 很强大，但有一个盲区：**你的数据库**。
+AI agent 能写代码、审查 PR、调试系统——但无法回答"上个月有多少用户注册？" 数据存在，AI 存在，只是缺少桥梁。
 
-你可以让 Claude 写迁移、审查查询、调试慢接口——但问它"上个月有多少用户注册？"，它无能为力。数据存在，agent 存在，只是两者之间没有桥梁。
+Golem 就是这座桥梁。它连接 AI 和数据库，理解表结构，将自然语言翻译为 SQL，并在每一步强制安全策略。不是因为 AI 不可信——而是**无论调用者是人还是 LLM，不受约束的数据访问始终是风险。**
 
-Golem 就是这座桥梁。一个 Go 二进制文件，坐在 AI agent 和数据库之间，理解表结构、强制安全策略、通过 MCP 协议暴露查询能力。无需 Python 运行时，无需 Docker 栈，无需依赖链。指向 SQLite，开始提问。
+```bash
+# 向数据库提问
+golem agent --db ./myapp.db -m "查询本周注册的用户"
 
-但 Golem 不只是数据库连接器。它基于一个信念：**AI 基础设施的未来不是更大的模型，而是更安全的访问模式。** 一个能读你数据库的 LLM 有用，一个能读你数据库**且被阻止删除数据的** LLM 才值得信任。
+# 让 Claude Code 查询数据库
+golem mcp-server --db ./myapp.db
+
+# 团队 API 网关
+golem gateway    # OpenAI 兼容，端口 :18790
+```
+
+一个二进制文件。三种模式。零依赖。
 
 ### 核心优势
 
-- **安全即产品** — 默认只读，写操作需显式授权，WHERE 子句强制，自动生成回滚 SQL
-- **SQL 注入防护** — 剥离注释、拒绝多语句、保守分类器
-- **审计追踪** — 每次允许和拒绝的操作都被记录
-- **零依赖单二进制** — 14MB，支持 Linux/macOS/Android Termux
-- **严格分层架构** — Go import 系统强制执行，不是文档约定
-- **LLM KV-Cache 优化** — 工具按字母序排列，最大化缓存复用
-- **9 家 LLM 提供商** — 2 个协议适配器覆盖全部（OpenAI-compatible + Anthropic）
-- **消息总线解耦** — TUI/Gateway/Telegram 通道独立演进
-- **LLM 驱动压缩** — 替代简单截断，保留对话上下文
-- **BM25 + 向量混合检索** — 支持中英文，RRF 融合排序
-- **Provider Fallback 路由** — 自动故障转移，带 cooldown 追踪
-- **健康检查** — 定时探测 provider 状态
-- **安全头 + 审计日志** — CSP、X-Frame-Options 等安全头，401/429/403 事件结构化日志
-- **Prometheus 指标** — LLM 调用、token 消耗、工具执行、成本估算全覆盖
+**理解（AI 侧）：**
+- Schema 感知：知道你的表、列、关系
+- 自然语言 → SQL 翻译
+- 查询优化建议
+- 多数据库支持（SQLite、PostgreSQL、MySQL、Redis、Qdrant）
+
+**安全（代理侧）：**
+- 默认只读——写操作需显式授权
+- WHERE 强制——不允许无 WHERE 的 DELETE/UPDATE
+- 回滚 SQL——每次破坏性操作自动生成
+- SQL 归一化——剥离注释、拒绝多语句注入
+- 审计追踪——每次允许和拒绝的操作都被记录
+
+**基础设施：**
+- 零依赖单二进制（14MB），支持 Linux/macOS/Android Termux
+- 9 家 LLM 提供商（2 个协议适配器覆盖全部）
+- Provider Fallback 路由 + 健康检查
+- 安全头 + Prometheus 指标 + 结构化审计日志
 
 ### 快速开始
 
