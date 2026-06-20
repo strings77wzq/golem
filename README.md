@@ -261,18 +261,27 @@ foundation/ → stdlib only (zero project dependencies)
 
 ## Supported LLM Providers
 
-| Provider | Local/Cloud | Notes |
-|----------|-------------|-------|
-| Ollama | Local | Fully offline |
-| OpenAI | Cloud | GPT-4o, GPT-4 |
-| Anthropic | Cloud | Claude 3.5 Sonnet |
-| DeepSeek | Cloud | DeepSeek Chat |
-| Kimi | Cloud | Moonshot |
-| GLM | Cloud | Zhipu |
-| MiniMax | Cloud | MiniMax |
-| Qwen | Cloud | Tongyi Qianwen |
+Golem uses **2 protocol adapters** that cover all providers:
 
-Also supports any OpenAI-compatible API (vLLM, OpenRouter, LiteLLM).
+| Protocol | Adapter | Providers |
+|----------|---------|-----------|
+| **OpenAI-compatible** | `openai` adapter | OpenAI, DeepSeek, Kimi (Moonshot), GLM (Zhipu), MiniMax, Qwen (DashScope), MiMo, Ollama (local) |
+| **Anthropic** | `anthropic` adapter | Anthropic (Claude) |
+
+Any provider with an OpenAI-compatible API works out of the box — just set the base URL:
+
+```yaml
+model_list:
+  - model: deepseek-chat
+    vendor: deepseek
+    api_base: https://api.deepseek.com    # OpenAI-compatible
+  - model: gpt-4o
+    vendor: openai
+  - model: claude-3-5-sonnet
+    vendor: anthropic
+```
+
+Also supports any OpenAI-compatible endpoint (vLLM, OpenRouter, LiteLLM) via custom `api_base`.
 
 ---
 
@@ -367,7 +376,7 @@ Golem 是一个 Go 原生的数据库 AI Agent。它连接你的数据库，理�
 - **零依赖单二进制** — 14MB，支持 Linux/macOS/Android Termux
 - **严格分层架构** — Go import 系统强制执行，不是文档约定
 - **LLM KV-Cache 优化** — 工具按字母序排列，最大化缓存复用
-- **9 家 LLM 提供商** — OpenAI、Anthropic、DeepSeek、Kimi、GLM、MiniMax、Qwen、Ollama
+- **9 家 LLM 提供商** — OpenAI、Anthropic、DeepSeek、Kimi、GLM、MiniMax、Qwen、Ollama、MiMo（2 个协议适配器覆盖全部）
 - **消息总线解耦** — TUI/Gateway/Telegram 通道独立演进
 - **LLM 驱动压缩** — 替代简单截断，保留对话上下文
 - **BM25 + 向量混合检索** — 支持中英文，RRF 融合排序
