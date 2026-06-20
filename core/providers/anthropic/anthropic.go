@@ -47,7 +47,7 @@ type Option func(*Provider)
 func WithAPIBase(base string) Option {
 	return func(p *Provider) {
 		base = strings.TrimRight(base, "/")
-		base = strings.TrimRight(base, "/v1")
+		base = strings.TrimSuffix(base, "/v1")
 		p.apiBase = base
 	}
 }
