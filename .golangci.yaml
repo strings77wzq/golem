@@ -27,6 +27,8 @@ linters:
     - contextcheck      # context passing patterns
     - copyloopvar       # Go 1.22+ loop variable semantics
     - cyclop            # cyclomatic complexity (many functions > 10)
+    - dogsled           # multiple blank identifiers (test code)
+    - dupl              # duplicate code detection (database drivers share patterns)
 
   settings:
     staticcheck:
