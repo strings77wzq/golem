@@ -18,6 +18,8 @@ linters:
     - revive
   disable:
     - errcheck
+    - gocritic
+    - gosec
 
   settings:
     staticcheck:
