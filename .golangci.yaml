@@ -35,19 +35,20 @@ linters:
         - G104  # checks unsafe (audit mode)
         - G115  # integer overflow conversion
 
+  exclusions:
+    rules:
+      # Exclude test files from some linters
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+      - path: core/database/
+        linters:
+          - gosec      # SQL driver needs dynamic queries
+
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-
-  # Exclude test files from some linters
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gosec
-        - errcheck
-    - path: core/database/
-      linters:
-        - gosec      # SQL driver needs dynamic queries
 
 formatters:
   enable:
