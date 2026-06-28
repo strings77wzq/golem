@@ -22,13 +22,16 @@ linters:
     - wrapcheck         # wrap all errors
     - wsl               # whitespace linter
     # Pre-existing issues, disable for now
-    - canonicalheader   # HTTP header casing (Anthropic API uses lowercase)
-    - containedctx      # struct with context.Context (TUI/Telegram adapters)
-    - contextcheck      # context passing patterns
-    - copyloopvar       # Go 1.22+ loop variable semantics
-    - cyclop            # cyclomatic complexity (many functions > 10)
-    - dogsled           # multiple blank identifiers (test code)
-    - dupl              # duplicate code detection (database drivers share patterns)
+    - canonicalheader              # HTTP header casing (Anthropic API uses lowercase)
+    - containedctx                 # struct with context.Context (TUI/Telegram adapters)
+    - contextcheck                 # context passing patterns
+    - copyloopvar                  # Go 1.22+ loop variable semantics
+    - cyclop                       # cyclomatic complexity (many functions > 10)
+    - dogsled                      # multiple blank identifiers (test code)
+    - dupl                         # duplicate code detection (database drivers share patterns)
+    - dupword                      # duplicate words in test strings
+    - embeddedstructfieldcheck     # embedded field formatting
+    - err113                       # dynamic error creation (codebase uses fmt.Errorf extensively)
 
   settings:
     staticcheck:
