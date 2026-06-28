@@ -4,34 +4,21 @@ run:
   timeout: 5m
 
 linters:
-  default: all
-  disable:
-    # Too noisy for this codebase
-    - exhaustruct       # requires filling all struct fields
-    - depguard          # dependency guard (not needed yet)
-    - forbidigo         # forbid certain patterns
-    - funlen            # function length warnings
-    - gochecknoglobals  # complains about global vars
-    - gochecknoinits    # complains about init()
-    - ireturn           # interface return type
-    - lll               # line length limit
-    - mnd               # magic number detector
-    - tagliatelle       # JSON tag naming
-    - testpackage       # test package naming
-    - varnamelen        # variable name length
-    - wrapcheck         # wrap all errors
-    - wsl               # whitespace linter
-    # Pre-existing issues, disable for now
-    - canonicalheader              # HTTP header casing (Anthropic API uses lowercase)
-    - containedctx                 # struct with context.Context (TUI/Telegram adapters)
-    - contextcheck                 # context passing patterns
-    - copyloopvar                  # Go 1.22+ loop variable semantics
-    - cyclop                       # cyclomatic complexity (many functions > 10)
-    - dogsled                      # multiple blank identifiers (test code)
-    - dupl                         # duplicate code detection (database drivers share patterns)
-    - dupword                      # duplicate words in test strings
-    - embeddedstructfieldcheck     # embedded field formatting
-    - err113                       # dynamic error creation (codebase uses fmt.Errorf extensively)
+  enable:
+    - gofmt
+    - goimports
+    - govet
+    - staticcheck
+    - gosec
+    - errcheck
+    - ineffassign
+    - unused
+    - unconvert
+    - misspell
+    - nakedret
+    - prealloc
+    - gocritic
+    - revive
 
   settings:
     staticcheck:
@@ -40,7 +27,6 @@ linters:
         - -QF1012       # disable QR-code-like structures warning
 
     gosec:
-      # High/medium severity security issues
       severity: medium
       excludes:
         - G104  # checks unsafe (audit mode)
@@ -48,7 +34,6 @@ linters:
 
   exclusions:
     rules:
-      # Exclude test files from some linters
       - path: _test\.go
         linters:
           - gosec
