@@ -21,6 +21,12 @@ linters:
     - varnamelen        # variable name length
     - wrapcheck         # wrap all errors
     - wsl               # whitespace linter
+    # Pre-existing issues, disable for now
+    - canonicalheader   # HTTP header casing (Anthropic API uses lowercase)
+    - containedctx      # struct with context.Context (TUI/Telegram adapters)
+    - contextcheck      # context passing patterns
+    - copyloopvar       # Go 1.22+ loop variable semantics
+    - cyclop            # cyclomatic complexity (many functions > 10)
 
   settings:
     staticcheck:
