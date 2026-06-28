@@ -1,7 +1,7 @@
 package agent
 
 import (
-	"github.com/strings77wzq/golem/internal/metrics"
+	"github.com/strings77wzq/golem/foundation/metrics"
 )
 
 // Agent-level metrics for observability.

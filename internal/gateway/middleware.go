@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/strings77wzq/golem/foundation/logger"
-	"github.com/strings77wzq/golem/internal/metrics"
+	"github.com/strings77wzq/golem/foundation/metrics"
 )
 
 type Middleware func(http.Handler) http.Handler

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/strings77wzq/golem/core/session"
-	"github.com/strings77wzq/golem/internal/metrics"
+	"github.com/strings77wzq/golem/foundation/metrics"
 )
 
 const maxRequestBodyBytes = 1 << 20 // 1 MB

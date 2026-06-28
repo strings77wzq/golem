@@ -140,7 +140,7 @@ func runAgent(cmd *cobra.Command) error {
 	}
 
 	// Build core registries
-	skillRegistry := wiring.LoadSkills(log, skillsDir, skillsFilter)
+	skillRegistry := LoadSkills(log, skillsDir, skillsFilter)
 	b := bus.New()
 	workspace, _ := os.Getwd()
 
@@ -235,7 +235,7 @@ func runAgent(cmd *cobra.Command) error {
 		log.Info("session store ready", "type", "in-memory", "warning", "sessions will not persist across restarts")
 	}
 
-	systemPrompt := wiring.BuildSystemPrompt(cfg.Agents.Defaults.SystemPrompt, skillRegistry)
+	systemPrompt := BuildSystemPrompt(cfg.Agents.Defaults.SystemPrompt, skillRegistry)
 
 	// Add data integrity instruction when database tools are available
 	if dbFlag != "" {
