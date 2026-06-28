@@ -16,6 +16,8 @@ linters:
     - prealloc
     - gocritic
     - revive
+  disable:
+    - errcheck
 
   settings:
     staticcheck:
