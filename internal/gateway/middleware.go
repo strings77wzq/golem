@@ -165,10 +165,10 @@ func MetricsMiddleware() Middleware {
 // SecurityHeadersConfig holds configurable security header values.
 // Empty string means the header is not set.
 type SecurityHeadersConfig struct {
-	ContentTypeOptions string
-	FrameOptions       string
-	XSSProtection      string
-	ReferrerPolicy     string
+	ContentTypeOptions    string
+	FrameOptions          string
+	XSSProtection         string
+	ReferrerPolicy        string
 	ContentSecurityPolicy string
 }
 

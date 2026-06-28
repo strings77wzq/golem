@@ -259,5 +259,3 @@ func TestDebugTools_FlagJSON(t *testing.T) {
 		t.Errorf("JSON output should contain 'description' field, got: %s", output)
 	}
 }
-
-

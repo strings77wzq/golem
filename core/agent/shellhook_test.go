@@ -189,9 +189,9 @@ func TestHookOutput_Defaults(t *testing.T) {
 
 func TestHookInput_JSON(t *testing.T) {
 	input := &HookInput{
-		SessionID: "test",
-		ToolName:  "sql_query",
-		ToolInput: map[string]interface{}{"sql": "SELECT 1"},
+		SessionID:  "test",
+		ToolName:   "sql_query",
+		ToolInput:  map[string]interface{}{"sql": "SELECT 1"},
 		ToolOutput: "result",
 	}
 	// Just verify it marshals without error

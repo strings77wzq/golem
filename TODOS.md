@@ -5,33 +5,18 @@ Each entry has enough context that someone picking it up in 3 months understands
 
 ---
 
-## Local LLM provider (Ollama)
+## ~~Local LLM provider (Ollama)~~ — COMPLETED
 
-**What:** Add an Ollama provider adapter under `core/providers/ollama/` so users can run open-source LLMs locally without any API key.
+**Status:** ✅ Implemented and wired. Provider adapter at `core/providers/ollama/`, registered via init(), onboard preset "Ollama (local, no key needed)".
 
-**Why:** The current "local-first" positioning is partially aspirational — `golem agent -M mock/echo` proves runtime works, but real LLM inference still requires a cloud provider key. An Ollama integration makes "local-first" a true product claim, not just a runtime validation aid. This is a major differentiator vs Python frameworks because Go's static binary plus Ollama gives users a fully offline AI agent stack.
-
-**Pros:**
-- Closes the strongest critique of the v0.6.x repositioning ("mock isn't real local").
-- Aligns directly with the north star: "Go-native local-first AI agent runtime."
-- Differentiator for Termux/edge use cases where cloud APIs are slow/unavailable.
-
-**Cons:**
-- New runtime dependency: users must install Ollama separately.
-- Testing matrix grows: integration tests need Ollama or an Ollama-compatible mock.
-- Potential confusion: "local-first" now means three things (mock validation, Ollama, cloud-with-local-CLI).
-
-**Context:**
-- `feature/` layer is the right home if optional, `core/providers/ollama/` if always-registered.
-- Pattern: copy `core/providers/openai/` adapter and adjust API base + auth.
-- Ollama exposes an OpenAI-compatible endpoint at `http://localhost:11434/v1`.
-- Update `cmd/golem/onboard.go` `providerPresets` to include Ollama.
-- Update README maturity matrix row for "providers" once landed.
-
-**Depends on / blocked by:**
-- None. Can be built standalone after slice 1+2 of the current change ship.
-
-**Source:** Codex outside-voice review (2026-06-13) flagged that mock-echo is not true local-first.
+**What was done:**
+- `core/providers/ollama/ollama.go` — wraps OpenAI adapter with Ollama defaults (no API key, localhost base)
+- `core/providers/ollama/register.go` — init() registration in GlobalRegistry
+- `core/providers/ollama/ollama_test.go` — 3 tests (New, WithAPIBase, HealthCheckUnreachable)
+- `internal/wiring/providers.go` — blank import triggers init()
+- `cmd/golem/onboard.go` — "Ollama (local, no key needed)" preset + connectivity validation
+- HealthCheck queries `/api/tags` for model discovery
+- ListModels returns installed model names
 
 ---
 

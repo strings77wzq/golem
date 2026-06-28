@@ -152,7 +152,7 @@ func loadDocumentsFromDir(dir string) ([]rag.RawDocument, error) {
 type ragTool struct {
 	hybrid   *rag.HybridRetriever
 	indexDir string
-	docCount  int
+	docCount int
 }
 
 func (r *ragTool) Name() string {

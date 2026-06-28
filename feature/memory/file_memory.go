@@ -7,14 +7,16 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/strings77wzq/golem/foundation/bm25"
 )
 
 type FileMemory struct {
 	filePath string
 	entries  map[string]*Entry
+	bm25     *bm25.BM25Index
 	mu       sync.RWMutex
 }
 
@@ -22,6 +24,7 @@ func NewFileMemory(filePath string) (*FileMemory, error) {
 	fm := &FileMemory{
 		filePath: filePath,
 		entries:  make(map[string]*Entry),
+		bm25:     bm25.NewBM25Index(),
 	}
 
 	if _, err := os.Stat(filePath); err == nil {
@@ -37,6 +40,7 @@ func NewFileMemory(filePath string) (*FileMemory, error) {
 
 		for _, entry := range entries {
 			fm.entries[entry.ID] = entry
+			fm.bm25.Add(entry.ID, buildIndexText(entry))
 		}
 	}
 
@@ -53,6 +57,7 @@ func (fm *FileMemory) Store(ctx context.Context, entry *Entry) error {
 	entry.UpdatedAt = time.Now()
 
 	fm.entries[entry.ID] = entry
+	fm.bm25.Add(entry.ID, buildIndexText(entry))
 	return fm.persist()
 }
 
@@ -61,36 +66,20 @@ func (fm *FileMemory) Recall(ctx context.Context, query string, limit int) ([]*E
 		return nil, nil
 	}
 
-	queryWords := strings.Fields(strings.ToLower(query))
-	if len(queryWords) == 0 {
-		return nil, nil
-	}
-
-	now := time.Now()
+	fm.mu.RLock()
+	bm25Results := fm.bm25.Search(query, limit)
 
 	type scoredEntry struct {
 		entry *Entry
 		score float64
 	}
 
-	// Read phase: score all entries under RLock
-	fm.mu.RLock()
 	var scored []scoredEntry
-	for _, entry := range fm.entries {
-		wordScore := 0
-		contentLower := strings.ToLower(entry.Content)
-
-		for _, word := range queryWords {
-			wordScore += strings.Count(contentLower, word)
-
-			for _, tag := range entry.Tags {
-				wordScore += strings.Count(strings.ToLower(tag), word)
-			}
-		}
-
-		if wordScore > 0 {
+	now := time.Now()
+	for _, r := range bm25Results {
+		if entry, ok := fm.entries[r.ID]; ok {
 			decayed := entry.DecayedImportance(now, DefaultDecayLambda)
-			finalScore := float64(wordScore) * (1.0 + decayed)
+			finalScore := r.Score * (1.0 + decayed)
 			scored = append(scored, scoredEntry{entry: entry, score: finalScore})
 		}
 	}
@@ -105,7 +94,6 @@ func (fm *FileMemory) Recall(ctx context.Context, query string, limit int) ([]*E
 		result = append(result, scored[i].entry)
 	}
 
-	// Write phase: update AccessedAt under write lock
 	fm.mu.Lock()
 	for _, entry := range result {
 		entry.AccessedAt = now
@@ -119,6 +107,7 @@ func (fm *FileMemory) Forget(ctx context.Context, id string) error {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
 
+	fm.bm25.Remove(id)
 	delete(fm.entries, id)
 	return fm.persist()
 }

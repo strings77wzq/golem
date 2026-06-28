@@ -4,10 +4,10 @@ package security
 type SecurityEvent string
 
 const (
-	EventSQLAllowed    SecurityEvent = "sql_allowed"
-	EventSQLDenied     SecurityEvent = "sql_denied"
-	EventExecAllowed   SecurityEvent = "exec_allowed"
-	EventExecDenied    SecurityEvent = "exec_denied"
+	EventSQLAllowed  SecurityEvent = "sql_allowed"
+	EventSQLDenied   SecurityEvent = "sql_denied"
+	EventExecAllowed SecurityEvent = "exec_allowed"
+	EventExecDenied  SecurityEvent = "exec_denied"
 )
 
 // SecurityEventHandler processes security events.

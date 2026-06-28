@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/strings77wzq/golem/foundation/logger"
 	"github.com/strings77wzq/golem/feature/health"
+	"github.com/strings77wzq/golem/foundation/logger"
 )
 
 // HealthConfig holds the JSON configuration for the --health flag.

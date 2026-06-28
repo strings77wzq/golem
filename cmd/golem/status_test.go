@@ -49,12 +49,12 @@ func TestStatus_EmptyRegistry(t *testing.T) {
 
 func TestStatus_ShowsFeatures(t *testing.T) {
 	features := FeatureStatus{
-		MCPEnabled:   true,
-		MCPServers:   2,
-		RAGEnabled:   false,
+		MCPEnabled:    true,
+		MCPServers:    2,
+		RAGEnabled:    false,
 		MemoryEnabled: true,
 		SkillsEnabled: true,
-		SkillsCount:  5,
+		SkillsCount:   5,
 	}
 	buf := new(bytes.Buffer)
 

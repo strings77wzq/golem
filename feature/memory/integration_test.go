@@ -49,8 +49,8 @@ func TestMemoryRecallRelevance(t *testing.T) {
 	mem := NewInMemoryStore()
 	ctx := context.Background()
 
-	mem.Store(ctx, NewEntry("Golem is great", "golang"))
-	mem.Store(ctx, NewEntry("Golem Golem Golem is amazing", "golang"))
+	mem.Store(ctx, NewEntry("golang is a programming language", "reference"))
+	mem.Store(ctx, NewEntry("golang golang golang concurrency patterns", "reference"))
 
 	results, err := mem.Recall(ctx, "golang", 10)
 	if err != nil {
@@ -59,8 +59,7 @@ func TestMemoryRecallRelevance(t *testing.T) {
 	if len(results) != 2 {
 		t.Fatalf("expected 2 results, got %d", len(results))
 	}
-	// Entry with more "golang" mentions should rank higher
-	if results[0].Content != "Golem Golem Golem is amazing" {
+	if results[0].Content != "golang golang golang concurrency patterns" {
 		t.Errorf("expected higher-relevance entry first, got: %s", results[0].Content)
 	}
 }

@@ -15,12 +15,12 @@ import (
 
 // AgentConfig represents a YAML agent definition.
 type AgentConfig struct {
-	Version    int            `yaml:"version"`
-	Agent      AgentSpec      `yaml:"agent"`
-	Tools      []ToolSpec     `yaml:"tools,omitempty"`
-	Database   *DBSpec        `yaml:"database,omitempty"`
-	MCPServers []MCPDef       `yaml:"mcp,omitempty"`
-	Hooks      *HooksSpec     `yaml:"hooks,omitempty"`
+	Version    int        `yaml:"version"`
+	Agent      AgentSpec  `yaml:"agent"`
+	Tools      []ToolSpec `yaml:"tools,omitempty"`
+	Database   *DBSpec    `yaml:"database,omitempty"`
+	MCPServers []MCPDef   `yaml:"mcp,omitempty"`
+	Hooks      *HooksSpec `yaml:"hooks,omitempty"`
 }
 
 // AgentSpec defines agent behavior.

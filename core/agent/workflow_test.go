@@ -22,8 +22,8 @@ func TestAgentWorkflow_SimpleTextResponse(t *testing.T) {
 	defer b.Close()
 
 	mockProvider.AddResponse(&providers.LLMResponse{
-		Content:   "4",
-		Usage:     providers.TokenUsage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
+		Content:    "4",
+		Usage:      providers.TokenUsage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
 		StopReason: "end_turn",
 	})
 

@@ -26,7 +26,7 @@ func TestRetryProvider_SucceedsFirstTry(t *testing.T) {
 func TestRetryProvider_RetriesOnRetryableError(t *testing.T) {
 	mock := &failingProvider{
 		failCount: 2,
-	 response: &LLMResponse{Content: "success after retry"},
+		response:  &LLMResponse{Content: "success after retry"},
 	}
 	retry := NewRetryProvider(mock, RetryConfig{
 		MaxRetries: 3,

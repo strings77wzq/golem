@@ -7,17 +7,31 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/strings77wzq/golem/foundation/bm25"
 )
 
 type InMemoryStore struct {
 	entries map[string]*Entry
+	bm25    *bm25.BM25Index
 	mu      sync.RWMutex
 }
 
 func NewInMemoryStore() *InMemoryStore {
 	return &InMemoryStore{
 		entries: make(map[string]*Entry),
+		bm25:    bm25.NewBM25Index(),
 	}
+}
+
+func buildIndexText(entry *Entry) string {
+	var sb strings.Builder
+	sb.WriteString(entry.Content)
+	for _, tag := range entry.Tags {
+		sb.WriteString(" ")
+		sb.WriteString(tag)
+	}
+	return sb.String()
 }
 
 func (s *InMemoryStore) Store(ctx context.Context, entry *Entry) error {
@@ -30,6 +44,7 @@ func (s *InMemoryStore) Store(ctx context.Context, entry *Entry) error {
 	entry.UpdatedAt = time.Now()
 
 	s.entries[entry.ID] = entry
+	s.bm25.Add(entry.ID, buildIndexText(entry))
 	return nil
 }
 
@@ -38,36 +53,20 @@ func (s *InMemoryStore) Recall(ctx context.Context, query string, limit int) ([]
 		return nil, nil
 	}
 
-	queryWords := strings.Fields(strings.ToLower(query))
-	if len(queryWords) == 0 {
-		return nil, nil
-	}
-
-	now := time.Now()
+	s.mu.RLock()
+	bm25Results := s.bm25.Search(query, limit)
 
 	type scoredEntry struct {
 		entry *Entry
 		score float64
 	}
 
-	// Read phase: score all entries under RLock
-	s.mu.RLock()
 	var scored []scoredEntry
-	for _, entry := range s.entries {
-		wordScore := 0
-		contentLower := strings.ToLower(entry.Content)
-
-		for _, word := range queryWords {
-			wordScore += strings.Count(contentLower, word)
-
-			for _, tag := range entry.Tags {
-				wordScore += strings.Count(strings.ToLower(tag), word)
-			}
-		}
-
-		if wordScore > 0 {
+	now := time.Now()
+	for _, r := range bm25Results {
+		if entry, ok := s.entries[r.ID]; ok {
 			decayed := entry.DecayedImportance(now, DefaultDecayLambda)
-			finalScore := float64(wordScore) * (1.0 + decayed)
+			finalScore := r.Score * (1.0 + decayed)
 			scored = append(scored, scoredEntry{entry: entry, score: finalScore})
 		}
 	}
@@ -82,7 +81,6 @@ func (s *InMemoryStore) Recall(ctx context.Context, query string, limit int) ([]
 		result = append(result, scored[i].entry)
 	}
 
-	// Write phase: update AccessedAt under write lock
 	s.mu.Lock()
 	for _, entry := range result {
 		entry.AccessedAt = now
@@ -96,6 +94,7 @@ func (s *InMemoryStore) Forget(ctx context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.bm25.Remove(id)
 	delete(s.entries, id)
 	return nil
 }
@@ -162,6 +161,7 @@ func (s *InMemoryStore) Cleanup(ctx context.Context, threshold float64) (int, er
 
 		decayed := entry.DecayedImportance(now, DefaultDecayLambda)
 		if decayed < threshold {
+			s.bm25.Remove(id)
 			delete(s.entries, id)
 			deleted++
 		}

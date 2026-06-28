@@ -8,11 +8,11 @@ import (
 // If user sends /new while agent is thinking, the thinking animation persists.
 func TestNewSessionCommand_ResetsThinkingState(t *testing.T) {
 	m := &Model{
-		thinking:   true,
-		lastError:  "some error",
-		messages:   []chatMsg{{role: roleAssistant, content: "old message"}},
-		sessionID:  "old-session",
-		input:      "old input",
+		thinking:  true,
+		lastError: "some error",
+		messages:  []chatMsg{{role: roleAssistant, content: "old message"}},
+		sessionID: "old-session",
+		input:     "old input",
 	}
 
 	cmd := &newSessionCmd{}

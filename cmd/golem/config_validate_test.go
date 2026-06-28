@@ -109,7 +109,7 @@ func TestConfigValidate_MaxTokensZero(t *testing.T) {
 
 func TestConfigValidateResult_String(t *testing.T) {
 	result := ConfigValidateResult{
-		Valid: false,
+		Valid:  false,
 		Errors: []string{"missing model_name", "invalid model format"},
 	}
 	s := result.String()
