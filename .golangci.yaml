@@ -20,6 +20,9 @@ linters:
     - errcheck
     - gocritic
     - gosec
+    - ineffassign
+    - prealloc
+    - revive
 
   settings:
     staticcheck:
