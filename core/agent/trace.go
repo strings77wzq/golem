@@ -6,8 +6,6 @@ import (
 	"github.com/strings77wzq/golem/foundation/logger"
 )
 
-type contextKey struct{}
-
 // WithTraceID attaches a trace ID to the context.
 func WithTraceID(ctx context.Context, traceID string) context.Context {
 	return logger.WithTraceID(ctx, traceID)
