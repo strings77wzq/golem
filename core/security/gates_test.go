@@ -82,22 +82,109 @@ func TestQualityGateUpdateNoWhere(t *testing.T) {
 }
 
 func TestGenerateDeleteRollback(t *testing.T) {
-	sql := GenerateDeleteRollback("users", "id = ?", []interface{}{1})
+	sql, err := GenerateDeleteRollback("users", "id = ?", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if sql == "" {
 		t.Error("expected non-empty rollback SQL")
 	}
 	if !strings.Contains(sql, "INSERT INTO") {
 		t.Error("expected INSERT INTO in rollback SQL")
 	}
+	// Where placeholder must be preserved so args can be bound by the driver.
+	if !strings.Contains(sql, "WHERE id = ?") {
+		t.Errorf("expected preserved WHERE placeholder, got: %s", sql)
+	}
+	// Identifier must be quoted, never interpolated raw.
+	if !strings.Contains(sql, `"users"`) {
+		t.Errorf("expected quoted identifier \"users\", got: %s", sql)
+	}
+}
+
+func TestGenerateDeleteRollbackInjection(t *testing.T) {
+	// A malicious table name must be rejected, not interpolated.
+	sql, err := GenerateDeleteRollback("users; DROP TABLE users--", "id = ?", nil)
+	if err == nil {
+		t.Errorf("expected error for injection table, got sql: %s", sql)
+	}
+	if sql != "" {
+		t.Errorf("expected empty SQL on rejection, got: %s", sql)
+	}
+}
+
+func TestGenerateDeleteRollbackEmptyWhere(t *testing.T) {
+	if _, err := GenerateDeleteRollback("users", "", nil); err == nil {
+		t.Error("expected error for empty WHERE clause")
+	}
+}
+
+func TestGenerateDeleteRollbackBadIdentifier(t *testing.T) {
+	if _, err := GenerateDeleteRollback("bad name!", "id = ?", nil); err == nil {
+		t.Error("expected error for identifier outside charset")
+	}
 }
 
 func TestGenerateUpdateRollback(t *testing.T) {
-	sql := GenerateUpdateRollback("users", "name = 'bob'", "id = 1", map[string]interface{}{"name": "alice"})
+	sql, err := GenerateUpdateRollback("users", "id = 1", map[string]interface{}{"name": "alice"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if sql == "" {
 		t.Error("expected non-empty rollback SQL")
 	}
 	if !strings.Contains(sql, "UPDATE") {
 		t.Error("expected UPDATE in rollback SQL")
+	}
+	// SET clause must be rebuilt from oldValues, single-quote-escaped.
+	if want := `'alice'`; !strings.Contains(sql, want) {
+		t.Errorf("expected escaped value %s in SET, got: %s", want, sql)
+	}
+	if !strings.Contains(sql, "name") {
+		t.Errorf("expected column name in SET, got: %s", sql)
+	}
+	if !strings.Contains(sql, "WHERE id = 1") {
+		t.Errorf("expected preserved WHERE, got: %s", sql)
+	}
+	if !strings.Contains(sql, `"users"`) {
+		t.Errorf("expected quoted identifier, got: %s", sql)
+	}
+}
+
+func TestGenerateUpdateRollbackEscapesSingleQuote(t *testing.T) {
+	sql, err := GenerateUpdateRollback("users", "id = 1", map[string]interface{}{"name": "Bob's pen"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// A single quote in the value must be doubled (ANSI escaping), never
+	// emitted raw — otherwise the rollback SQL breaks out of the literal.
+	if !strings.Contains(sql, `'Bob''s pen'`) {
+		t.Errorf("expected single-quote-escaped value, got: %s", sql)
+	}
+}
+
+func TestGenerateUpdateRollbackNilOldValues(t *testing.T) {
+	// Refuse to emit a malformed "UPDATE tbl SET  WHERE …".
+	if _, err := GenerateUpdateRollback("users", "id = 1", nil); err == nil {
+		t.Error("expected error for nil oldValues")
+	}
+}
+
+func TestGenerateUpdateRollbackEmptyOldValues(t *testing.T) {
+	if _, err := GenerateUpdateRollback("users", "id = 1", map[string]interface{}{}); err == nil {
+		t.Error("expected error for empty oldValues")
+	}
+}
+
+func TestGenerateUpdateRollbackBadIdentifier(t *testing.T) {
+	if _, err := GenerateUpdateRollback("users; DROP", "id = 1", map[string]interface{}{"name": "x"}); err == nil {
+		t.Error("expected error for injection table")
+	}
+}
+
+func TestGenerateUpdateRollbackEmptyWhere(t *testing.T) {
+	if _, err := GenerateUpdateRollback("users", "", map[string]interface{}{"name": "x"}); err == nil {
+		t.Error("expected error for empty WHERE")
 	}
 }
 

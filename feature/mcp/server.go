@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 
 	"github.com/strings77wzq/golem/core/tools"
@@ -212,7 +213,11 @@ func (s *Server) send(resp interface{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	data, _ := json.Marshal(resp)
+	data, err := json.Marshal(resp)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "MCP server marshal error: %v\n", err)
+		return
+	}
 	data = append(data, '\n')
 	s.stdout.Write(data)
 }

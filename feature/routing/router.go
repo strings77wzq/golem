@@ -50,6 +50,9 @@ func (r *Router) Chat(ctx context.Context, modelName string, messages []provider
 		var lastErr error
 		// Try each provider in the route, respecting cooldowns
 		for _, providerModel := range route {
+			if chain.IsInCooldown(providerModel) {
+				continue
+			}
 			provider, model, err := r.factory.GetProviderForModel(providerModel)
 			if err != nil {
 				lastErr = err

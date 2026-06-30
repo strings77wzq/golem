@@ -177,16 +177,27 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 		return &tools.ToolResult{ForLLM: fmt.Sprintf("Execute error: %v", err), IsError: true}, nil
 	}
 
-	// Generate rollback SQL for DELETE/UPDATE operations
-	var rollbackSQL string
+	// Generate rollback SQL for DELETE/UPDATE operations. The new generators
+	// return (sql, error) so malformed/injectable rollback is never emitted;
+	// on error we record a documented "rollback unavailable" note in the audit
+	// trail rather than shipping broken SQL (e.g. UPDATE … SET  WHERE …).
 	upper := strings.TrimSpace(strings.ToUpper(sqlQuery))
-	if strings.HasPrefix(upper, "DELETE") {
-		rollbackSQL = security.GenerateDeleteRollback(extractTableName(sqlQuery), extractWhereClause(sqlQuery), queryArgs)
-	} else if strings.HasPrefix(upper, "UPDATE") {
-		rollbackSQL = security.GenerateUpdateRollback(extractTableName(sqlQuery), extractSetClause(sqlQuery), extractWhereClause(sqlQuery), nil)
+	rollbackSQL, rollbackErr := "", error(nil)
+	switch {
+	case strings.HasPrefix(upper, "DELETE"):
+		rollbackSQL, rollbackErr = security.GenerateDeleteRollback(extractTableName(sqlQuery), extractWhereClause(sqlQuery), queryArgs)
+	case strings.HasPrefix(upper, "UPDATE"):
+		// oldValues are not captured pre-update in the live path today, so
+		// UPDATE rollback is documented as unavailable until a pre-snapshot
+		// is wired (spec Q1). Refuse rather than emit malformed SQL.
+		rollbackSQL, rollbackErr = "", fmt.Errorf("UPDATE rollback unavailable: pre-update values not captured")
 	}
 
 	// Audit logging
+	auditRollback := rollbackSQL
+	if rollbackErr != nil {
+		auditRollback = fmt.Sprintf("-- rollback unavailable: %v", rollbackErr)
+	}
 	if t.auditFn != nil {
 		t.auditFn(security.AuditEntry{
 			Operation:    classifyOpName(sqlQuery),
@@ -194,7 +205,7 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 			Table:        extractTableName(sqlQuery),
 			SQL:          sqlQuery,
 			AffectedRows: res.RowsAffected,
-			RollbackSQL:  rollbackSQL,
+			RollbackSQL:  auditRollback,
 			Status:       "success",
 		})
 	}
@@ -339,19 +350,6 @@ func extractWhereClause(sql string) string {
 	return strings.TrimSpace(sql[idx+5:])
 }
 
-// extractSetClause extracts the SET clause from an UPDATE statement.
-func extractSetClause(sql string) string {
-	upper := strings.ToUpper(sql)
-	idx := strings.Index(upper, "SET")
-	if idx < 0 {
-		return ""
-	}
-	whereIdx := strings.Index(upper, "WHERE")
-	if whereIdx < 0 {
-		return strings.TrimSpace(sql[idx+3:])
-	}
-	return strings.TrimSpace(sql[idx+3 : whereIdx])
-}
 
 func (t *SQLQueryTool) getDefaultDB(args map[string]interface{}) string {
 	if db, ok := args["database"].(string); ok && db != "" {

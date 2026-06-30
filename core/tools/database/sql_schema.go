@@ -42,6 +42,16 @@ func (t *SQLSchemaTool) Execute(ctx context.Context, args map[string]interface{}
 
 	var schema string
 	if table != "" {
+		// Guard: validate the LLM-supplied table identifier against the strict
+		// charset AND the live schema before interpolating it into a query. This
+		// blocks identifier-injection (e.g. "users; DROP TABLE users--") by
+		// rejecting any payload that is not a known table name.
+		if _, err := validateTableIdentifier(ctx, driver, table); err != nil {
+			return &tools.ToolResult{
+				ForLLM:  fmt.Sprintf("Error: invalid table identifier: %v", err),
+				IsError: true,
+			}, nil
+		}
 		schema, err = driver.GetSchemaForTable(ctx, table)
 	} else {
 		schema, err = driver.GetSchema(ctx)

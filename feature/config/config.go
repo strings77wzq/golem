@@ -141,10 +141,21 @@ func (c *AgentConfig) ToCoreConfig() *corecfg.Config {
 			{
 				ModelName: modelID,
 				Model:     c.Agent.Model,
-				APIKey:    os.Getenv(strings.ToUpper(vendor) + "_API_KEY"),
+				APIKey:    resolveAPIKey(vendor),
 			},
 		}
 	}
 
 	return cfg
+}
+
+// resolveAPIKey resolves the API key for a given vendor. When vendor is empty
+// (model name lacks a "vendor/" prefix), it falls back to GOLEM_API_KEY.
+func resolveAPIKey(vendor string) string {
+	if vendor != "" {
+		if key := os.Getenv(strings.ToUpper(vendor) + "_API_KEY"); key != "" {
+			return key
+		}
+	}
+	return os.Getenv("GOLEM_API_KEY")
 }

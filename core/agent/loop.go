@@ -588,7 +588,48 @@ func (a *Agent) processWithPlan(
 		stepTools := a.toolSelector.Select(step.Description, step.ToolHints, 8)
 
 		// Execute via mini ReAct loop (max 5 iterations per step)
-		stepResult := a.executeStep(ctx, sess, step, stepTools, model, 5, msg.SessionID, emit)
+		stepResult, stepErr := a.executeStep(ctx, sess, step, stepTools, model, 5, msg.SessionID, emit)
+
+		// F3: a provider/LLM error during step execution is a real failure.
+		// Mark the step failed and feed the non-nil error to the reflector so
+		// revise/abort fires — never synthesize an "Error: …" success string
+		// that would advance the plan as if the step had produced content.
+		if stepErr != nil {
+			step.Status = planner.StepFailed
+			step.Error = stepErr.Error()
+			lastResponse = stepErr.Error()
+
+			if emit != nil {
+				emit(bus.OutboundMessage{
+					SessionID:    msg.SessionID,
+					Content:      stepErr.Error(),
+					Role:         bus.RoleProgress,
+					ProgressType: bus.ProgressStepFailed,
+					StepCurrent:  a.getStepIndex(plan, step.ID) + 1,
+					StepTotal:    len(plan.Steps),
+				})
+			}
+
+			// Reflect with the real error so success=false / ShouldRevise
+			// fire off the failure channel rather than the optimistic path.
+			reflection := a.reflector.Evaluate(step, stepResult, stepErr)
+			if !reflection.Success && reflection.ShouldRevise {
+				plan, rerr := a.planner.Revise(ctx, plan, step.ID, stepErr.Error())
+				if rerr != nil {
+					a.logger.Error("planner revise failed", rerr)
+				}
+				AgentPlanRevisions.Inc()
+
+				// Stop the plan when revisions are exhausted; otherwise the
+				// next loop iteration re-selects a pending step.
+				if plan.Status == planner.PlanFailed {
+					break
+				}
+				continue
+			}
+			// No revise path: stop advancing on an unrecoverable step error.
+			break
+		}
 
 		step.Result = stepResult
 		step.Status = planner.StepDone
@@ -666,7 +707,7 @@ func (a *Agent) executeStep(
 	maxIter int,
 	sessionID string,
 	emit func(bus.OutboundMessage),
-) string {
+) (string, error) {
 	stepPrompt := fmt.Sprintf("Execute this step: %s\nExpected outcome: %s", step.Description, step.ExpectedOut)
 	sess.AddMessage(providers.Message{Role: providers.RoleUser, Content: stepPrompt})
 
@@ -683,7 +724,11 @@ func (a *Agent) executeStep(
 			model, a.config.Agents.Defaults.FallbackModels,
 		)
 		if err != nil {
-			return fmt.Sprintf("Error: %v", err)
+			// Propagate the real error instead of masking it as content.
+			// Returning it lets processWithPlan mark the step failed and feed
+			// the non-nil error to the reflector rather than advancing the
+			// plan on a synthetic "Error: …" success string.
+			return "", fmt.Errorf("provider resolution failed for step: %w", err)
 		}
 
 		AgentLLMCalls.Inc()
@@ -692,7 +737,7 @@ func (a *Agent) executeStep(
 		AgentLLMLatency.Observe(time.Since(llmStart).Seconds())
 
 		if err != nil {
-			return fmt.Sprintf("LLM error: %v", err)
+			return "", fmt.Errorf("LLM call failed for step: %w", err)
 		}
 
 		AgentLLMTokens.Add(int64(resp.Usage.TotalTokens))
@@ -754,7 +799,7 @@ func (a *Agent) executeStep(
 		}
 	}
 
-	return lastContent
+	return lastContent, nil
 }
 
 // buildToolErrorMessage creates an informative error message for the LLM feedback loop.

@@ -174,6 +174,7 @@ func (t *StdioTransport) Close() error {
 		if err := t.cmd.Process.Kill(); err != nil {
 			errs = append(errs, fmt.Errorf("process kill: %w", err))
 		}
+		_ = t.cmd.Wait() // reap zombie; error expected after Kill, ignore
 	}
 
 	if t.stdout != nil {

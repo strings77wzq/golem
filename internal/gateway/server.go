@@ -88,6 +88,7 @@ type Server struct {
 	sessionStore    SessionStore
 	version         string
 	shutdownTimeout time.Duration
+	shutdownFuncs   []func()
 }
 
 // NewServer creates a new HTTP gateway server
@@ -139,11 +140,13 @@ func NewServerWithSecurity(cfg ServerConfig, secCfg SecurityConfig, agentHandler
 	}
 
 	if secCfg.EnableRateLimit {
-		middlewares = append(middlewares, security.RateLimitMiddleware(security.RateLimitConfig{
+		rateLimitMw, rateLimitCleanup := security.RateLimitMiddlewareWithCleanup(security.RateLimitConfig{
 			Enabled: true,
 			Rate:    secCfg.RateLimitRPS,
 			Burst:   secCfg.RateLimitBurst,
-		}))
+		})
+		middlewares = append(middlewares, rateLimitMw)
+		s.shutdownFuncs = append(s.shutdownFuncs, rateLimitCleanup)
 		log.Info("gateway rate limit enabled", "rps", secCfg.RateLimitRPS, "burst", secCfg.RateLimitBurst)
 	}
 
@@ -173,6 +176,9 @@ func (s *Server) Start() error {
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.logger.Info("shutting down HTTP gateway server")
+	for _, fn := range s.shutdownFuncs {
+		fn()
+	}
 	return s.httpServer.Shutdown(ctx)
 }
 

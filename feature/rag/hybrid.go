@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/strings77wzq/golem/foundation/bm25"
+	"github.com/strings77wzq/golem/foundation/logger"
 )
 
 // HybridRetriever combines BM25 keyword search with vector similarity search.
@@ -13,15 +14,17 @@ type HybridRetriever struct {
 	vectorStore VectorStore
 	bm25        *bm25.BM25Index
 	topK        int
+	log         logger.Logger
 }
 
 // NewHybridRetriever creates a new hybrid retriever.
-func NewHybridRetriever(embedder Embedder, store VectorStore, topK int) *HybridRetriever {
+func NewHybridRetriever(embedder Embedder, store VectorStore, topK int, log logger.Logger) *HybridRetriever {
 	return &HybridRetriever{
 		embedder:    embedder,
 		vectorStore: store,
 		bm25:        bm25.NewBM25Index(),
 		topK:        topK,
+		log:         log,
 	}
 }
 
@@ -54,9 +57,17 @@ func (h *HybridRetriever) Search(ctx context.Context, query string, topK int) ([
 	var vectorResults []bm25.ScoredDoc
 	if h.embedder != nil {
 		queryVec, err := h.embedder.Embed(ctx, query)
-		if err == nil {
+		if err != nil {
+			if h.log != nil {
+				h.log.Warn("hybrid search: embedding failed, falling back to BM25 only", "error", err)
+			}
+		} else {
 			searchResults, err := h.vectorStore.Search(ctx, queryVec, topK*2)
-			if err == nil {
+			if err != nil {
+				if h.log != nil {
+					h.log.Warn("hybrid search: vector store search failed, falling back to BM25 only", "error", err)
+				}
+			} else {
 				for _, sr := range searchResults {
 					vectorResults = append(vectorResults, bm25.ScoredDoc{
 						ID:    sr.Document.ID,

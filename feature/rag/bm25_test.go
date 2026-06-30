@@ -157,7 +157,7 @@ func TestHybridRetriever(t *testing.T) {
 
 	embedder := NewMockEmbedder(3)
 
-	hybrid := NewHybridRetriever(embedder, store, 10)
+	hybrid := NewHybridRetriever(embedder, store, 10, nil)
 
 	hybrid.AddDocument(ctx, "doc1", "the quick brown fox")
 	hybrid.AddDocument(ctx, "doc2", "the lazy dog")

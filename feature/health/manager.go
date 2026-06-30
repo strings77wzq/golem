@@ -19,6 +19,7 @@ type Manager struct {
 	interval  time.Duration
 	log       logger.Logger
 	stopCh    chan struct{}
+	stopOnce  sync.Once
 }
 
 // Option configures the health Manager.
@@ -57,9 +58,11 @@ func (m *Manager) Start(ctx context.Context) {
 	go m.loop(ctx)
 }
 
-// Stop stops the health check loop.
+// Stop stops the health check loop. Safe to call multiple times.
 func (m *Manager) Stop() {
-	close(m.stopCh)
+	m.stopOnce.Do(func() {
+		close(m.stopCh)
+	})
 }
 
 // GetStatus returns the cached health status for a provider.
