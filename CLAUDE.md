@@ -67,6 +67,25 @@ Circular imports are always wrong. Use interfaces in `core/` to break cycles.
 - **Streaming disabled during tool calls.** `canStream := ok && streamFinal && len(toolDefs) == 0`. Mid-stream tool calls would require buffering anyway.
 - **Error handling:** return errors, never panic in library code. Wrap with `fmt.Errorf("context: %w", err)`.
 
+### 代码验证原则（CRITICAL — 每次分析必须遵守）
+
+**代码是唯一可信来源。文档可能过时或不准确。所有代码分析必须基于 Read/grep 的已验证输出。**
+
+执行顺序：
+1. 先读代码（Read/grep），获取实际实现
+2. 再读文档（README/AGENTS.md/Spec），理解设计意图
+3. 如果代码和文档冲突，以代码为准，并在回答中标注差异
+
+禁止行为：
+- ❌ 只读文档就声称"实现了 X 功能"
+- ❌ 引用文档中的功能描述而没有代码证据
+- ❌ 基于过时文档做决策
+
+必须行为：
+- ✅ 引用的功能/接口/路由路径必须来自 Read/grep 的已验证输出
+- ✅ 如果代码和文档不一致，明确指出差异
+- ✅ 回答中标注证据来源（文件路径:行号）
+
 ## Key Interfaces
 
 ```go
