@@ -56,7 +56,7 @@ func (t *DelegateTool) Execute(ctx context.Context, args map[string]interface{})
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, command, argsList...) // #nosec G204 -- subprocess with controlled input
-	cmd.Stderr = nil // suppress stderr
+	cmd.Stderr = nil                                      // suppress stderr
 
 	// Create pipe for stdin/stdout
 	stdin, _ := cmd.StdinPipe()
