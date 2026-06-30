@@ -36,6 +36,7 @@ jobs:
             ollama-models-
 
       - name: Pull model
+        continue-on-error: true
         run: |
           ollama pull qwen3:0.5b
 
