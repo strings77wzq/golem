@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/strings77wzq/golem/core/session"
+	"github.com/strings77wzq/golem/foundation/logger"
 	"github.com/strings77wzq/golem/foundation/metrics"
 )
 
@@ -106,6 +107,9 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
+	// Inject trace_id for request correlation
+	ctx := logger.WithTraceID(r.Context(), logger.NewTraceID())
+
 	body, err := readLimitedBody(w, r)
 	if err != nil {
 		var maxErr *http.MaxBytesError
@@ -131,7 +135,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := s.agent.HandleMessage(r.Context(), req.SessionID, req.Message)
+	response, err := s.agent.HandleMessage(ctx, req.SessionID, req.Message)
 	if err != nil {
 		s.logger.Error("agent error", slog.Any("error", err), slog.String("session_id", req.SessionID))
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
@@ -146,6 +150,9 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
+	// Inject trace_id for request correlation
+	ctx := logger.WithTraceID(r.Context(), logger.NewTraceID())
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "streaming not supported"})
@@ -194,7 +201,7 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		errCh := make(chan error, 1)
 
 		go func() {
-			errCh <- streamer.HandleMessageStream(r.Context(), req.SessionID, req.Message, tokens)
+			errCh <- streamer.HandleMessageStream(ctx, req.SessionID, req.Message, tokens)
 		}()
 
 	streamLoop:

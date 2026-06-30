@@ -114,7 +114,7 @@ func NewServerWithSecurity(cfg ServerConfig, secCfg SecurityConfig, agentHandler
 	mux := http.NewServeMux()
 	s := &Server{
 		mux:             mux,
-		logger:          log,
+		logger:          log.WithComponent(logger.ComponentGateway),
 		agent:           agentHandler,
 		version:         cfg.Version,
 		shutdownTimeout: cfg.ShutdownTimeout,

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/strings77wzq/golem/foundation/logger"
 )
 
 // OpenAICompatRequest represents a request to /v1/chat/completions.
@@ -96,6 +97,9 @@ func (s *Server) handleOpenAICompatModels(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleOpenAICompatChat(w http.ResponseWriter, r *http.Request) {
+	// Inject trace_id for request correlation
+	ctx := logger.WithTraceID(r.Context(), logger.NewTraceID())
+
 	body, err := readLimitedBody(w, r)
 	if err != nil {
 		var maxErr *http.MaxBytesError
@@ -142,7 +146,7 @@ func (s *Server) handleOpenAICompatChat(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	response, err := s.agent.HandleMessage(r.Context(), sessionID, userMessage)
+	response, err := s.agent.HandleMessage(ctx, sessionID, userMessage)
 	if err != nil {
 		s.logger.Error("agent error", slog.Any("error", err), slog.String("model", req.Model))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
@@ -169,6 +173,9 @@ func (s *Server) handleOpenAICompatChat(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleOpenAICompatStream(w http.ResponseWriter, r *http.Request, sessionID, userMessage, model string) {
+	// Inject trace_id for request correlation
+	ctx := logger.WithTraceID(r.Context(), logger.NewTraceID())
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "streaming not supported"})
@@ -188,7 +195,7 @@ func (s *Server) handleOpenAICompatStream(w http.ResponseWriter, r *http.Request
 
 	streamer, isStreaming := s.agent.(StreamingAgentHandler)
 	if !isStreaming {
-		response, err := s.agent.HandleMessage(r.Context(), sessionID, userMessage)
+		response, err := s.agent.HandleMessage(ctx, sessionID, userMessage)
 		if err != nil {
 			s.logger.Error("agent error", slog.Any("error", err))
 			fmt.Fprintf(w, "data: {\"error\":\"internal server error\"}\n\n")
@@ -222,7 +229,7 @@ func (s *Server) handleOpenAICompatStream(w http.ResponseWriter, r *http.Request
 	errCh := make(chan error, 1)
 
 	go func() {
-		errCh <- streamer.HandleMessageStream(r.Context(), sessionID, userMessage, tokens)
+		errCh <- streamer.HandleMessageStream(ctx, sessionID, userMessage, tokens)
 	}()
 
 	chunkID := fmt.Sprintf("chatcmpl-%d", time.Now().UnixNano())
