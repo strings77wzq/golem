@@ -240,7 +240,7 @@ Every implementation task needs a spec first. Exceptions: trivial one-liners, ty
 
 - Push after each commit if CI is green
 - Or batch push at end of work session if multiple related commits
-- After push: poll CI status, fix failures with root-cause analysis (no blind retries)
+- **After push: MUST poll CI status (`gh pr checks` or `gh run watch`) until all checks pass.** CI failure = stop, analyze root cause, fix, re-push, re-poll. Never claim "done" while CI is red.
 
 ## Reference
 
