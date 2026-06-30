@@ -5,6 +5,7 @@
 package logger
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -17,6 +18,8 @@ type Logger interface {
 	Warn(msg string, args ...any)
 	Error(msg string, args ...any)
 	With(args ...any) Logger
+	WithContext(ctx context.Context) Logger
+	WithComponent(component string) Logger
 }
 
 // Format specifies the log output format
@@ -65,7 +68,7 @@ func New(opts Options) Logger {
 		handler = slog.NewTextHandler(output, handlerOpts)
 	}
 
-	return &slogLogger{inner: slog.New(handler)}
+	return &slogLogger{inner: slog.New(&contextHandler{inner: handler})}
 }
 
 func (l *slogLogger) Debug(msg string, args ...any) { l.inner.Debug(msg, args...) }
@@ -77,6 +80,14 @@ func (l *slogLogger) With(args ...any) Logger {
 	return &slogLogger{inner: l.inner.With(args...)}
 }
 
+func (l *slogLogger) WithContext(ctx context.Context) Logger {
+	return &contextLogger{inner: l.inner, ctx: ctx}
+}
+
+func (l *slogLogger) WithComponent(component string) Logger {
+	return &slogLogger{inner: l.inner.With("component", component)}
+}
+
 // NopLogger returns a no-op logger (for testing)
 func NopLogger() Logger {
 	return New(Options{
@@ -84,4 +95,27 @@ func NopLogger() Logger {
 		Format: FormatText,
 		Output: io.Discard,
 	})
+}
+
+// contextLogger wraps slog.Logger with a stored context for trace_id propagation.
+type contextLogger struct {
+	inner *slog.Logger
+	ctx   context.Context
+}
+
+func (l *contextLogger) Debug(msg string, args ...any) { l.inner.DebugContext(l.ctx, msg, args...) }
+func (l *contextLogger) Info(msg string, args ...any)  { l.inner.InfoContext(l.ctx, msg, args...) }
+func (l *contextLogger) Warn(msg string, args ...any)  { l.inner.WarnContext(l.ctx, msg, args...) }
+func (l *contextLogger) Error(msg string, args ...any) { l.inner.ErrorContext(l.ctx, msg, args...) }
+
+func (l *contextLogger) With(args ...any) Logger {
+	return &contextLogger{inner: l.inner.With(args...), ctx: l.ctx}
+}
+
+func (l *contextLogger) WithContext(ctx context.Context) Logger {
+	return &contextLogger{inner: l.inner, ctx: ctx}
+}
+
+func (l *contextLogger) WithComponent(component string) Logger {
+	return &contextLogger{inner: l.inner.With("component", component), ctx: l.ctx}
 }

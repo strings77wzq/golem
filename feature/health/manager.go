@@ -37,7 +37,7 @@ func New(log logger.Logger, opts ...Option) *Manager {
 	m := &Manager{
 		statuses: make(map[string]*coreproviders.HealthStatus),
 		interval: 5 * time.Minute,
-		log:      log,
+		log:      log.WithComponent(logger.ComponentHealth),
 		stopCh:   make(chan struct{}),
 	}
 	for _, opt := range opts {

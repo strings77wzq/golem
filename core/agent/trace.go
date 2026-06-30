@@ -2,28 +2,24 @@ package agent
 
 import (
 	"context"
-	"crypto/rand"
-	"fmt"
+
+	"github.com/strings77wzq/golem/foundation/logger"
 )
 
 type contextKey struct{}
 
 // WithTraceID attaches a trace ID to the context.
 func WithTraceID(ctx context.Context, traceID string) context.Context {
-	return context.WithValue(ctx, contextKey{}, traceID)
+	return logger.WithTraceID(ctx, traceID)
 }
 
 // TraceIDFromContext extracts the trace ID from context.
 func TraceIDFromContext(ctx context.Context) string {
-	if v, ok := ctx.Value(contextKey{}).(string); ok {
-		return v
-	}
-	return ""
+	return logger.TraceIDFromContext(ctx)
 }
 
 // NewTraceID generates a unique trace ID.
+// Deprecated: Use foundation/logger.NewTraceID() directly for new code.
 func NewTraceID() string {
-	b := make([]byte, 8)
-	_, _ = rand.Read(b)
-	return fmt.Sprintf("trace-%x", b)
+	return logger.NewTraceID()
 }
