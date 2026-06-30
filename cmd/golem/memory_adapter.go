@@ -22,7 +22,7 @@ type MemoryConfig struct {
 }
 
 // LoadMemoryTools creates memory store and recall tools and registers them
-func LoadMemoryTools(ctx context.Context, cfg MemoryConfig) (*tools.Registry, memory.Memory, error) {
+func LoadMemoryTools(_ context.Context, cfg MemoryConfig) (*tools.Registry, memory.Memory, error) {
 	registry := tools.NewRegistry()
 
 	filePath := cfg.FilePath
@@ -36,7 +36,7 @@ func LoadMemoryTools(ctx context.Context, cfg MemoryConfig) (*tools.Registry, me
 
 	// Ensure directory exists
 	dir := filepath.Dir(filePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return nil, nil, fmt.Errorf("creating memory directory: %w", err)
 	}
 

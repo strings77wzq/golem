@@ -74,7 +74,7 @@ func readFileContent(path, baseDir string) (string, bool, error) {
 		path = filepath.Join(baseDir, path)
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- CLI tool, file path from user input
 	if err != nil {
 		return "", false, err
 	}

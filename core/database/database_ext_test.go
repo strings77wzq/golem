@@ -228,3 +228,182 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 		<-done
 	}
 }
+
+// Test SQLite GetSchemaForTable found
+func TestSQLiteDriver_GetSchemaForTable_Found(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	driver := NewSQLiteDriver("test", dbPath)
+	ctx := context.Background()
+
+	driver.Connect(ctx)
+	defer driver.Close()
+
+	driver.Execute(ctx, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
+
+	schema, err := driver.GetSchemaForTable(ctx, "users")
+	if err != nil {
+		t.Fatalf("GetSchemaForTable failed: %v", err)
+	}
+	if schema == "" {
+		t.Error("expected non-empty schema")
+	}
+}
+
+// Test SQLite multiple tables schema
+func TestSQLiteDriver_GetSchema_MultipleTables(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	driver := NewSQLiteDriver("test", dbPath)
+	ctx := context.Background()
+
+	driver.Connect(ctx)
+	defer driver.Close()
+
+	driver.Execute(ctx, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
+	driver.Execute(ctx, "CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT)")
+
+	schema, err := driver.GetSchema(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if schema == "" {
+		t.Error("expected non-empty schema")
+	}
+}
+
+// Test SQLite different data types
+func TestSQLiteDriver_DifferentDataTypes(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	driver := NewSQLiteDriver("test", dbPath)
+	ctx := context.Background()
+
+	driver.Connect(ctx)
+	defer driver.Close()
+
+	driver.Execute(ctx, "CREATE TABLE types (id INTEGER PRIMARY KEY, int_val INTEGER, real_val REAL, text_val TEXT, blob_val BLOB)")
+
+	// Insert different types
+	_, err := driver.Execute(ctx, "INSERT INTO types (int_val, real_val, text_val, blob_val) VALUES (?, ?, ?, ?)",
+		42, 3.14, "hello", []byte{0x01, 0x02})
+	if err != nil {
+		t.Fatalf("Insert failed: %v", err)
+	}
+
+	// Query
+	rows, err := driver.Query(ctx, "SELECT * FROM types")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 row, got %d", len(rows))
+	}
+}
+
+// Test SQLite query with parameters
+func TestSQLiteDriver_QueryWithParameters(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	driver := NewSQLiteDriver("test", dbPath)
+	ctx := context.Background()
+
+	driver.Connect(ctx)
+	defer driver.Close()
+
+	driver.Execute(ctx, "CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)")
+	driver.Execute(ctx, "INSERT INTO t (name, age) VALUES (?, ?)", "Alice", 30)
+	driver.Execute(ctx, "INSERT INTO t (name, age) VALUES (?, ?)", "Bob", 25)
+
+	// Query with multiple parameters
+	rows, err := driver.Query(ctx, "SELECT * FROM t WHERE age > ?", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 {
+		t.Errorf("expected 2 rows, got %d", len(rows))
+	}
+
+	// Query with AND condition
+	rows, err = driver.Query(ctx, "SELECT * FROM t WHERE name = ? AND age > ?", "Alice", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Errorf("expected 1 row, got %d", len(rows))
+	}
+}
+
+// Test SQLite error handling
+func TestSQLiteDriver_ErrorHandling(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	driver := NewSQLiteDriver("test", dbPath)
+	ctx := context.Background()
+
+	driver.Connect(ctx)
+	defer driver.Close()
+
+	// Invalid SQL
+	_, err := driver.Execute(ctx, "INVALID SQL")
+	if err == nil {
+		t.Error("expected error for invalid SQL")
+	}
+
+	// Query with invalid SQL
+	_, err = driver.Query(ctx, "INVALID SQL")
+	if err == nil {
+		t.Error("expected error for invalid SQL")
+	}
+}
+
+// Test SQLite schema cache invalidation
+func TestSQLiteDriver_SchemaCacheInvalidation(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	driver := NewSQLiteDriver("test", dbPath)
+	ctx := context.Background()
+
+	driver.Connect(ctx)
+	defer driver.Close()
+
+	// Create table and get schema
+	driver.Execute(ctx, "CREATE TABLE t1 (id INTEGER)")
+	schema1, _ := driver.GetSchema(ctx)
+
+	// Add another table and force cache refresh
+	driver.Execute(ctx, "CREATE TABLE t2 (id INTEGER)")
+	driver.schemaTime = time.Time{} // Force expiration
+
+	schema2, _ := driver.GetSchema(ctx)
+	if schema1 == schema2 {
+		t.Error("schema should be refreshed")
+	}
+}
+
+// Test SQLite large result set
+func TestSQLiteDriver_LargeResultSet(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	driver := NewSQLiteDriver("test", dbPath)
+	ctx := context.Background()
+
+	driver.Connect(ctx)
+	defer driver.Close()
+
+	driver.Execute(ctx, "CREATE TABLE t (id INTEGER PRIMARY KEY, value TEXT)")
+
+	// Insert 100 rows
+	for i := 0; i < 100; i++ {
+		driver.Execute(ctx, "INSERT INTO t (value) VALUES (?)", fmt.Sprintf("value_%d", i))
+	}
+
+	// Query all
+	rows, err := driver.Query(ctx, "SELECT * FROM t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 100 {
+		t.Errorf("expected 100 rows, got %d", len(rows))
+	}
+}

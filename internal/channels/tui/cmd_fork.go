@@ -6,7 +6,7 @@ type forkCmd struct{}
 
 func (c forkCmd) Name() string        { return "/fork" }
 func (c forkCmd) Description() string { return "Fork session from a message index" }
-func (c forkCmd) Execute(m *Model) tea.Cmd {
+func (c forkCmd) Execute(_ *Model) tea.Cmd {
 	return func() tea.Msg {
 		return forkHelpMsg{}
 	}

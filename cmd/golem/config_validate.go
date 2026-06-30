@@ -27,7 +27,7 @@ func newConfigValidateCommand() *cobra.Command {
 		Use:   "validate",
 		Short: "Validate configuration file",
 		Long:  "Load and validate the golem configuration, checking required fields and model formats",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			configPath, err := getConfigPath(cmd)
 			if err != nil {
 				return err
@@ -54,7 +54,7 @@ func newConfigValidateCommand() *cobra.Command {
 func validateConfigFile(configPath string) ConfigValidateResult {
 	var result ConfigValidateResult
 
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) // #nosec G304 -- CLI tool, file path from user input
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("cannot read config: %v", err))
 		return result

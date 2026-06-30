@@ -39,7 +39,7 @@ func newInitCommand() *cobra.Command {
 		Use:   "init",
 		Short: "Configure Golem for first use",
 		Long:  "Interactive setup wizard: choose a provider, set your API key, and write config",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			configPath, err := getConfigPath(cmd)
 			if err != nil {
 				return err

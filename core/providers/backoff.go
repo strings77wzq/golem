@@ -94,7 +94,7 @@ func (r *RetryProvider) calculateDelay(attempt int) time.Duration {
 	}
 	// Add jitter: ±25%
 	jitter := float64(delay) * 0.25
-	delay = time.Duration(float64(delay) + (rand.Float64()*2-1)*jitter)
+	delay = time.Duration(float64(delay) + (rand.Float64()*2-1)*jitter) // #nosec G404 -- non-security context
 	return delay
 }
 

@@ -82,7 +82,7 @@ type HookDef struct {
 
 // LoadYAML parses a YAML agent config file.
 func LoadYAML(path string) (*AgentConfig, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- CLI tool, file path from user input
 	if err != nil {
 		return nil, fmt.Errorf("reading YAML config: %w", err)
 	}

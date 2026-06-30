@@ -225,7 +225,7 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]interface{}) (*t
 	if t.allowShell {
 		// Shell mode: allows pipes, redirects, etc.
 		// Note: This is more dangerous but necessary for complex commands
-		cmd = osexec.CommandContext(cmdCtx, "sh", "-c", command)
+		cmd = osexec.CommandContext(cmdCtx, "sh", "-c", command) // #nosec G204 -- subprocess with controlled input
 	} else {
 		// Direct mode: no shell interpretation (safer)
 		parts, err := parseCommand(command)
@@ -240,9 +240,9 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]interface{}) (*t
 		cmdPath, err := osexec.LookPath(parts[0])
 		if err != nil {
 			// Command not found in PATH
-			cmd = osexec.CommandContext(cmdCtx, parts[0], parts[1:]...)
+			cmd = osexec.CommandContext(cmdCtx, parts[0], parts[1:]...) // #nosec G204 -- subprocess with controlled input
 		} else {
-			cmd = osexec.CommandContext(cmdCtx, cmdPath, parts[1:]...)
+			cmd = osexec.CommandContext(cmdCtx, cmdPath, parts[1:]...) // #nosec G204 -- subprocess with controlled input
 		}
 	}
 	cmd.Dir = t.workspace

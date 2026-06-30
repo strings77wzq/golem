@@ -81,7 +81,7 @@ func (s *Server) registerOpenAICompatRoutes() {
 	s.mux.HandleFunc("GET /v1/models", s.handleOpenAICompatModels)
 }
 
-func (s *Server) handleOpenAICompatModels(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleOpenAICompatModels(w http.ResponseWriter, _ *http.Request) {
 	resp := map[string]interface{}{
 		"object": "list",
 		"data": []map[string]interface{}{

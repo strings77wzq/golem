@@ -11,7 +11,7 @@ var envVarPattern = regexp.MustCompile(`\$\{([^}]+)\}`)
 
 // Load reads config from file path, expanding ${ENV_VAR} patterns
 func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- CLI tool, file path from user input
 	if err != nil {
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}

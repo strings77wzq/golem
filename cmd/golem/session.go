@@ -31,7 +31,7 @@ func newSessionListCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List all saved sessions",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			adapter, err := openSessionStore(cmd)
 			if err != nil {
 				return err
@@ -140,7 +140,7 @@ func newSessionExportCommand() *cobra.Command {
 			}
 
 			outputFile := args[0] + ".json"
-			if err := os.WriteFile(outputFile, jsonData, 0644); err != nil {
+			if err := os.WriteFile(outputFile, jsonData, 0600); err != nil {
 				return fmt.Errorf("writing export file: %w", err)
 			}
 

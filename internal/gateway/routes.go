@@ -74,7 +74,7 @@ func (s *Server) registerRoutes() {
 	s.registerOpenAICompatRoutes()
 }
 
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := healthResponse{
 		Status:    "ok",
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
@@ -82,7 +82,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func (s *Server) handleProvidersHealth(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleProvidersHealth(w http.ResponseWriter, _ *http.Request) {
 	if s.healthChecker == nil {
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"status":  "not_configured",
@@ -95,7 +95,7 @@ func (s *Server) handleProvidersHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, statuses)
 }
 
-func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
 	v := s.version
 	if v == "" {
 		v = "dev"

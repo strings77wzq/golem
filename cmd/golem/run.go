@@ -19,7 +19,7 @@ import (
 )
 
 // runAgentOneShot sends a single message and prints the response.
-func runAgentOneShot(ag *agent.Agent, b bus.Bus, message string, existingSessionID string) error {
+func runAgentOneShot(ag *agent.Agent, _ bus.Bus, message string, existingSessionID string) error {
 	sessionID := existingSessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()
@@ -44,7 +44,7 @@ type jsonEvent struct {
 
 // runAgentOneShotWithEvents sends a single message, prints the response,
 // and writes structured JSON events to stderr for each tool call.
-func runAgentOneShotWithEvents(ag *agent.Agent, b bus.Bus, message string, existingSessionID string) error {
+func runAgentOneShotWithEvents(ag *agent.Agent, _ bus.Bus, message string, existingSessionID string) error {
 	sessionID := existingSessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()

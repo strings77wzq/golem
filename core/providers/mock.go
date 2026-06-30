@@ -37,7 +37,7 @@ func (m *MockProvider) AddResponse(resp *LLMResponse) {
 }
 
 // Chat returns the next queued response, or error if queue exhausted.
-func (m *MockProvider) Chat(ctx context.Context, messages []Message, toolDefs []tools.ToolDefinition, model string, opts *ChatOptions) (*LLMResponse, error) {
+func (m *MockProvider) Chat(_ context.Context, messages []Message, toolDefs []tools.ToolDefinition, model string, _ *ChatOptions) (*LLMResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

@@ -2,6 +2,7 @@ package infra
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -17,10 +18,26 @@ func (m *mockExecutor) Execute(ctx context.Context, name string, args ...string)
 	return m.output, m.err
 }
 
+// Docker tests
 func TestDockerToolName(t *testing.T) {
 	tool := NewDockerTool()
 	if tool.Name() != "docker" {
 		t.Errorf("Name() = %q, want %q", tool.Name(), "docker")
+	}
+}
+
+func TestDockerToolDescription(t *testing.T) {
+	tool := NewDockerTool()
+	if tool.Description() == "" {
+		t.Error("Description() should not be empty")
+	}
+}
+
+func TestDockerToolParameters(t *testing.T) {
+	tool := NewDockerTool()
+	params := tool.Parameters()
+	if len(params) == 0 {
+		t.Error("Parameters() should not be empty")
 	}
 }
 
@@ -91,10 +108,79 @@ func TestDockerToolBuildNoTag(t *testing.T) {
 	}
 }
 
+func TestDockerToolRun(t *testing.T) {
+	tool := NewDockerTool()
+	tool.executor = &mockExecutor{output: "abc123"}
+
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"action": "run",
+		"image":  "nginx:latest",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Errorf("unexpected error: %s", result.ForLLM)
+	}
+}
+
+func TestDockerToolStop(t *testing.T) {
+	tool := NewDockerTool()
+	tool.executor = &mockExecutor{output: ""}
+
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"action":    "stop",
+		"container": "abc123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Errorf("unexpected error: %s", result.ForLLM)
+	}
+}
+
+func TestDockerToolLogs(t *testing.T) {
+	tool := NewDockerTool()
+	tool.executor = &mockExecutor{output: "log line 1\nlog line 2"}
+
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"action":    "logs",
+		"container": "abc123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Errorf("unexpected error: %s", result.ForLLM)
+	}
+}
+
+func TestDockerToolExecError(t *testing.T) {
+	tool := NewDockerTool()
+	tool.executor = &mockExecutor{err: fmt.Errorf("command failed")}
+
+	result, err := tool.Execute(context.Background(), map[string]interface{}{"action": "ps"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError {
+		t.Error("expected error when executor fails")
+	}
+}
+
+// Kubectl tests
 func TestKubectlToolName(t *testing.T) {
 	tool := NewKubectlTool()
 	if tool.Name() != "kubectl" {
 		t.Errorf("Name() = %q, want %q", tool.Name(), "kubectl")
+	}
+}
+
+func TestKubectlToolDescription(t *testing.T) {
+	tool := NewKubectlTool()
+	if tool.Description() == "" {
+		t.Error("Description() should not be empty")
 	}
 }
 
@@ -136,10 +222,66 @@ func TestKubectlToolGetNoResource(t *testing.T) {
 	}
 }
 
+func TestKubectlToolDescribe(t *testing.T) {
+	tool := NewKubectlTool()
+	tool.executor = &mockExecutor{output: "Name: golem\nNamespace: default"}
+
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"action":   "describe",
+		"resource": "pod/golem",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Errorf("unexpected error: %s", result.ForLLM)
+	}
+}
+
+func TestKubectlToolLogs(t *testing.T) {
+	tool := NewKubectlTool()
+	tool.executor = &mockExecutor{output: "log line 1\nlog line 2"}
+
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"action": "logs",
+		"pod":    "golem",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Errorf("unexpected error: %s", result.ForLLM)
+	}
+}
+
+func TestKubectlToolExecError(t *testing.T) {
+	tool := NewKubectlTool()
+	tool.executor = &mockExecutor{err: fmt.Errorf("command failed")}
+
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"action":   "get",
+		"resource": "pods",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError {
+		t.Error("expected error when executor fails")
+	}
+}
+
+// Helm tests
 func TestHelmToolName(t *testing.T) {
 	tool := NewHelmTool()
 	if tool.Name() != "helm" {
 		t.Errorf("Name() = %q, want %q", tool.Name(), "helm")
+	}
+}
+
+func TestHelmToolDescription(t *testing.T) {
+	tool := NewHelmTool()
+	if tool.Description() == "" {
+		t.Error("Description() should not be empty")
 	}
 }
 
@@ -167,6 +309,71 @@ func TestHelmToolList(t *testing.T) {
 	}
 }
 
+func TestHelmToolInstall(t *testing.T) {
+	tool := NewHelmTool()
+	tool.executor = &mockExecutor{output: "NAME: golem\nSTATUS: deployed"}
+
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"action":  "install",
+		"release": "golem",
+		"chart":   "golem/golem",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Errorf("unexpected error: %s", result.ForLLM)
+	}
+}
+
+func TestHelmToolUpgrade(t *testing.T) {
+	tool := NewHelmTool()
+	tool.executor = &mockExecutor{output: "NAME: golem\nSTATUS: deployed"}
+
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"action":  "upgrade",
+		"release": "golem",
+		"chart":   "golem/golem",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Errorf("unexpected error: %s", result.ForLLM)
+	}
+}
+
+func TestHelmToolRollback(t *testing.T) {
+	tool := NewHelmTool()
+	tool.executor = &mockExecutor{output: "Rollbacked golem to revision 1"}
+
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"action":   "rollback",
+		"release":  "golem",
+		"revision": float64(1),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Errorf("unexpected error: %s", result.ForLLM)
+	}
+}
+
+func TestHelmToolExecError(t *testing.T) {
+	tool := NewHelmTool()
+	tool.executor = &mockExecutor{err: fmt.Errorf("command failed")}
+
+	result, err := tool.Execute(context.Background(), map[string]interface{}{"action": "list"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError {
+		t.Error("expected error when executor fails")
+	}
+}
+
+// Parameter count tests
 func TestToolParameterCounts(t *testing.T) {
 	tests := []struct {
 		name   string

@@ -28,7 +28,7 @@ func newDebugToolsCommand(registry *tools.Registry) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tools",
 		Short: "List all registered tools with descriptions and parameters",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			// Lazy init: create default registry if none provided
 			r := registry
 			if r == nil {
@@ -46,7 +46,7 @@ func newDebugConfigCommand(configPath string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "config",
 		Short: "Show parsed configuration (API keys masked)",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			path := configPath
 			if path == "" {
 				var err error
@@ -119,7 +119,7 @@ func outputToolsJSON(cmd *cobra.Command, allTools []tools.Tool) error {
 }
 
 func runDebugConfig(cmd *cobra.Command, configPath string) error {
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) // #nosec G304 -- CLI tool, file path from user input
 	if err != nil {
 		return fmt.Errorf("reading config: %w", err)
 	}

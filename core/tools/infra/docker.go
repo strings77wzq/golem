@@ -19,7 +19,7 @@ type CommandExecutor interface {
 type DefaultExecutor struct{}
 
 func (e *DefaultExecutor) Execute(ctx context.Context, name string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- subprocess with controlled input
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

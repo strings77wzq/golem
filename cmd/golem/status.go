@@ -28,7 +28,7 @@ func newStatusCommand() *cobra.Command {
 		Use:   "status",
 		Short: "Show system status",
 		Long:  "Display version, configuration, tools, features, and service health information",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
 
 			fmt.Fprintln(out, "Golem Status")
@@ -119,7 +119,7 @@ func showStatusFeatures(out io.Writer, features FeatureStatus) {
 func detectFeatures(configPath string) FeatureStatus {
 	var features FeatureStatus
 
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) // #nosec G304 -- CLI tool, file path from user input
 	if err != nil {
 		return features
 	}
@@ -144,7 +144,7 @@ func detectFeatures(configPath string) FeatureStatus {
 }
 
 func showConfigModels(out io.Writer, configPath string) error {
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) // #nosec G304 -- CLI tool, file path from user input
 	if err != nil {
 		return err
 	}

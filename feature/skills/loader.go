@@ -60,7 +60,7 @@ func (l *Loader) LoadFromDirectory(dir string) ([]*Skill, error) {
 func (l *Loader) LoadSkill(skillDir string) (*Skill, error) {
 	skillJSONPath := filepath.Join(skillDir, "skill.json")
 
-	data, err := os.ReadFile(skillJSONPath)
+	data, err := os.ReadFile(skillJSONPath) // #nosec G304 -- CLI tool, file path from user input
 	if err != nil {
 		return nil, fmt.Errorf("failed to read skill.json in %q: %w", skillDir, err)
 	}
@@ -84,7 +84,7 @@ func (l *Loader) LoadSkill(skillDir string) (*Skill, error) {
 		prompt := &skill.Prompts[i]
 		if prompt.File != "" {
 			promptPath := filepath.Join(skillDir, prompt.File)
-			content, err := os.ReadFile(promptPath)
+			content, err := os.ReadFile(promptPath) // #nosec G304 -- CLI tool, file path from user input
 			if err != nil {
 				return nil, fmt.Errorf("failed to read prompt file %q: %w", promptPath, err)
 			}

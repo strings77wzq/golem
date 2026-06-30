@@ -90,7 +90,7 @@ func NewQualityGate() *QualityGate {
 }
 
 // CheckSQL validates a SQL operation.
-func (qg *QualityGate) CheckSQL(ctx context.Context, sql string, affectedRows int64) *GateResult {
+func (qg *QualityGate) CheckSQL(_ context.Context, sql string, affectedRows int64) *GateResult {
 	result := &GateResult{Passed: true}
 
 	upperSQL := strings.TrimSpace(strings.ToUpper(sql))
@@ -149,7 +149,7 @@ func formatValue(val interface{}) string {
 // fails the charset check or the WHERE clause is empty, so malformed or
 // injectable rollback SQL is never emitted. The `?` placeholders in `where`
 // are preserved verbatim so the driver can bind `args`.
-func GenerateDeleteRollback(table, where string, args []interface{}) (string, error) {
+func GenerateDeleteRollback(table, where string, _ []interface{}) (string, error) {
 	if !identifierPattern.MatchString(table) {
 		return "", fmt.Errorf("invalid table identifier for rollback")
 	}

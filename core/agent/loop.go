@@ -213,7 +213,7 @@ func (a *Agent) summarizeMessages(messages []providers.Message) string {
 // HandleFork creates a forked session from an existing one.
 // It copies messages up to (excluding) upToIndex, appends the new message,
 // and returns the new session ID.
-func (a *Agent) HandleFork(ctx context.Context, originalSessionID string, upToIndex int, newMessage string) (string, error) {
+func (a *Agent) HandleFork(_ context.Context, originalSessionID string, upToIndex int, newMessage string) (string, error) {
 	sess, found := a.sessionStore.Get(originalSessionID)
 	if !found {
 		return "", fmt.Errorf("session %q not found", originalSessionID)
@@ -267,7 +267,7 @@ func (a *Agent) HandleMessageStreamWithProgress(ctx context.Context, sessionID s
 }
 
 // initSession gets or creates a session, injects system prompt, and appends the user message.
-func (a *Agent) initSession(ctx context.Context, msg bus.InboundMessage) (*session.Session, error) {
+func (a *Agent) initSession(_ context.Context, msg bus.InboundMessage) (*session.Session, error) {
 	AgentMessagesTotal.Inc()
 
 	sess, found := a.sessionStore.Get(msg.SessionID)

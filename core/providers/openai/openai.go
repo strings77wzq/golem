@@ -160,7 +160,7 @@ func (p *Provider) Chat(
 		if attempt > 0 {
 			// Exponential backoff with jitter
 			backoff := time.Duration(math.Pow(2, float64(attempt-1))) * time.Second
-			jitter := time.Duration(rand.Int63n(int64(backoff) / 2))
+			jitter := time.Duration(rand.Int63n(int64(backoff) / 2)) // #nosec G404 -- non-security context
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()

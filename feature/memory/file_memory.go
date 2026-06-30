@@ -28,7 +28,7 @@ func NewFileMemory(filePath string) (*FileMemory, error) {
 	}
 
 	if _, err := os.Stat(filePath); err == nil {
-		data, err := os.ReadFile(filePath)
+		data, err := os.ReadFile(filePath) // #nosec G304 -- CLI tool, file path from user input
 		if err != nil {
 			return nil, fmt.Errorf("failed to read memory file: %w", err)
 		}
@@ -140,12 +140,12 @@ func (fm *FileMemory) persist() error {
 	}
 
 	dir := filepath.Dir(fm.filePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	tmpFile := fm.filePath + ".tmp"
-	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
+	if err := os.WriteFile(tmpFile, data, 0600); err != nil {
 		return fmt.Errorf("failed to write temp file: %w", err)
 	}
 

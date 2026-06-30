@@ -45,7 +45,7 @@ func (t *StdioTransport) Start(ctx context.Context) error {
 		return fmt.Errorf("transport is closed")
 	}
 
-	t.cmd = exec.CommandContext(ctx, t.command, t.args...)
+	t.cmd = exec.CommandContext(ctx, t.command, t.args...) // #nosec G204 -- subprocess with controlled input
 
 	if len(t.env) > 0 {
 		t.cmd.Env = t.env

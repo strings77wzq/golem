@@ -24,7 +24,7 @@ func newMCPServerCommand() *cobra.Command {
 		Use:   "mcp-server",
 		Short: "Start MCP server (stdio mode) to expose tools to other agents",
 		Long:  "Start an MCP server that exposes Golem's database and tool capabilities via stdio JSON-RPC. Other agents (Claude Code, Cursor, etc.) can connect to this server.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runMCPServer(cmd)
 		},
 	}

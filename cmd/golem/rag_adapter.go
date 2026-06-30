@@ -133,7 +133,7 @@ func loadDocumentsFromDir(dir string) ([]rag.RawDocument, error) {
 		}
 
 		path := filepath.Join(dir, entry.Name())
-		content, err := os.ReadFile(path)
+		content, err := os.ReadFile(path) // #nosec G304 -- CLI tool, file path from user input
 		if err != nil {
 			fmt.Printf("Warning: failed to read file %s: %v\n", path, err)
 			continue

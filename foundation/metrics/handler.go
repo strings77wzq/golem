@@ -9,7 +9,7 @@ import (
 
 // Handler returns an HTTP handler that exposes metrics in Prometheus exposition format.
 func Handler(reg *Registry) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		writeMetrics(w, reg)
 	})

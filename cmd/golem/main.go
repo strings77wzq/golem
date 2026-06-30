@@ -66,7 +66,7 @@ func newVersionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print version information",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			fmt.Printf("golem version %s\n", version)
 			fmt.Printf("commit: %s\n", commit)
 			fmt.Printf("date: %s\n", date)
@@ -80,7 +80,7 @@ func newAgentCommand() *cobra.Command {
 		Use:   "agent",
 		Short: "Start the AI agent",
 		Long:  "Start the Golem AI agent process",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runAgent(cmd)
 		},
 	}
@@ -350,7 +350,7 @@ func newGatewayCommand() *cobra.Command {
 		Use:   "gateway",
 		Short: "Start the HTTP gateway server",
 		Long:  "Start the HTTP gateway server for agent communication",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := loadConfig(cmd)
 			if err != nil {
 				return err

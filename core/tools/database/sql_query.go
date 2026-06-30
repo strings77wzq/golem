@@ -428,7 +428,7 @@ func (t *SQLQueryTool) formatRows(rows []database.Row, truncated bool, total int
 	return sb.String()
 }
 
-func (t *SQLQueryTool) formatSummary(rows []database.Row, total int, sqlQuery string) string {
+func (t *SQLQueryTool) formatSummary(rows []database.Row, total int, _ string) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("Large result set: %d rows total.\n\n", total))

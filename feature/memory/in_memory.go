@@ -116,7 +116,7 @@ func (s *InMemoryStore) List(ctx context.Context) ([]*Entry, error) {
 }
 
 // GetTopByRelevance returns the top k entries by relevance score.
-func (s *InMemoryStore) GetTopByRelevance(ctx context.Context, k int) ([]*Entry, error) {
+func (s *InMemoryStore) GetTopByRelevance(_ context.Context, k int) ([]*Entry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -147,7 +147,7 @@ func (s *InMemoryStore) GetTopByRelevance(ctx context.Context, k int) ([]*Entry,
 
 // Cleanup removes entries with decayed importance below the threshold.
 // Important entries (importance >= 0.9) are never deleted.
-func (s *InMemoryStore) Cleanup(ctx context.Context, threshold float64) (int, error) {
+func (s *InMemoryStore) Cleanup(_ context.Context, threshold float64) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

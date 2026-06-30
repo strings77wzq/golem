@@ -18,12 +18,12 @@ func newDemoCommand() *cobra.Command {
 		Use:   "demo-db",
 		Short: "Create a demo ecommerce database for testing",
 		Long:  "Create a SQLite database with sample data (10K users, 100K orders, 500 products, 300K order_items) for testing Golem's database analysis capabilities.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			path := ".golem-demo.db"
 			if len(args) > 0 {
 				path = args[0]
 			}
-			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
 				return err
 			}
 			fmt.Println("Creating demo ecommerce database...")
@@ -88,7 +88,7 @@ func createDemoDB(path string) error {
 	}
 
 	// Insert data
-	rng := rand.New(rand.NewSource(42))
+	rng := rand.New(rand.NewSource(42)) // #nosec G404 -- non-security context
 
 	fmt.Print("  Users... ")
 	tx, _ := db.BeginTx(ctx, nil)

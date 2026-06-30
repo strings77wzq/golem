@@ -33,7 +33,7 @@ func NewMockEmbedder(dimension int) *MockEmbedder {
 
 // Embed generates a deterministic embedding for the given text.
 // The same text always produces the same embedding.
-func (m *MockEmbedder) Embed(ctx context.Context, text string) ([]float64, error) {
+func (m *MockEmbedder) Embed(_ context.Context, text string) ([]float64, error) {
 	// Hash the text to get a deterministic seed
 	h := fnv.New64a()
 	h.Write([]byte(text))

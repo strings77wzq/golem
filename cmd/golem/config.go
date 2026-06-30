@@ -36,7 +36,7 @@ func newConfigModelCommand() *cobra.Command {
 		Use:   "model",
 		Short: "Configure LLM provider interactively",
 		Long:  "Set up your LLM provider: base URL, model name, and API key",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			configPath, err := getConfigPath(cmd)
 			if err != nil {
 				return err
@@ -65,7 +65,7 @@ func newConfigSetCommand() *cobra.Command {
 			}
 
 			cfg := make(map[string]interface{})
-			if data, err := os.ReadFile(configPath); err == nil {
+			if data, err := os.ReadFile(configPath); err == nil { // #nosec G304 -- CLI tool, file path from user input
 				if err := json.Unmarshal(data, &cfg); err != nil {
 					return fmt.Errorf("parsing existing config: %w", err)
 				}
@@ -78,7 +78,7 @@ func newConfigSetCommand() *cobra.Command {
 				return fmt.Errorf("marshaling config: %w", err)
 			}
 
-			if err := os.WriteFile(configPath, data, 0644); err != nil {
+			if err := os.WriteFile(configPath, data, 0600); err != nil {
 				return fmt.Errorf("writing config: %w", err)
 			}
 
@@ -101,7 +101,7 @@ func newConfigGetCommand() *cobra.Command {
 				return err
 			}
 
-			data, err := os.ReadFile(configPath)
+			data, err := os.ReadFile(configPath) // #nosec G304 -- CLI tool, file path from user input
 			if err != nil {
 				if os.IsNotExist(err) {
 					return fmt.Errorf("config file does not exist: %s", configPath)
@@ -129,13 +129,13 @@ func newConfigListCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List all configuration values",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			configPath, err := getConfigPath(cmd)
 			if err != nil {
 				return err
 			}
 
-			data, err := os.ReadFile(configPath)
+			data, err := os.ReadFile(configPath) // #nosec G304 -- CLI tool, file path from user input
 			if err != nil {
 				if os.IsNotExist(err) {
 					fmt.Println("{}")
@@ -174,7 +174,7 @@ func getConfigPath(cmd *cobra.Command) (string, error) {
 
 func ensureConfigDir(configPath string) error {
 	dir := filepath.Dir(configPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("creating config directory: %w", err)
 	}
 	return nil

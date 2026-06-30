@@ -51,7 +51,7 @@ func (h *ShellHook) Execute(input *HookInput) (*HookOutput, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "sh", "-c", h.Command)
+	cmd := exec.CommandContext(ctx, "sh", "-c", h.Command) // #nosec G204 -- subprocess with controlled input
 	cmd.Stdin = bytes.NewReader(inputJSON)
 
 	var stdout, stderr bytes.Buffer

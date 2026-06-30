@@ -134,7 +134,7 @@ func (p *Plan) MarkComplete() {
 }
 
 // MarkFailed sets the plan status to failed.
-func (p *Plan) MarkFailed(reason string) {
+func (p *Plan) MarkFailed(_ string) {
 	p.Status = PlanFailed
 	p.UpdatedAt = time.Now()
 }

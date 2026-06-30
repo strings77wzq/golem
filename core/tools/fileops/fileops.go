@@ -130,7 +130,7 @@ func (t *FileReadTool) Execute(ctx context.Context, args map[string]interface{})
 		}, nil
 	}
 
-	content, err := os.ReadFile(safePath)
+	content, err := os.ReadFile(safePath) // #nosec G304 -- CLI tool, file path from user input
 	if err != nil {
 		if os.IsNotExist(err) {
 			return &tools.ToolResult{
@@ -211,7 +211,7 @@ func (t *FileWriteTool) Execute(ctx context.Context, args map[string]interface{}
 
 	// Create parent directories if they don't exist
 	dir := filepath.Dir(safePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return &tools.ToolResult{
 			ForLLM:  fmt.Sprintf("failed to create parent directories: %v", err),
 			IsError: true,
@@ -219,7 +219,7 @@ func (t *FileWriteTool) Execute(ctx context.Context, args map[string]interface{}
 	}
 
 	// Write the file
-	if err := os.WriteFile(safePath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(safePath, []byte(content), 0600); err != nil {
 		return &tools.ToolResult{
 			ForLLM:  fmt.Sprintf("failed to write file: %v", err),
 			IsError: true,
