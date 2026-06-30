@@ -124,7 +124,7 @@ func quoteIdentifier(name string) string {
 }
 
 // escapeLiteral doubles single quotes inside a string value for safe ANSI
-// SQL literal embedding (e.g. "Bob's pen" -> "Bob''s pen"). The literal is
+// SQL literal embedding (e.g. "Bob's pen" -> "Bob”s pen"). The literal is
 // then wrapped in single quotes.
 func escapeLiteral(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "''") + "'"

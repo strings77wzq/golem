@@ -350,7 +350,6 @@ func extractWhereClause(sql string) string {
 	return strings.TrimSpace(sql[idx+5:])
 }
 
-
 func (t *SQLQueryTool) getDefaultDB(args map[string]interface{}) string {
 	if db, ok := args["database"].(string); ok && db != "" {
 		return db

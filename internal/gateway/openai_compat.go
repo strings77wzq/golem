@@ -246,7 +246,7 @@ func (s *Server) handleOpenAICompatStream(w http.ResponseWriter, r *http.Request
 	fmt.Fprintf(w, "data: %s\n\n", data)
 	flusher.Flush()
 
-	streamLoop:
+streamLoop:
 	for {
 		select {
 		case token, ok := <-tokens:
