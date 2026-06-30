@@ -189,7 +189,7 @@ TUI (tui.go)                    Agent (loop.go)
 | Active channels | CLI, TUI, HTTP Gateway, Telegram |
 | Providers wired | OpenAI, Anthropic, DeepSeek, Kimi, GLM, MiniMax, Qwen, Ollama |
 | TUI commands | /tools, /new, /sessions, /model, /compact, /clear, /fork, /help, /quit |
-| Features | Debug tools, Config validate, YAML v2, LLM compaction, RetryProvider, BM25+RRF, Provider Registry, Auto-compaction, Routing, Health Checks, Security Headers, Audit Logging, Prometheus Metrics |
+| Features | Debug tools, Config validate, YAML v2, LLM compaction, RetryProvider, BM25+RRF, Provider Registry, Auto-compaction, Routing, Health Checks, Security Headers, Audit Logging, Prometheus Metrics, Structured Logging with trace_id |
 
 ---
 
@@ -249,6 +249,25 @@ Every significant interaction **must** pass through three thinking lenses. This 
 - **Parallel agent delegation**: Use background `task()` calls with `run_in_background=true`
   for independent exploration (explore/librarian agents). Collect results via `background_output`
   after the system notification fires. Do NOT block on results — end the response and wait.
+
+### Logging Guidelines
+
+**When writing new code, use structured logging:**
+
+1. **Tool executions**: Use `logger.LogToolCall(log, toolName, duration, err)`
+2. **HTTP handlers**: Use `logger.LogHTTPRequest(log, method, path, status, duration)`
+3. **Errors**: Use `logger.LogError(log, err, "message", "key", "value")`
+4. **Component identification**: Pass `logger.WithComponent(logger.ComponentXxx)` at construction
+
+**Forbidden patterns:**
+- ❌ `fmt.Print` / `fmt.Println` for logging (use logger)
+- ❌ Unstructured log messages (always use key-value pairs)
+- ❌ Logging sensitive data (API keys, passwords, tokens)
+
+**Trace ID propagation:**
+- Gateway handlers generate trace_id via `logger.NewTraceID()` and inject into context
+- Agent loop uses trace_id for cross-component request correlation
+- All log entries include `trace_id` field automatically via context propagation
 
 ---
 

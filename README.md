@@ -167,6 +167,29 @@ golem agent --routing '{"routes":{"gpt-4o":["openai/gpt-4o","anthropic/claude-3-
 
 Automatic fallback with cooldown tracking — if the primary provider fails, Golem retries with the next provider in the chain.
 
+### Logging
+
+Golem uses structured logging with `log/slog` (stdlib). All logs include `trace_id` for cross-component request correlation and `component` for module identification.
+
+```bash
+# JSON format (for production/log aggregation)
+golem agent --db ./myapp.db --log-format json
+
+# Text format (default, for development)
+golem agent --db ./myapp.db --log-format text
+
+# Debug level (verbose)
+golem agent --db ./myapp.db --log-level debug
+```
+
+**Log output example:**
+```
+time=2026-06-30T11:15:00.000Z level=INFO msg="tool executed" component=agent tool=sql_query duration_ms=45 trace_id=trace-a1b2c3d4e5f67890
+time=2026-06-30T11:15:00.045Z level=INFO msg="http request" component=gateway method=POST path=/api/chat status=200 duration_ms=120 trace_id=trace-a1b2c3d4e5f67890
+```
+
+For detailed logging architecture, see [docs/logging.md](docs/logging.md).
+
 ### Health Checks
 
 ```bash

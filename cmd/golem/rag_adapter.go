@@ -62,7 +62,7 @@ func LoadRAGTools(ctx context.Context, cfg RagConfig) (*tools.Registry, error) {
 	if topK <= 0 {
 		topK = 3
 	}
-	hybrid := rag.NewHybridRetriever(embedder, store, topK, logger.New(logger.DefaultOptions()))
+	hybrid := rag.NewHybridRetriever(embedder, store, topK, logger.New(logger.DefaultOptions()).WithComponent(logger.ComponentRAG))
 
 	// Load documents from directory
 	docs, err := loadDocumentsFromDir(cfg.IndexDir)
