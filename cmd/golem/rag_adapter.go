@@ -13,6 +13,7 @@ import (
 
 	"github.com/strings77wzq/golem/core/tools"
 	"github.com/strings77wzq/golem/feature/rag"
+	"github.com/strings77wzq/golem/foundation/logger"
 )
 
 type RagConfig struct {
@@ -61,7 +62,7 @@ func LoadRAGTools(ctx context.Context, cfg RagConfig) (*tools.Registry, error) {
 	if topK <= 0 {
 		topK = 3
 	}
-	hybrid := rag.NewHybridRetriever(embedder, store, topK)
+	hybrid := rag.NewHybridRetriever(embedder, store, topK, logger.New(logger.DefaultOptions()))
 
 	// Load documents from directory
 	docs, err := loadDocumentsFromDir(cfg.IndexDir)

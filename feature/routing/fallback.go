@@ -40,6 +40,19 @@ func (f *FallbackChain) Next() (string, bool) {
 	return "", false
 }
 
+// IsInCooldown checks whether a model is currently in cooldown (failed
+// and cooldown duration has not yet elapsed).
+func (f *FallbackChain) IsInCooldown(model string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	failTime, failed := f.failureTimes[model]
+	if !failed {
+		return false
+	}
+	return time.Since(failTime) < f.cooldownDuration
+}
+
 // MarkFailed puts the model in cooldown.
 func (f *FallbackChain) MarkFailed(model string) {
 	f.mu.Lock()

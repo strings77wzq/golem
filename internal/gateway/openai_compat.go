@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // OpenAICompatRequest represents a request to /v1/chat/completions.
@@ -131,8 +133,9 @@ func (s *Server) handleOpenAICompatChat(w http.ResponseWriter, r *http.Request) 
 		userMessage = req.Messages[len(req.Messages)-1].Content
 	}
 
-	// Build session ID from request (use model as session prefix for multi-tenant)
-	sessionID := fmt.Sprintf("openai-compat-%s", req.Model)
+	// Each request gets a unique session to prevent cross-user data leakage
+	// when multiple clients use the same model endpoint.
+	sessionID := fmt.Sprintf("openai-compat-%s", uuid.New().String())
 
 	if req.Stream {
 		s.handleOpenAICompatStream(w, r, sessionID, userMessage, req.Model)
@@ -170,6 +173,12 @@ func (s *Server) handleOpenAICompatStream(w http.ResponseWriter, r *http.Request
 	if !ok {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "streaming not supported"})
 		return
+	}
+
+	// SSE endpoint: disable write timeout so long-running streams aren't cut
+	// off by the server-level WriteTimeout.
+	if rc := http.NewResponseController(w); rc != nil {
+		_ = rc.SetWriteDeadline(time.Time{})
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -237,28 +246,36 @@ func (s *Server) handleOpenAICompatStream(w http.ResponseWriter, r *http.Request
 	fmt.Fprintf(w, "data: %s\n\n", data)
 	flusher.Flush()
 
-	for token := range tokens {
-		chunk := OpenAICompatResponse{
-			ID:      chunkID,
-			Object:  "chat.completion.chunk",
-			Created: time.Now().Unix(),
-			Model:   model,
-			Choices: []OpenAICompatChoice{
-				{
-					Index: 0,
-					Delta: &OpenAIMessage{
-						Content: token,
+streamLoop:
+	for {
+		select {
+		case token, ok := <-tokens:
+			if !ok {
+				if err := <-errCh; err != nil {
+					s.logger.Error("stream error", slog.Any("error", err))
+				}
+				break streamLoop
+			}
+			chunk := OpenAICompatResponse{
+				ID:      chunkID,
+				Object:  "chat.completion.chunk",
+				Created: time.Now().Unix(),
+				Model:   model,
+				Choices: []OpenAICompatChoice{
+					{
+						Index: 0,
+						Delta: &OpenAIMessage{
+							Content: token,
+						},
 					},
 				},
-			},
+			}
+			data, _ := json.Marshal(chunk)
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		case <-r.Context().Done():
+			return
 		}
-		data, _ := json.Marshal(chunk)
-		fmt.Fprintf(w, "data: %s\n\n", data)
-		flusher.Flush()
-	}
-
-	if err := <-errCh; err != nil {
-		s.logger.Error("stream error", slog.Any("error", err))
 	}
 
 	// Send finish chunk

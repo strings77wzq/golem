@@ -12,7 +12,7 @@ func TestHybridRetriever_AddDocument_PopulatesVectorStore(t *testing.T) {
 	ctx := context.Background()
 
 	embedder := NewMockEmbedder(3)
-	hybrid := NewHybridRetriever(embedder, store, 10)
+	hybrid := NewHybridRetriever(embedder, store, 10, nil)
 
 	// Add document
 	err := hybrid.AddDocument(ctx, "doc1", "hello world")
@@ -41,7 +41,7 @@ func TestHybridRetriever_AddDocument_NilEmbedder(t *testing.T) {
 	store := NewMemoryVectorStore()
 	ctx := context.Background()
 
-	hybrid := NewHybridRetriever(nil, store, 10)
+	hybrid := NewHybridRetriever(nil, store, 10, nil)
 
 	err := hybrid.AddDocument(ctx, "doc1", "hello world")
 	if err != nil {

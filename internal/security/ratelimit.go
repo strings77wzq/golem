@@ -95,7 +95,8 @@ func (rl *rateLimitStore) allow(ip string) (bool, time.Duration) {
 	return false, retryAfter
 }
 
-// RateLimitMiddleware returns HTTP middleware that rate-limits by client IP
+// RateLimitMiddleware returns HTTP middleware that rate-limits by client IP.
+// For server shutdown cleanup, use RateLimitMiddlewareWithCleanup instead.
 func RateLimitMiddleware(cfg RateLimitConfig) func(http.Handler) http.Handler {
 	var store *rateLimitStore
 	if cfg.Enabled {
@@ -123,4 +124,42 @@ func RateLimitMiddleware(cfg RateLimitConfig) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// RateLimitMiddlewareWithCleanup returns HTTP middleware plus a cleanup
+// function that stops the background goroutine. Call the cleanup function
+// during server shutdown to avoid leaking the cleanup goroutine.
+func RateLimitMiddlewareWithCleanup(cfg RateLimitConfig) (func(http.Handler) http.Handler, func()) {
+	var store *rateLimitStore
+	if cfg.Enabled {
+		store = newRateLimitStore(cfg.Rate, cfg.Burst)
+	}
+
+	cleanup := func() {
+		if store != nil {
+			store.Close()
+		}
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !cfg.Enabled {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			clientIP := getClientIP(r)
+			allowed, retryAfter := store.allow(clientIP)
+
+			if !allowed {
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Retry-After", fmt.Sprintf("%d", int(retryAfter.Seconds())+1))
+				w.WriteHeader(http.StatusTooManyRequests)
+				json.NewEncoder(w).Encode(map[string]string{"error": "rate limit exceeded"})
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}, cleanup
 }

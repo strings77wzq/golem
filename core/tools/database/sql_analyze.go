@@ -44,8 +44,17 @@ func (t *SQLAnalyzeTool) Execute(ctx context.Context, args map[string]interface{
 		return &tools.ToolResult{ForLLM: fmt.Sprintf("Error: %v", err), IsError: true}, nil
 	}
 
-	// Get row count
-	countRows, err := driver.Query(ctx, fmt.Sprintf("SELECT COUNT(*) as cnt FROM %s", table))
+	// Guard: validate the LLM-supplied table identifier against the strict
+	// charset AND the live schema before interpolating it into a query. This
+	// blocks identifier-injection (e.g. "users; DROP TABLE users--") by
+	// rejecting any payload that is not a known table name.
+	validated, err := validateTableIdentifier(ctx, driver, table)
+	if err != nil {
+		return &tools.ToolResult{ForLLM: fmt.Sprintf("Error: invalid table identifier: %v", err), IsError: true}, nil
+	}
+
+	// Get row count using the validated identifier only.
+	countRows, err := driver.Query(ctx, fmt.Sprintf("SELECT COUNT(*) as cnt FROM %s", validated))
 	if err != nil {
 		return &tools.ToolResult{ForLLM: fmt.Sprintf("Error counting rows: %v", err), IsError: true}, nil
 	}

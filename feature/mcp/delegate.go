@@ -65,6 +65,7 @@ func (t *DelegateTool) Execute(ctx context.Context, args map[string]interface{})
 	if err := cmd.Start(); err != nil {
 		return &tools.ToolResult{ForLLM: fmt.Sprintf("Error starting agent: %v", err), IsError: true}, nil
 	}
+	defer cmd.Wait() // reap child process on all exit paths
 
 	// Create MCP client connected to the agent
 	transport := &stdioTransport{stdin: stdin, stdout: stdout}
@@ -104,16 +105,22 @@ type stdioTransport struct {
 }
 
 func (t *stdioTransport) Send(req *JSONRPCRequest) error {
-	data, _ := json.Marshal(req)
+	data, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("marshal request: %w", err)
+	}
 	data = append(data, '\n')
-	_, err := t.stdin.Write(data)
+	_, err = t.stdin.Write(data)
 	return err
 }
 
 func (t *stdioTransport) SendNotification(n *JSONRPCNotification) error {
-	data, _ := json.Marshal(n)
+	data, err := json.Marshal(n)
+	if err != nil {
+		return fmt.Errorf("marshal notification: %w", err)
+	}
 	data = append(data, '\n')
-	_, err := t.stdin.Write(data)
+	_, err = t.stdin.Write(data)
 	return err
 }
 

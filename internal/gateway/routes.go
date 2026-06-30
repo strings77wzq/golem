@@ -152,6 +152,12 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SSE endpoint: disable write timeout so long-running streams aren't cut
+	// off by the server-level WriteTimeout.
+	if rc := http.NewResponseController(w); rc != nil {
+		_ = rc.SetWriteDeadline(time.Time{})
+	}
+
 	body, err := readLimitedBody(w, r)
 	if err != nil {
 		var maxErr *http.MaxBytesError
@@ -191,16 +197,24 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 			errCh <- streamer.HandleMessageStream(r.Context(), req.SessionID, req.Message, tokens)
 		}()
 
-		for token := range tokens {
-			fmt.Fprintf(w, "data: %s\n\n", token)
-			flusher.Flush()
-		}
-
-		if err := <-errCh; err != nil {
-			s.logger.Error("stream error", slog.Any("error", err), slog.String("session_id", req.SessionID))
-			fmt.Fprintf(w, "event: error\ndata: internal server error\n\n")
-			flusher.Flush()
-			return
+	streamLoop:
+		for {
+			select {
+			case token, ok := <-tokens:
+				if !ok {
+					if err := <-errCh; err != nil {
+						s.logger.Error("stream error", slog.Any("error", err), slog.String("session_id", req.SessionID))
+						fmt.Fprintf(w, "event: error\ndata: internal server error\n\n")
+						flusher.Flush()
+						return
+					}
+					break streamLoop
+				}
+				fmt.Fprintf(w, "data: %s\n\n", token)
+				flusher.Flush()
+			case <-r.Context().Done():
+				return
+			}
 		}
 	} else {
 		response, err := s.agent.HandleMessage(r.Context(), req.SessionID, req.Message)
