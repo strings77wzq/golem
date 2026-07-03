@@ -107,7 +107,9 @@ func LoadRAGTools(ctx context.Context, cfg RagConfig) (*tools.Registry, error) {
 		indexDir: cfg.IndexDir,
 		docCount: len(docs),
 	}
-	registry.Register(ragTool)
+	if err := registry.Register(ragTool); err != nil {
+		return nil, fmt.Errorf("registering RAG tool: %w", err)
+	}
 
 	return registry, nil
 }

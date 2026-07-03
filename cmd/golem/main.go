@@ -163,7 +163,9 @@ func runAgent(cmd *cobra.Command) error {
 		_, dbTools := wiring.BuildDBTools(dbFlag, nil, nil)
 		if dbTools != nil {
 			for _, t := range dbTools.ListTools() {
-				registry.Register(t)
+				if err := registry.Register(t); err != nil {
+					log.Warn("failed to register DB tool", "tool", t.Name(), "error", err)
+				}
 			}
 			log.Info("loaded database tools", "db", dbFlag, "tools", dbTools.Count())
 		}

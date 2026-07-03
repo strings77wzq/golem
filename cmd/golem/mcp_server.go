@@ -83,13 +83,19 @@ func buildMCPTools(dbPath string, readOnly bool, toolsFilter string) *tools.Regi
 			dbRegistry.SetDefault(driverName)
 
 			if acceptAll || allowedTools["sql_query"] {
-				registry.Register(dbtools.NewSQLQueryTool(dbRegistry))
+				if err := registry.Register(dbtools.NewSQLQueryTool(dbRegistry)); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to register sql_query: %v\n", err)
+				}
 			}
 			if acceptAll || allowedTools["sql_schema"] {
-				registry.Register(dbtools.NewSQLSchemaTool(dbRegistry))
+				if err := registry.Register(dbtools.NewSQLSchemaTool(dbRegistry)); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to register sql_schema: %v\n", err)
+				}
 			}
 			if acceptAll || allowedTools["sql_analyze"] {
-				registry.Register(dbtools.NewSQLAnalyzeTool(dbRegistry))
+				if err := registry.Register(dbtools.NewSQLAnalyzeTool(dbRegistry)); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to register sql_analyze: %v\n", err)
+				}
 			}
 		}
 	}
@@ -101,19 +107,27 @@ func buildMCPTools(dbPath string, readOnly bool, toolsFilter string) *tools.Regi
 	}
 	if acceptAll || allowedTools["exec"] {
 		if !readOnly {
-			registry.Register(toolexec.New(workspace))
+			if err := registry.Register(toolexec.New(workspace)); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to register exec: %v\n", err)
+			}
 		}
 	}
 	if acceptAll || allowedTools["file_read"] {
-		registry.Register(fileops.NewFileReadTool(workspace))
+		if err := registry.Register(fileops.NewFileReadTool(workspace)); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to register file_read: %v\n", err)
+		}
 	}
 	if acceptAll || allowedTools["file_write"] {
 		if !readOnly {
-			registry.Register(fileops.NewFileWriteTool(workspace))
+			if err := registry.Register(fileops.NewFileWriteTool(workspace)); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to register file_write: %v\n", err)
+			}
 		}
 	}
 	if acceptAll || allowedTools["web_search"] {
-		registry.Register(websearch.New())
+		if err := registry.Register(websearch.New()); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to register web_search: %v\n", err)
+		}
 	}
 
 	return registry

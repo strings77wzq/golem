@@ -48,7 +48,9 @@ func LoadSkills(log logger.Logger, skillsDir, skillsFilter string) *skills.Regis
 			}
 			registry = skills.NewRegistry()
 			for _, s := range filtered {
-				registry.Register(s)
+				if err := registry.Register(s); err != nil {
+					log.Warn("failed to register skill", "name", s.Name, "error", err)
+				}
 			}
 			log.Info("filtered skills", "count", registry.Count(), "names", skillsFilter)
 		}

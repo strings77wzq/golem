@@ -30,7 +30,9 @@ func loadMCPTools(ctx context.Context, flagValue string, registry *tools.Registr
 		return fmt.Errorf("converting MCP tools: %w", err)
 	}
 	for _, proxy := range mcpProxies {
-		registry.Register(proxy)
+		if err := registry.Register(proxy); err != nil {
+			log.Warn("failed to register MCP tool", "tool", proxy.Name(), "error", err)
+		}
 	}
 	log.Info("loaded MCP tools", "count", len(mcpProxies))
 	return nil
