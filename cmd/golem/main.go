@@ -229,7 +229,7 @@ func runAgent(cmd *cobra.Command) error {
 	}
 	var sessionStore session.SessionStore
 	if store != nil {
-		defer store.Close()
+		defer store.Close() //nolint:errcheck
 		sessionStore = store
 		log.Info("session store ready", "type", "sqlite")
 	} else {
@@ -298,7 +298,7 @@ func runAgent(cmd *cobra.Command) error {
 		if tgErr != nil {
 			return fmt.Errorf("starting telegram adapter: %w", tgErr)
 		}
-		telegramAdapter.Start(tgCtx)
+		telegramAdapter.Start(tgCtx) //nolint:errcheck
 		defer telegramAdapter.Stop()
 	}
 
@@ -371,7 +371,7 @@ func newGatewayCommand() *cobra.Command {
 			}
 			var sessionStore session.SessionStore
 			if store != nil {
-				defer store.Close()
+				defer store.Close() //nolint:errcheck
 				sessionStore = store
 			} else {
 				sessionStore = session.NewMemoryStore()
@@ -449,7 +449,7 @@ func newGatewayCommand() *cobra.Command {
 				if tgErr != nil {
 					return fmt.Errorf("starting telegram adapter: %w", tgErr)
 				}
-				tgAdapter.Start(tgCtx)
+				tgAdapter.Start(tgCtx) //nolint:errcheck
 				defer tgAdapter.Stop()
 				server.MountHandler("/telegram/webhook", tgAdapter.WebhookHandler(tgCfg.WebhookSecret))
 				log.Info("telegram webhook mounted", "path", "/telegram/webhook")

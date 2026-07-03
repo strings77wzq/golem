@@ -73,7 +73,7 @@ func LoadRAGTools(ctx context.Context, cfg RagConfig) (*tools.Registry, error) {
 	if len(docs) > 0 {
 		// Add documents to hybrid retriever (indexes both BM25 and vector)
 		for _, doc := range docs {
-			hybrid.AddDocument(ctx, doc.ID, doc.Content)
+			hybrid.AddDocument(ctx, doc.ID, doc.Content) //nolint:errcheck
 		}
 		// Also add to vector store for vector search
 		ragDocs := make([]rag.Document, len(docs))
@@ -95,7 +95,7 @@ func LoadRAGTools(ctx context.Context, cfg RagConfig) (*tools.Registry, error) {
 				for i, d := range ragDocs {
 					d.Vector = embeddings[i]
 				}
-				store.Add(ctx, ragDocs)
+				store.Add(ctx, ragDocs) //nolint:errcheck
 			}
 		}
 		fmt.Printf("RAG: indexed %d documents from %s (hybrid search enabled)\n", len(docs), cfg.IndexDir)

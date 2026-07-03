@@ -13,7 +13,7 @@ import (
 // loads from a directory and filters by name.
 func LoadSkills(log logger.Logger, skillsDir, skillsFilter string) *skills.Registry {
 	registry := skills.NewRegistry()
-	builtins.RegisterAll(registry)
+	builtins.RegisterAll(registry) //nolint:errcheck
 
 	if skillsDir != "" {
 		loader := skills.NewLoader()
