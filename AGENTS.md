@@ -35,16 +35,16 @@ golem/
 ├── foundation/            # Infrastructure primitives — concurrency, logger, store, term
 ├── feature/               # Optional feature modules (wired into main.go via CLI flags)
 │   ├── mcp/               # MCP protocol client (JSON-RPC over stdio) — ✅ Wired, enabled via --mcp
-│   ├── memory/            # Long-term memory with importance decay — 🚧 In development
+│   ├── memory/            # Long-term memory with importance decay — ✅ Wired, enabled via --memory
 │   ├── rag/               # RAG pipeline with TF-IDF + embeddings — ✅ Wired, enabled via --rag
-│   ├── routing/           # Provider fallback routing
+│   ├── routing/           # Provider fallback routing — ✅ Wired, enabled via --routing
 │   └── skills/            # Composable skill registry — ✅ Wired, enabled via --skills
 ├── internal/              # Internal adapters (only importable within this module)
 │   ├── channels/cli/      # Plain readline-style interactive mode
 │   ├── channels/tui/      # Bubble Tea TUI (auto-activated on TTY)
 │   ├── channels/telegram/ # Telegram bot adapter
 │   ├── gateway/           # HTTP gateway server with SSE streaming
-│   ├── metrics/           # Prometheus-compatible metrics (no external deps)
+│   ├── metrics/           # Prometheus-compatible metrics — ✅ Wired at /metrics endpoint
 │   └── security/          # Auth middleware, rate limiting, command sandbox
 ├── openspec/              # AI development specification (read this too)
 └── docs/study/            # Chinese learning guides (Wave 1–3)
