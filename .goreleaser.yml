@@ -45,33 +45,6 @@ changelog:
       - Merge pull request
       - Merge branch
 
-dockers:
-  - image_templates:
-      - "ghcr.io/strings77wzq/golem:{{ .Version }}-amd64"
-    dockerfile: docker/Dockerfile
-    use: buildx
-    build_flag_templates:
-      - "--platform=linux/amd64"
-    goarch: amd64
-
-  - image_templates:
-      - "ghcr.io/strings77wzq/golem:{{ .Version }}-arm64"
-    dockerfile: docker/Dockerfile
-    use: buildx
-    build_flag_templates:
-      - "--platform=linux/arm64"
-    goarch: arm64
-
-docker_manifests:
-  - name_template: "ghcr.io/strings77wzq/golem:{{ .Version }}"
-    image_templates:
-      - "ghcr.io/strings77wzq/golem:{{ .Version }}-amd64"
-      - "ghcr.io/strings77wzq/golem:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/strings77wzq/golem:latest"
-    image_templates:
-      - "ghcr.io/strings77wzq/golem:{{ .Version }}-amd64"
-      - "ghcr.io/strings77wzq/golem:{{ .Version }}-arm64"
-
 release:
   github:
     owner: strings77wzq
