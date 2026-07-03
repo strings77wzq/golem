@@ -528,12 +528,13 @@ func (m *mockStreamingHandler) HandleMessageStream(ctx context.Context, sessionI
 
 type flushRecorder struct {
 	*httptest.ResponseRecorder
+	flushCount int
 }
 
-func (f *flushRecorder) Flush() {}
+func (f *flushRecorder) Flush() { f.flushCount++ }
 
 func newFlushRecorder() *flushRecorder {
-	return &flushRecorder{httptest.NewRecorder()}
+	return &flushRecorder{ResponseRecorder: httptest.NewRecorder()}
 }
 
 func TestChatStreamEndpoint(t *testing.T) {
