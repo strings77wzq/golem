@@ -4,6 +4,33 @@ All notable changes to Golem will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.10.0] - 2026-07-03
+
+### Added
+- Structured logging system with trace propagation, component tagging, and field templates
+- Code verification principle: all code analysis must be based on verified Read/grep output
+- BM25 keyword search with CJK character-level tokenization (`foundation/bm25/`)
+- Docker multi-arch image publishing to GHCR on tag push (amd64/arm64)
+- errcheck linter re-enabled with nolint annotations across 30+ files
+- Gateway SSE streaming tests: handleOpenAICompatStream (non-streaming, streaming, error paths)
+- Gateway session/metrics tests: handleSessionExport/Import, handleMetrics, SetSessionStore, MountHandler
+- Fileops coverage tests: safePath edge cases, tool interfaces, error paths, symlink handling
+- Openspec proposals: phase2-quality-gates, safety-and-correctness-fixes
+- Evolution roadmap: axiom-driven analysis with 3 approaches, trust build plan
+
+### Fixed
+- Error handling for tool/skill registration: registry.Register() failures now logged or returned
+- Safety and correctness fixes across core modules
+- Phase 1 quality gates compliance (golangci-lint v2 config)
+- CI: e2e model pull made non-fatal
+- AGENTS.md module status markers synced with code reality (memory, routing, metrics)
+
+### Changed
+- AGENTS.md: memory → ✅ Wired, routing → ✅ Wired, metrics → ✅ Wired at /metrics endpoint
+- CI workflow: Linux + macOS test matrix, GoReleaser 6-platform build
+- golangci-lint: errcheck re-enabled, gocritic/gobern/ineffassign/prealloc/revive remain disabled
+- Safety gates: SQL normalization, permission checks, rollback SQL generation hardened
+
 ## [0.9.1] - 2026-06-16
 
 ### Added
