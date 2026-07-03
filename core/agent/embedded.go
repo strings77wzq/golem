@@ -50,6 +50,9 @@ func QuickStartWithModel(configPath, modelName string) (*Agent, error) {
 func NewFromConfig(cfg *config.Config) (*Agent, error) {
 	log := logger.New(logger.DefaultOptions())
 	b := bus.New()
+	b.SetOnDropped(func(topic string, count int) {
+		log.Warn("bus message dropped", "topic", topic, "count", count)
+	})
 	workspace, _ := os.Getwd()
 	registry := newDefaultToolRegistry(workspace)
 	factory := newProviderFactory(cfg)

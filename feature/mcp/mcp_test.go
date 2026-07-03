@@ -544,3 +544,93 @@ func TestClientWithMockServer(t *testing.T) {
 		}
 	})
 }
+
+func TestClientCloseStopsReceiveLoop(t *testing.T) {
+	// Verify that Close() causes receiveLoop to exit via done channel
+	mock := newBlockingMockTransport()
+	client := NewClient(mock)
+
+	ctx := context.Background()
+	_, err := client.Initialize(ctx)
+	if err != nil {
+		t.Fatalf("initialize failed: %v", err)
+	}
+
+	// Wait for receiveLoop to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify done channel is not yet closed
+	select {
+	case <-client.done:
+		t.Fatal("done channel should not be closed yet")
+	default:
+	}
+
+	// Close the client — this should cause receiveLoop to exit
+	err = client.Close()
+	if err != nil {
+		t.Fatalf("close failed: %v", err)
+	}
+
+	// Wait for receiveLoop to exit
+	select {
+	case <-client.done:
+		// receiveLoop exited as expected
+	case <-time.After(2 * time.Second):
+		t.Fatal("receiveLoop did not exit after Close()")
+	}
+}
+
+// blockingMockTransport responds to initialize then blocks on Receive() until Close()
+type blockingMockTransport struct {
+	mu       sync.Mutex
+	closed   bool
+	closeCh  chan struct{}
+	initResp *JSONRPCResponse
+}
+
+func newBlockingMockTransport() *blockingMockTransport {
+	initResultJSON, _ := json.Marshal(InitializeResult{
+		ProtocolVersion: "2024-11-05",
+		ServerInfo:      ServerInfo{Name: "mock", Version: "1.0"},
+		Capabilities:    ServerCapabilities{},
+	})
+	return &blockingMockTransport{
+		closeCh: make(chan struct{}),
+		initResp: &JSONRPCResponse{
+			JSONRPC: "2.0",
+			ID:      1,
+			Result:  initResultJSON,
+		},
+	}
+}
+
+func (m *blockingMockTransport) Send(request *JSONRPCRequest) error {
+	return nil
+}
+
+func (m *blockingMockTransport) SendNotification(notification *JSONRPCNotification) error {
+	return nil
+}
+
+func (m *blockingMockTransport) Receive() (*JSONRPCResponse, error) {
+	// Return init response on first call, then block until closed
+	if m.initResp != nil {
+		resp := m.initResp
+		m.initResp = nil
+		return resp, nil
+	}
+	<-m.closeCh
+	return nil, io.EOF
+}
+
+func (m *blockingMockTransport) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		return nil
+	}
+	m.closed = true
+	close(m.closeCh)
+	return nil
+}

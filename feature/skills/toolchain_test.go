@@ -136,6 +136,40 @@ func TestResolveArgs(t *testing.T) {
 	}
 }
 
+func TestInterpolateStringSelfReferential(t *testing.T) {
+	// Self-referential variable should not cause infinite loop
+	vars := map[string]interface{}{
+		"cmd": "echo {{cmd}}",
+	}
+	result := interpolateString("run {{cmd}}", vars)
+	// Should terminate within maxInterpolationDepth iterations
+	// The exact output depends on depth, but it must not hang
+	_ = result // just verify it terminates
+}
+
+func TestInterpolateStringIndirectCycle(t *testing.T) {
+	// Indirect cycle: A references B, B references A
+	vars := map[string]interface{}{
+		"a": "{{b}}",
+		"b": "{{a}}",
+	}
+	result := interpolateString("start {{a}}", vars)
+	_ = result // must terminate
+}
+
+func TestInterpolateStringMaxDepth(t *testing.T) {
+	// Deeply nested but valid interpolation (no cycle)
+	vars := map[string]interface{}{
+		"l1": "{{l2}}",
+		"l2": "{{l3}}",
+		"l3": "final",
+	}
+	result := interpolateString("{{l1}}", vars)
+	if result != "final" {
+		t.Errorf("expected 'final', got %q", result)
+	}
+}
+
 func TestEvaluateCondition(t *testing.T) {
 	vars := map[string]interface{}{
 		"present": "yes",

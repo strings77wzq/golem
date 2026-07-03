@@ -5,6 +5,7 @@ import (
 
 	"github.com/strings77wzq/golem/core/providers"
 	"github.com/strings77wzq/golem/core/tools"
+	"github.com/strings77wzq/golem/foundation/logger"
 )
 
 // Hooks provides lifecycle callbacks for the agent loop.
@@ -25,19 +26,21 @@ type Hooks struct {
 // It uses a getter function to read hooks at call time,
 // so hooks set after construction are automatically picked up.
 type HookChain struct {
-	getHooks func() *Hooks
+	getHooks  func() *Hooks
+	getLogger func() logger.Logger
 }
 
 // NewHookChain creates a HookChain that reads hooks via the given getter.
-func NewHookChain(getHooks func() *Hooks) *HookChain {
-	return &HookChain{getHooks: getHooks}
+func NewHookChain(getHooks func() *Hooks, getLogger func() logger.Logger) *HookChain {
+	return &HookChain{getHooks: getHooks, getLogger: getLogger}
 }
 
 // RunBeforeMessage fires the BeforeMessage hook if registered.
 func (hc *HookChain) RunBeforeMessage(ctx context.Context, sessionID string, message string) {
 	if h := hc.getHooks(); h != nil && h.BeforeMessage != nil {
 		if err := h.BeforeMessage(ctx, sessionID, message); err != nil {
-			_ = err
+			hc.getLogger().WithContext(ctx).Warn("hook before_message failed",
+				"error", err, "session_id", sessionID)
 		}
 	}
 }
@@ -46,7 +49,8 @@ func (hc *HookChain) RunBeforeMessage(ctx context.Context, sessionID string, mes
 func (hc *HookChain) RunAfterMessage(ctx context.Context, sessionID string, response string) {
 	if h := hc.getHooks(); h != nil && h.AfterMessage != nil {
 		if err := h.AfterMessage(ctx, sessionID, response); err != nil {
-			_ = err
+			hc.getLogger().WithContext(ctx).Warn("hook after_message failed",
+				"error", err, "session_id", sessionID)
 		}
 	}
 }
@@ -55,7 +59,8 @@ func (hc *HookChain) RunAfterMessage(ctx context.Context, sessionID string, resp
 func (hc *HookChain) RunBeforeLLM(ctx context.Context, messages []providers.Message) {
 	if h := hc.getHooks(); h != nil && h.BeforeLLM != nil {
 		if err := h.BeforeLLM(ctx, messages); err != nil {
-			_ = err
+			hc.getLogger().WithContext(ctx).Warn("hook before_llm failed",
+				"error", err)
 		}
 	}
 }
@@ -64,7 +69,8 @@ func (hc *HookChain) RunBeforeLLM(ctx context.Context, messages []providers.Mess
 func (hc *HookChain) RunAfterLLM(ctx context.Context, response *providers.LLMResponse) {
 	if h := hc.getHooks(); h != nil && h.AfterLLM != nil {
 		if err := h.AfterLLM(ctx, response); err != nil {
-			_ = err
+			hc.getLogger().WithContext(ctx).Warn("hook after_llm failed",
+				"error", err)
 		}
 	}
 }
@@ -73,7 +79,8 @@ func (hc *HookChain) RunAfterLLM(ctx context.Context, response *providers.LLMRes
 func (hc *HookChain) RunOnError(ctx context.Context, err error) {
 	if h := hc.getHooks(); h != nil && h.OnError != nil {
 		if hookErr := h.OnError(ctx, err); hookErr != nil {
-			_ = hookErr
+			hc.getLogger().WithContext(ctx).Warn("hook on_error failed",
+				"hook_error", hookErr, "original_error", err)
 		}
 	}
 }

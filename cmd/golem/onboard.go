@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/strings77wzq/golem/core/config"
+	"github.com/strings77wzq/golem/foundation/logger"
 )
 
 type providerPreset struct {
@@ -53,14 +54,15 @@ func newInitCommand() *cobra.Command {
 }
 
 func runOnboardWizard(configPath string, format string) error {
+	log := logger.New(logger.DefaultOptions())
 	r := bufio.NewReader(os.Stdin)
 
 	if _, err := os.Stat(configPath); err == nil {
-		fmt.Printf("Config already exists at %s\n", configPath)
+		log.Info("config already exists", "path", configPath)
 		fmt.Print("Reconfigure? [y/N]: ")
 		ans, _ := r.ReadString('\n')
 		if strings.ToLower(strings.TrimSpace(ans)) != "y" {
-			fmt.Println("Keeping existing config.")
+			log.Info("keeping existing config")
 			return nil
 		}
 	}
@@ -123,9 +125,9 @@ func runOnboardWizard(configPath string, format string) error {
 	// Connectivity validation
 	fmt.Println()
 	if err := validateProviderConnectivity(preset.vendor, apiBase, apiKey); err != nil {
-		fmt.Printf("Warning: %v\n", err)
+		log.Warn("connectivity check failed", "error", err)
 	} else {
-		fmt.Println("Connectivity check passed.")
+		log.Info("connectivity check passed")
 	}
 
 	// Next steps

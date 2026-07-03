@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/strings77wzq/golem/core/config"
+	"github.com/strings77wzq/golem/foundation/logger"
 )
 
 func newConfigCommand() *cobra.Command {
@@ -188,6 +189,7 @@ func ensureConfigDir(configPath string) error {
 // Golem doesn't care which provider you use. It tries OpenAI-compatible
 // protocol first, then Anthropic. The adapter layer handles the rest.
 func runConfigModelWizard(configPath string) error {
+	log := logger.New(logger.DefaultOptions())
 	r := bufio.NewReader(os.Stdin)
 
 	fmt.Println("=== Configure LLM ===")
@@ -255,9 +257,11 @@ func runConfigModelWizard(configPath string) error {
 	}
 
 	fmt.Println()
-	fmt.Printf("✅ Config saved to %s\n", configPath)
-	fmt.Printf("   Base URL: %s\n", baseURL)
-	fmt.Printf("   Model:    %s\n", model)
+	log.Info("config saved",
+		"path", configPath,
+		"base_url", baseURL,
+		"model", model,
+	)
 	fmt.Println()
 	fmt.Printf("Try it: golem agent -m \"Hello\"\n")
 

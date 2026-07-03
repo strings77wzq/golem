@@ -4,6 +4,20 @@ All notable changes to Golem will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.10.1] - 2026-07-03
+
+### Added
+- Feature layer metrics: RAG, Memory, MCP, Skills tools now report latency/error/call metrics at `/metrics`
+- `metricsToolWrapper` decorates feature tools at registration time (zero侵入 feature code)
+- Bus `SetOnDropped` callback: operators can observe dropped messages via logger or custom handler
+
+### Fixed
+- Trace ID propagation: agent now reuses trace_id from gateway context instead of overwriting
+- MCP Client `Close()` now waits for receiveLoop goroutine to exit (prevents goroutine leak)
+- `interpolateString` infinite loop: added `maxInterpolationDepth=10` guard for self-referential variables
+- Hook errors now logged (was silently discarded with `_ = err`)
+- CLI status messages (`onboard.go`, `config.go`) now use structured logger instead of `fmt.Print`
+
 ## [0.10.0] - 2026-07-03
 
 ### Added

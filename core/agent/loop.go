@@ -13,6 +13,7 @@ import (
 	"github.com/strings77wzq/golem/core/session"
 	"github.com/strings77wzq/golem/core/tools"
 	"github.com/strings77wzq/golem/core/usage"
+	"github.com/strings77wzq/golem/foundation/logger"
 )
 
 func (a *Agent) handleMessage(ctx context.Context, msg bus.InboundMessage) {
@@ -327,9 +328,12 @@ func (a *Agent) processMessage(
 	onToken func(string),
 	emit func(bus.OutboundMessage),
 ) (string, *bus.TokenUsage, error) {
-	// Observability: generate trace ID and record metrics
-	traceID := NewTraceID()
-	ctx = WithTraceID(ctx, traceID)
+	// Observability: reuse trace ID from context (e.g., from gateway) or generate new one
+	traceID := logger.TraceIDFromContext(ctx)
+	if traceID == "" {
+		traceID = NewTraceID()
+		ctx = WithTraceID(ctx, traceID)
+	}
 	startTime := time.Now()
 
 	sess, err := a.initSession(ctx, msg)

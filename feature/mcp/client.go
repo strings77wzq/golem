@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 )
 
 const (
@@ -183,6 +184,10 @@ func (c *Client) receiveLoop() {
 			return
 		}
 
+		if response == nil {
+			continue
+		}
+
 		c.mu.Lock()
 		responseChan, ok := c.pending[response.ID]
 		c.mu.Unlock()
@@ -203,5 +208,14 @@ func (c *Client) isInitialized() bool {
 }
 
 func (c *Client) Close() error {
-	return c.transport.Close()
+	// Close transport first — this causes Receive() to return an error,
+	// which triggers receiveLoop to exit and clean up pending channels.
+	err := c.transport.Close()
+	// Wait for receiveLoop to finish (with timeout)
+	select {
+	case <-c.done:
+	case <-time.After(2 * time.Second):
+		// receiveLoop didn't exit — best effort
+	}
+	return err
 }

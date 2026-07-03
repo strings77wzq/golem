@@ -154,7 +154,7 @@ func New(
 		opt(a)
 	}
 
-	a.hookChain = NewHookChain(func() *Hooks { return a.hooks })
+	a.hookChain = NewHookChain(func() *Hooks { return a.hooks }, func() logger.Logger { return a.logger })
 
 	return a
 }

@@ -73,8 +73,10 @@ func resolveArgs(template map[string]string, variables map[string]interface{}) m
 	return args
 }
 
+const maxInterpolationDepth = 10
+
 func interpolateString(s string, variables map[string]interface{}) string {
-	for {
+	for i := 0; i < maxInterpolationDepth; i++ {
 		start := strings.Index(s, "{{")
 		if start == -1 {
 			return s

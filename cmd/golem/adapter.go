@@ -30,7 +30,7 @@ func loadMCPTools(ctx context.Context, flagValue string, registry *tools.Registr
 		return fmt.Errorf("converting MCP tools: %w", err)
 	}
 	for _, proxy := range mcpProxies {
-		if err := registry.Register(proxy); err != nil {
+		if err := registry.Register(newMetricsTool(proxy)); err != nil {
 			log.Warn("failed to register MCP tool", "tool", proxy.Name(), "error", err)
 		}
 	}
@@ -57,7 +57,7 @@ func loadRAGTools(ctx context.Context, cfg *config.Config, flagValue string, reg
 		return fmt.Errorf("loading RAG tools: %w", err)
 	}
 	for _, t := range ragRegistry.ListTools() {
-		registry.Register(t) //nolint:errcheck
+		registry.Register(newMetricsTool(t)) //nolint:errcheck
 	}
 	return nil
 }
@@ -76,7 +76,7 @@ func loadMemoryTools(ctx context.Context, flagValue string, registry *tools.Regi
 		return fmt.Errorf("loading memory tools: %w", err)
 	}
 	for _, t := range memRegistry.ListTools() {
-		registry.Register(t) //nolint:errcheck
+		registry.Register(newMetricsTool(t)) //nolint:errcheck
 	}
 	log.Info("loaded memory tools")
 	return nil

@@ -142,6 +142,9 @@ func runAgent(cmd *cobra.Command) error {
 	// Build core registries
 	skillRegistry := LoadSkills(log, skillsDir, skillsFilter)
 	b := bus.New()
+	b.SetOnDropped(func(topic string, count int) {
+		log.Warn("bus message dropped", "topic", topic, "count", count)
+	})
 	workspace, _ := os.Getwd()
 
 	// Optional: exec sandbox
@@ -363,6 +366,9 @@ func newGatewayCommand() *cobra.Command {
 			registry := wiring.BuildToolRegistry(workspace)
 			factory := wiring.RegisterProviders(cfg)
 			log := logger.New(logger.DefaultOptions())
+			b.SetOnDropped(func(topic string, count int) {
+				log.Warn("bus message dropped", "topic", topic, "count", count)
+			})
 
 			store, err := openAgentSessionStore(cmd)
 			if err != nil {

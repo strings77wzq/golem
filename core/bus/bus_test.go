@@ -303,3 +303,36 @@ func TestDroppedCountTracking(t *testing.T) {
 
 	_ = ch // consumed by drain
 }
+
+func TestOnDroppedCallback(t *testing.T) {
+	bus := New()
+	defer bus.Close()
+
+	var callbackInvoked bool
+	var droppedTopic string
+	var totalDropped int
+	bus.SetOnDropped(func(topic string, count int) {
+		callbackInvoked = true
+		droppedTopic = topic
+		totalDropped += count
+	})
+
+	ch := bus.Subscribe("mytopic")
+
+	// Fill the buffer (100) then overflow with 10 more
+	for i := 0; i < 110; i++ {
+		bus.Publish("mytopic", i)
+	}
+
+	if !callbackInvoked {
+		t.Error("expected OnDropped callback to be invoked")
+	}
+	if droppedTopic != "mytopic" {
+		t.Errorf("expected topic 'mytopic', got %q", droppedTopic)
+	}
+	if totalDropped != 10 {
+		t.Errorf("expected 10 total dropped, got %d", totalDropped)
+	}
+
+	_ = ch
+}

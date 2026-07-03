@@ -1,8 +1,11 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/strings77wzq/golem/core/bus"
@@ -140,6 +143,45 @@ func TestHooksErrorPropagation(t *testing.T) {
 	_, err := ag.Chat(context.Background(), "hello")
 	if err != nil {
 		t.Fatalf("Chat failed: %v", err)
+	}
+}
+
+func TestHookChainLogsErrors(t *testing.T) {
+	// HookChain should log hook errors, not silently discard them
+	var buf bytes.Buffer
+	log := logger.New(logger.Options{
+		Level:  slog.LevelDebug,
+		Format: logger.FormatJSON,
+		Output: &buf,
+	})
+
+	hookErr := errors.New("hook failed intentionally")
+	getHooks := func() *Hooks {
+		return &Hooks{
+			BeforeMessage: func(ctx context.Context, sessionID string, message string) error {
+				return hookErr
+			},
+			AfterLLM: func(ctx context.Context, resp *providers.LLMResponse) error {
+				return hookErr
+			},
+		}
+	}
+
+	hc := NewHookChain(getHooks, func() logger.Logger { return log })
+
+	// These should not panic and should log errors
+	hc.RunBeforeMessage(context.Background(), "session-1", "hello")
+	hc.RunAfterLLM(context.Background(), &providers.LLMResponse{Content: "response"})
+
+	output := buf.String()
+	if !strings.Contains(output, "hook before_message failed") {
+		t.Errorf("expected log to contain 'hook before_message failed', got: %s", output)
+	}
+	if !strings.Contains(output, "hook after_llm failed") {
+		t.Errorf("expected log to contain 'hook after_llm failed', got: %s", output)
+	}
+	if !strings.Contains(output, "hook failed intentionally") {
+		t.Errorf("expected log to contain error message, got: %s", output)
 	}
 }
 

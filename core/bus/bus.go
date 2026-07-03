@@ -16,6 +16,7 @@ type Bus interface {
 	Subscribe(topic string) <-chan interface{}
 	Unsubscribe(topic string, ch <-chan interface{})
 	DroppedCount() int64
+	SetOnDropped(fn func(topic string, count int))
 	Close()
 }
 
@@ -25,6 +26,7 @@ type memBus struct {
 	subscribers map[string][]chan interface{}
 	closed      bool
 	dropped     atomic.Int64
+	onDropped   func(topic string, count int)
 }
 
 // New creates a new in-memory message bus
@@ -48,18 +50,31 @@ func (b *memBus) Publish(topic string, msg interface{}) {
 		return
 	}
 
+	var topicDropped int
 	for _, ch := range subs {
 		select {
 		case ch <- msg:
 		default:
 			b.dropped.Add(1)
+			topicDropped++
 		}
+	}
+
+	if topicDropped > 0 && b.onDropped != nil {
+		b.onDropped(topic, topicDropped)
 	}
 }
 
 // DroppedCount returns the total number of messages dropped due to full subscriber buffers.
 func (b *memBus) DroppedCount() int64 {
 	return b.dropped.Load()
+}
+
+// SetOnDropped registers a callback invoked when messages are dropped due to full buffers.
+func (b *memBus) SetOnDropped(fn func(topic string, count int)) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.onDropped = fn
 }
 
 // Subscribe creates a new subscription channel for a topic
