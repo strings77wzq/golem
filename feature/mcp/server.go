@@ -219,5 +219,5 @@ func (s *Server) send(resp interface{}) {
 		return
 	}
 	data = append(data, '\n')
-	s.stdout.Write(data)
+	s.stdout.Write(data) //nolint:errcheck
 }

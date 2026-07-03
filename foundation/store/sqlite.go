@@ -20,24 +20,24 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 
 	_, err = db.Exec("PRAGMA journal_mode=WAL")
 	if err != nil {
-		db.Close()
+		db.Close() //nolint:errcheck
 		return nil, fmt.Errorf("failed to set journal_mode: %w", err)
 	}
 
 	_, err = db.Exec("PRAGMA foreign_keys=ON")
 	if err != nil {
-		db.Close()
+		db.Close() //nolint:errcheck
 		return nil, fmt.Errorf("failed to enable foreign_keys: %w", err)
 	}
 
 	_, err = db.Exec("PRAGMA busy_timeout=5000")
 	if err != nil {
-		db.Close()
+		db.Close() //nolint:errcheck
 		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
 	}
 
 	if err := runMigrations(db); err != nil {
-		db.Close()
+		db.Close() //nolint:errcheck
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
@@ -106,7 +106,7 @@ func (s *SQLiteStore) ListSessions() ([]*SessionRecord, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to list sessions: %w", err)
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 
 	var sessions []*SessionRecord
 	for rows.Next() {

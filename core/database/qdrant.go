@@ -79,7 +79,7 @@ func (d *QdrantDriver) Search(ctx context.Context, collection string, query stri
 		// Fallback to scroll if search endpoint fails
 		return d.searchFallback(ctx, collection, query, topK)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		// Fallback to scroll if search returns error
@@ -131,7 +131,7 @@ func (d *QdrantDriver) searchFallback(ctx context.Context, collection string, qu
 	if err != nil {
 		return nil, fmt.Errorf("scroll search failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -201,7 +201,7 @@ func (d *QdrantDriver) SearchWithVector(ctx context.Context, collection string, 
 	if err != nil {
 		return nil, fmt.Errorf("vector search failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -256,7 +256,7 @@ func (d *QdrantDriver) Insert(ctx context.Context, collection string, id string,
 	if err != nil {
 		return fmt.Errorf("insert failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -285,7 +285,7 @@ func (d *QdrantDriver) Delete(ctx context.Context, collection string, id string)
 	if err != nil {
 		return fmt.Errorf("delete failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -308,7 +308,7 @@ func (d *QdrantDriver) Collections(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listing collections: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -358,7 +358,7 @@ func (d *QdrantDriver) GetSchema(ctx context.Context) (string, error) {
 			sb.WriteString(fmt.Sprintf("- %s (error: %v)\n", name, err))
 			continue
 		}
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 
 		var info struct {
 			Result struct {
@@ -393,7 +393,7 @@ func (d *QdrantDriver) Ping(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	resp.Body.Close()
+	resp.Body.Close() //nolint:errcheck
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check returned %d", resp.StatusCode)
 	}

@@ -175,7 +175,7 @@ func validateProviderConnectivity(vendor, apiBase, apiKey string) error {
 		if err != nil {
 			return fmt.Errorf("ollama not reachable at %s — is it running?", apiBase)
 		}
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("ollama returned status %d", resp.StatusCode)
 		}

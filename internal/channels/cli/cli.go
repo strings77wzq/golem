@@ -81,13 +81,13 @@ func New(b bus.Bus, opts ...Option) *Adapter {
 func (a *Adapter) writeln(s string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	fmt.Fprintln(a.writer, s)
+	fmt.Fprintln(a.writer, s) //nolint:errcheck
 }
 
 func (a *Adapter) writePrompt() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	fmt.Fprint(a.writer, a.prompt)
+	fmt.Fprint(a.writer, a.prompt) //nolint:errcheck
 }
 
 // RunOnce sends a single message and waits for the response.

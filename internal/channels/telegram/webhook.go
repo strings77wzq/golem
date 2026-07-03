@@ -29,7 +29,7 @@ func (a *Adapter) WebhookHandler(secretToken string) http.HandlerFunc {
 			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
 		}
-		defer r.Body.Close()
+		defer r.Body.Close() //nolint:errcheck
 
 		var update Update
 		if err := json.Unmarshal(body, &update); err != nil {
@@ -81,7 +81,7 @@ func (c *Client) SetWebhook(ctx context.Context, url string, secretToken string)
 	if err != nil {
 		return fmt.Errorf("performing request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
@@ -109,7 +109,7 @@ func (c *Client) DeleteWebhook(ctx context.Context, dropPending bool) error {
 	if err != nil {
 		return fmt.Errorf("performing request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)

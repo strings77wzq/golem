@@ -14,10 +14,8 @@ linters:
     - misspell
     - nakedret
     - prealloc
-    - gocritic
     - revive
   disable:
-    - errcheck
     - gocritic
     - gosec
     - ineffassign
@@ -45,6 +43,18 @@ linters:
       - path: core/database/
         linters:
           - gosec      # SQL driver needs dynamic queries
+      - path: internal/wiring/tools\.go
+        linters:
+          - errcheck   # pervasive Register() calls
+      - path: foundation/metrics/handler\.go
+        linters:
+          - errcheck   # Prometheus handler fmt.Fprintf output
+      - path: cmd/golem/mcp_server\.go
+        linters:
+          - errcheck   # tool registration in MCP server mode
+      - path: internal/gateway/openai_compat\.go
+        linters:
+          - errcheck   # SSE stream fmt.Fprintf
 
 issues:
   max-issues-per-linter: 0

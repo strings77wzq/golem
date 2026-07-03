@@ -45,7 +45,7 @@ func (d *RedisDriverImpl) Connect(ctx context.Context, cfg Config) error {
 
 	client := redis.NewClient(opts)
 	if err := client.Ping(ctx).Err(); err != nil {
-		client.Close()
+		client.Close() //nolint:errcheck
 		return fmt.Errorf("pinging Redis: %w", err)
 	}
 

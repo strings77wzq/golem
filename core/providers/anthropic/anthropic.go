@@ -123,7 +123,7 @@ func (p *Provider) HealthCheck(ctx context.Context) (*providers.HealthStatus, er
 			CheckedAt: time.Now().Unix(),
 		}, nil
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode == http.StatusOK {
 		status := "healthy"
@@ -177,7 +177,7 @@ func (p *Provider) Chat(ctx context.Context, messages []providers.Message, toolD
 		// Check for retryable status codes
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
 			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			resp.Body.Close() //nolint:errcheck
 			lastErr = fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 			continue
 		}
@@ -185,12 +185,12 @@ func (p *Provider) Chat(ctx context.Context, messages []providers.Message, toolD
 		// Non-retryable error
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			resp.Body.Close() //nolint:errcheck
 			return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 		}
 
 		// Success
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 		return p.parseResponse(resp.Body)
 	}
 
@@ -229,7 +229,7 @@ func (p *Provider) ChatStream(
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

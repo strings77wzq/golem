@@ -63,7 +63,7 @@ func (c *Client) GetUpdates(ctx context.Context, offset int, timeout int) ([]Upd
 	if err != nil {
 		return nil, fmt.Errorf("performing request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -110,7 +110,7 @@ func (c *Client) SendMessage(ctx context.Context, chatID int64, text string) err
 	if err != nil {
 		return fmt.Errorf("performing request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

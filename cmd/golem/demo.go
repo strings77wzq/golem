@@ -37,13 +37,13 @@ func newDemoCommand() *cobra.Command {
 }
 
 func createDemoDB(path string) error {
-	os.Remove(path)
+	os.Remove(path) //nolint:errcheck
 
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return fmt.Errorf("opening database: %w", err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck
 
 	_, _ = db.Exec("PRAGMA journal_mode=WAL")
 	_, _ = db.Exec("PRAGMA foreign_keys=ON")
@@ -99,7 +99,7 @@ func createDemoDB(path string) error {
 			fmt.Sprintf("user_%d@example.com", i),
 			[]string{"user", "admin", "moderator"}[rng.Intn(3)])
 	}
-	stmt.Close()
+	stmt.Close() //nolint:errcheck
 	_ = tx.Commit()
 	fmt.Println("10K")
 
@@ -114,7 +114,7 @@ func createDemoDB(path string) error {
 			categories[rng.Intn(len(categories))],
 			rng.Intn(1000))
 	}
-	stmt.Close()
+	stmt.Close() //nolint:errcheck
 	_ = tx.Commit()
 	fmt.Println("500")
 
@@ -129,7 +129,7 @@ func createDemoDB(path string) error {
 			statuses[rng.Intn(len(statuses))],
 			time.Now().Add(-time.Duration(rng.Intn(365*2*24))*time.Hour))
 	}
-	stmt.Close()
+	stmt.Close() //nolint:errcheck
 	_ = tx.Commit()
 	fmt.Println("100K")
 
@@ -143,7 +143,7 @@ func createDemoDB(path string) error {
 			rng.Intn(10)+1,
 			float64(rng.Intn(10000))/100.0)
 	}
-	stmt.Close()
+	stmt.Close() //nolint:errcheck
 	_ = tx.Commit()
 	fmt.Println("300K")
 

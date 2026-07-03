@@ -37,7 +37,7 @@ func (h *HybridRetriever) AddDocument(ctx context.Context, id, content string) e
 		if err != nil {
 			return fmt.Errorf("embedding document %s: %w", id, err)
 		}
-		h.vectorStore.Add(ctx, []Document{{
+		h.vectorStore.Add(ctx, []Document{{ //nolint:errcheck
 			ID:      id,
 			Content: content,
 			Vector:  vec,

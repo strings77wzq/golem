@@ -64,7 +64,7 @@ func runDebugTools(cmd *cobra.Command, registry *tools.Registry) error {
 	allTools := registry.ListTools()
 
 	if len(allTools) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "0 tools registered")
+		fmt.Fprintln(cmd.OutOrStdout(), "0 tools registered") //nolint:errcheck
 		return nil
 	}
 
@@ -78,26 +78,26 @@ func runDebugTools(cmd *cobra.Command, registry *tools.Registry) error {
 
 func outputToolsHuman(cmd *cobra.Command, allTools []tools.Tool) error {
 	out := cmd.OutOrStdout()
-	fmt.Fprintf(out, "%d tools registered (alphabetical order)\n\n", len(allTools))
+	fmt.Fprintf(out, "%d tools registered (alphabetical order)\n\n", len(allTools)) //nolint:errcheck
 
 	for _, t := range allTools {
 		def := tools.ToDefinition(t)
-		fmt.Fprintf(out, "  %s\n", def.Name)
-		fmt.Fprintf(out, "    %s\n", def.Description)
+		fmt.Fprintf(out, "  %s\n", def.Name)          //nolint:errcheck
+		fmt.Fprintf(out, "    %s\n", def.Description) //nolint:errcheck
 		if len(def.Parameters) > 0 {
-			fmt.Fprintf(out, "    parameters:\n")
+			fmt.Fprintf(out, "    parameters:\n") //nolint:errcheck
 			for _, p := range def.Parameters {
 				req := ""
 				if p.Required {
 					req = " (required)"
 				}
-				fmt.Fprintf(out, "      %s: %s%s\n", p.Name, p.Type, req)
+				fmt.Fprintf(out, "      %s: %s%s\n", p.Name, p.Type, req) //nolint:errcheck
 				if p.Description != "" {
-					fmt.Fprintf(out, "        %s\n", p.Description)
+					fmt.Fprintf(out, "        %s\n", p.Description) //nolint:errcheck
 				}
 			}
 		}
-		fmt.Fprintln(out)
+		fmt.Fprintln(out) //nolint:errcheck
 	}
 
 	return nil
@@ -114,7 +114,7 @@ func outputToolsJSON(cmd *cobra.Command, allTools []tools.Tool) error {
 		return fmt.Errorf("marshaling tools to JSON: %w", err)
 	}
 
-	fmt.Fprintln(cmd.OutOrStdout(), string(data))
+	fmt.Fprintln(cmd.OutOrStdout(), string(data)) //nolint:errcheck
 	return nil
 }
 
@@ -138,7 +138,7 @@ func runDebugConfig(cmd *cobra.Command, configPath string) error {
 		return fmt.Errorf("converting to YAML: %w", err)
 	}
 
-	fmt.Fprintln(cmd.OutOrStdout(), string(yamlData))
+	fmt.Fprintln(cmd.OutOrStdout(), string(yamlData)) //nolint:errcheck
 	return nil
 }
 

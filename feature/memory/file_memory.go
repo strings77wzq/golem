@@ -150,7 +150,7 @@ func (fm *FileMemory) persist() error {
 	}
 
 	if err := os.Rename(tmpFile, fm.filePath); err != nil {
-		os.Remove(tmpFile)
+		os.Remove(tmpFile) //nolint:errcheck
 		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 

@@ -89,11 +89,11 @@ func (a *Agent) ChatWithSession(ctx context.Context, sessionID, message string) 
 
 func newDefaultToolRegistry(workspace string) *tools.Registry {
 	registry := tools.NewRegistry()
-	registry.Register(toolexec.New(workspace))
-	registry.Register(fileops.NewFileReadTool(workspace))
-	registry.Register(fileops.NewFileWriteTool(workspace))
-	registry.Register(fileops.NewFileListTool(workspace))
-	registry.Register(websearch.New())
+	registry.Register(toolexec.New(workspace))             //nolint:errcheck
+	registry.Register(fileops.NewFileReadTool(workspace))  //nolint:errcheck
+	registry.Register(fileops.NewFileWriteTool(workspace)) //nolint:errcheck
+	registry.Register(fileops.NewFileListTool(workspace))  //nolint:errcheck
+	registry.Register(websearch.New())                     //nolint:errcheck
 	return registry
 }
 

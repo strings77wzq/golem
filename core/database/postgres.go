@@ -46,7 +46,7 @@ func (d *PostgresDriver) Connect(ctx context.Context) error {
 	db.SetConnMaxLifetime(5 * time.Minute)
 
 	if err := db.PingContext(ctx); err != nil {
-		db.Close()
+		db.Close() //nolint:errcheck
 		return fmt.Errorf("pinging postgres: %w", err)
 	}
 
@@ -64,7 +64,7 @@ func (d *PostgresDriver) Query(ctx context.Context, query string, args ...interf
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 
 	columns, err := rows.Columns()
 	if err != nil {

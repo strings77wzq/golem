@@ -44,7 +44,7 @@ func (a *Agent) executeTools(ctx context.Context, resp *providers.LLMResponse) (
 		})
 	}
 
-	wg.Wait()
+	wg.Wait() //nolint:errcheck
 	return results, errors
 }
 
@@ -108,7 +108,7 @@ func (a *Agent) runToolExecution(ctx context.Context, resp *providers.LLMRespons
 			for j, fc := range filteredCalls {
 				if fc.ID == tc.ID && results != nil && j < len(results) {
 					if results[j] != nil {
-						a.hooks.PostToolShell.Execute(&HookInput{
+						a.hooks.PostToolShell.Execute(&HookInput{ //nolint:errcheck
 							SessionID:  msg.SessionID,
 							ToolName:   tc.Name,
 							ToolInput:  tc.Arguments,

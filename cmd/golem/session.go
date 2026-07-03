@@ -36,7 +36,7 @@ func newSessionListCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer adapter.Close()
+			defer adapter.Close() //nolint:errcheck
 
 			sessions := adapter.List()
 			if len(sessions) == 0 {
@@ -64,7 +64,7 @@ func newSessionShowCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer adapter.Close()
+			defer adapter.Close() //nolint:errcheck
 
 			sess, ok := adapter.Get(args[0])
 			if !ok {
@@ -91,7 +91,7 @@ func newSessionDeleteCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer adapter.Close()
+			defer adapter.Close() //nolint:errcheck
 
 			if err := adapter.Delete(args[0]); err != nil {
 				return fmt.Errorf("deleting session: %w", err)
@@ -127,7 +127,7 @@ func newSessionExportCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer adapter.Close()
+			defer adapter.Close() //nolint:errcheck
 
 			sess, ok := adapter.Get(args[0])
 			if !ok {
@@ -160,7 +160,7 @@ func newSessionImportCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer adapter.Close()
+			defer adapter.Close() //nolint:errcheck
 
 			jsonData, err := os.ReadFile(args[0])
 			if err != nil {

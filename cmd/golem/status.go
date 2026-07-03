@@ -31,31 +31,31 @@ func newStatusCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
 
-			fmt.Fprintln(out, "Golem Status")
-			fmt.Fprintln(out, "====================")
-			fmt.Fprintln(out)
+			fmt.Fprintln(out, "Golem Status")         //nolint:errcheck
+			fmt.Fprintln(out, "====================") //nolint:errcheck
+			fmt.Fprintln(out)                         //nolint:errcheck
 
-			fmt.Fprintf(out, "Version:    %s\n", version)
-			fmt.Fprintf(out, "Commit:     %s\n", commit)
-			fmt.Fprintf(out, "Build Date: %s\n\n", date)
+			fmt.Fprintf(out, "Version:    %s\n", version) //nolint:errcheck
+			fmt.Fprintf(out, "Commit:     %s\n", commit)  //nolint:errcheck
+			fmt.Fprintf(out, "Build Date: %s\n\n", date)  //nolint:errcheck
 
 			configPath, err := getConfigPath(cmd)
 			if err != nil {
 				return err
 			}
 
-			fmt.Fprintf(out, "Config:     %s\n", configPath)
+			fmt.Fprintf(out, "Config:     %s\n", configPath) //nolint:errcheck
 
 			if _, err := os.Stat(configPath); err == nil {
-				fmt.Fprintln(out, "            (exists)")
+				fmt.Fprintln(out, "            (exists)") //nolint:errcheck
 				if err := showConfigModels(out, configPath); err != nil {
-					fmt.Fprintf(out, "            error reading config: %v\n", err)
+					fmt.Fprintf(out, "            error reading config: %v\n", err) //nolint:errcheck
 				}
 			} else {
-				fmt.Fprintln(out, "            (not found)")
+				fmt.Fprintln(out, "            (not found)") //nolint:errcheck
 			}
 
-			fmt.Fprintln(out)
+			fmt.Fprintln(out) //nolint:errcheck
 
 			// Tools
 			workspace, _ := os.Getwd()
@@ -66,7 +66,7 @@ func newStatusCommand() *cobra.Command {
 			features := detectFeatures(configPath)
 			showStatusFeatures(out, features)
 
-			fmt.Fprintln(out)
+			fmt.Fprintln(out) //nolint:errcheck
 			checkGatewayHealth(out)
 
 			return nil
@@ -77,15 +77,15 @@ func newStatusCommand() *cobra.Command {
 func showStatusTools(out io.Writer, registry *tools.Registry) {
 	count := registry.Count()
 	if count == 0 {
-		fmt.Fprintf(out, "Tools:      0 tools registered\n")
+		fmt.Fprintf(out, "Tools:      0 tools registered\n") //nolint:errcheck
 		return
 	}
 
-	fmt.Fprintf(out, "Tools:      %d tools registered\n", count)
+	fmt.Fprintf(out, "Tools:      %d tools registered\n", count) //nolint:errcheck
 	for _, t := range registry.ListTools() {
-		fmt.Fprintf(out, "              - %s\n", t.Name())
+		fmt.Fprintf(out, "              - %s\n", t.Name()) //nolint:errcheck
 	}
-	fmt.Fprintln(out)
+	fmt.Fprintln(out) //nolint:errcheck
 }
 
 func showStatusFeatures(out io.Writer, features FeatureStatus) {
@@ -109,11 +109,11 @@ func showStatusFeatures(out io.Writer, features FeatureStatus) {
 		skillsStatus = fmt.Sprintf("enabled (%d)", features.SkillsCount)
 	}
 
-	fmt.Fprintf(out, "Features:\n")
-	fmt.Fprintf(out, "  MCP:        %s\n", mcpStatus)
-	fmt.Fprintf(out, "  RAG:        %s\n", ragStatus)
-	fmt.Fprintf(out, "  Memory:     %s\n", memStatus)
-	fmt.Fprintf(out, "  Skills:     %s\n", skillsStatus)
+	fmt.Fprintf(out, "Features:\n")                      //nolint:errcheck
+	fmt.Fprintf(out, "  MCP:        %s\n", mcpStatus)    //nolint:errcheck
+	fmt.Fprintf(out, "  RAG:        %s\n", ragStatus)    //nolint:errcheck
+	fmt.Fprintf(out, "  Memory:     %s\n", memStatus)    //nolint:errcheck
+	fmt.Fprintf(out, "  Skills:     %s\n", skillsStatus) //nolint:errcheck
 }
 
 func detectFeatures(configPath string) FeatureStatus {
@@ -166,13 +166,13 @@ func showConfigModels(out io.Writer, configPath string) error {
 	}
 
 	if cfg.Agents.Defaults.ModelName != "" {
-		fmt.Fprintf(out, "            default model: %s\n", cfg.Agents.Defaults.ModelName)
+		fmt.Fprintf(out, "            default model: %s\n", cfg.Agents.Defaults.ModelName) //nolint:errcheck
 	}
 
 	if len(cfg.ModelList) > 0 {
-		fmt.Fprintf(out, "            configured models: %d\n", len(cfg.ModelList))
+		fmt.Fprintf(out, "            configured models: %d\n", len(cfg.ModelList)) //nolint:errcheck
 		for _, m := range cfg.ModelList {
-			fmt.Fprintf(out, "              - %s (%s)\n", m.ModelName, m.Model)
+			fmt.Fprintf(out, "              - %s (%s)\n", m.ModelName, m.Model) //nolint:errcheck
 		}
 	}
 
@@ -180,18 +180,18 @@ func showConfigModels(out io.Writer, configPath string) error {
 }
 
 func checkGatewayHealth(out io.Writer) {
-	fmt.Fprintf(out, "Gateway:    ")
+	fmt.Fprintf(out, "Gateway:    ") //nolint:errcheck
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get("http://localhost:18790/api/health")
 	if err != nil {
-		fmt.Fprintln(out, "stopped (not reachable)")
+		fmt.Fprintln(out, "stopped (not reachable)") //nolint:errcheck
 		return
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode == http.StatusOK {
-		fmt.Fprintln(out, "running (http://localhost:18790)")
+		fmt.Fprintln(out, "running (http://localhost:18790)") //nolint:errcheck
 	} else {
-		fmt.Fprintf(out, "unhealthy (status: %d)\n", resp.StatusCode)
+		fmt.Fprintf(out, "unhealthy (status: %d)\n", resp.StatusCode) //nolint:errcheck
 	}
 }

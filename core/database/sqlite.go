@@ -43,13 +43,13 @@ func (d *SQLiteDriver) Connect(ctx context.Context) error {
 
 	// Enable WAL mode for concurrent reads
 	if _, err := db.ExecContext(ctx, "PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
+		db.Close() //nolint:errcheck
 		return fmt.Errorf("setting WAL mode: %w", err)
 	}
 
 	// Enable foreign keys
 	if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys=ON"); err != nil {
-		db.Close()
+		db.Close() //nolint:errcheck
 		return fmt.Errorf("enabling foreign keys: %w", err)
 	}
 
@@ -71,7 +71,7 @@ func (d *SQLiteDriver) Query(ctx context.Context, query string, args ...interfac
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 
 	columns, err := rows.Columns()
 	if err != nil {

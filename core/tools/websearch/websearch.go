@@ -127,7 +127,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 			IsError: true,
 		}, err
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		return &tools.ToolResult{

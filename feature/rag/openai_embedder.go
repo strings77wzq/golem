@@ -142,7 +142,7 @@ func (e *OpenAIEmbedder) requestEmbeddings(ctx context.Context, texts []string) 
 	if err != nil {
 		return nil, fmt.Errorf("sending request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {

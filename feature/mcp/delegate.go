@@ -65,7 +65,7 @@ func (t *DelegateTool) Execute(ctx context.Context, args map[string]interface{})
 	if err := cmd.Start(); err != nil {
 		return &tools.ToolResult{ForLLM: fmt.Sprintf("Error starting agent: %v", err), IsError: true}, nil
 	}
-	defer cmd.Wait() // reap child process on all exit paths
+	defer cmd.Wait() //nolint:errcheck // reap child process on all exit paths
 
 	// Create MCP client connected to the agent
 	transport := &stdioTransport{stdin: stdin, stdout: stdout}
@@ -75,13 +75,13 @@ func (t *DelegateTool) Execute(ctx context.Context, args map[string]interface{})
 	initCtx, initCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer initCancel()
 	if _, err := client.Initialize(initCtx); err != nil {
-		cmd.Process.Kill()
+		cmd.Process.Kill() //nolint:errcheck
 		return &tools.ToolResult{ForLLM: fmt.Sprintf("Error initializing agent: %v", err), IsError: true}, nil
 	}
 
 	// Call the tool
 	result, err := client.CallTool(ctx, toolName, toolArgs)
-	cmd.Process.Kill()
+	cmd.Process.Kill() //nolint:errcheck
 
 	if err != nil {
 		return &tools.ToolResult{ForLLM: fmt.Sprintf("Error calling tool %s: %v", toolName, err), IsError: true}, nil

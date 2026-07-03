@@ -121,7 +121,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
 	}
-	defer r.Body.Close()
+	defer r.Body.Close() //nolint:errcheck
 
 	var req chatRequest
 	if err := json.Unmarshal(body, &req); err != nil {
@@ -176,7 +176,7 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
 	}
-	defer r.Body.Close()
+	defer r.Body.Close() //nolint:errcheck
 
 	var req chatRequest
 	if err := json.Unmarshal(body, &req); err != nil {
@@ -211,13 +211,13 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 				if !ok {
 					if err := <-errCh; err != nil {
 						s.logger.Error("stream error", slog.Any("error", err), slog.String("session_id", req.SessionID))
-						fmt.Fprintf(w, "event: error\ndata: internal server error\n\n")
+						fmt.Fprintf(w, "event: error\ndata: internal server error\n\n") //nolint:errcheck
 						flusher.Flush()
 						return
 					}
 					break streamLoop
 				}
-				fmt.Fprintf(w, "data: %s\n\n", token)
+				fmt.Fprintf(w, "data: %s\n\n", token) //nolint:errcheck
 				flusher.Flush()
 			case <-r.Context().Done():
 				return
@@ -227,15 +227,15 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		response, err := s.agent.HandleMessage(r.Context(), req.SessionID, req.Message)
 		if err != nil {
 			s.logger.Error("agent error", slog.Any("error", err), slog.String("session_id", req.SessionID))
-			fmt.Fprintf(w, "event: error\ndata: internal server error\n\n")
+			fmt.Fprintf(w, "event: error\ndata: internal server error\n\n") //nolint:errcheck
 			flusher.Flush()
 			return
 		}
-		fmt.Fprintf(w, "data: %s\n\n", response)
+		fmt.Fprintf(w, "data: %s\n\n", response) //nolint:errcheck
 		flusher.Flush()
 	}
 
-	fmt.Fprintf(w, "event: done\ndata: [DONE]\n\n")
+	fmt.Fprintf(w, "event: done\ndata: [DONE]\n\n") //nolint:errcheck
 	flusher.Flush()
 }
 
@@ -279,7 +279,7 @@ func (s *Server) handleSessionImport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body"})
 		return
 	}
-	defer r.Body.Close()
+	defer r.Body.Close() //nolint:errcheck
 
 	sess, err := session.ImportFromJSON(body)
 	if err != nil {

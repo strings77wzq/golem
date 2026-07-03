@@ -85,14 +85,14 @@ func (m *Manager) Start(ctx context.Context) error {
 
 			client := NewClient(transport)
 			if _, err := client.Initialize(ctx); err != nil {
-				transport.Close()
+				transport.Close() //nolint:errcheck
 				errChan <- fmt.Errorf("failed to initialize server %s: %w", conn.config.Name, err)
 				return
 			}
 
 			toolsList, err := client.ListTools(ctx)
 			if err != nil {
-				transport.Close()
+				transport.Close() //nolint:errcheck
 				errChan <- fmt.Errorf("failed to list tools for server %s: %w", conn.config.Name, err)
 				return
 			}

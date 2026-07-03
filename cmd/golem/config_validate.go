@@ -37,12 +37,12 @@ func newConfigValidateCommand() *cobra.Command {
 			out := cmd.OutOrStdout()
 
 			if result.Valid {
-				fmt.Fprintln(out, "✓ Configuration is valid")
-				fmt.Fprintf(out, "  Config: %s\n", configPath)
+				fmt.Fprintln(out, "✓ Configuration is valid")  //nolint:errcheck
+				fmt.Fprintf(out, "  Config: %s\n", configPath) //nolint:errcheck
 			} else {
-				fmt.Fprintf(out, "✗ Configuration has %d error(s):\n", len(result.Errors))
+				fmt.Fprintf(out, "✗ Configuration has %d error(s):\n", len(result.Errors)) //nolint:errcheck
 				for _, e := range result.Errors {
-					fmt.Fprintf(out, "  ✗ %s\n", e)
+					fmt.Fprintf(out, "  ✗ %s\n", e) //nolint:errcheck
 				}
 				return fmt.Errorf("config validation failed")
 			}

@@ -117,7 +117,7 @@ func RateLimitMiddleware(cfg RateLimitConfig) func(http.Handler) http.Handler {
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", int(retryAfter.Seconds())+1))
 				w.WriteHeader(http.StatusTooManyRequests)
-				json.NewEncoder(w).Encode(map[string]string{"error": "rate limit exceeded"})
+				json.NewEncoder(w).Encode(map[string]string{"error": "rate limit exceeded"}) //nolint:errcheck
 				return
 			}
 
@@ -155,7 +155,7 @@ func RateLimitMiddlewareWithCleanup(cfg RateLimitConfig) (func(http.Handler) htt
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", int(retryAfter.Seconds())+1))
 				w.WriteHeader(http.StatusTooManyRequests)
-				json.NewEncoder(w).Encode(map[string]string{"error": "rate limit exceeded"})
+				json.NewEncoder(w).Encode(map[string]string{"error": "rate limit exceeded"}) //nolint:errcheck
 				return
 			}
 

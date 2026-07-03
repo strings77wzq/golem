@@ -42,7 +42,7 @@ func AuthMiddleware(cfg AuthConfig) func(http.Handler) http.Handler {
 			if apiKey == "" || !isValidAPIKey(apiKey, cfg.APIKeys) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
-				json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+				json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"}) //nolint:errcheck
 				return
 			}
 
@@ -52,7 +52,7 @@ func AuthMiddleware(cfg AuthConfig) func(http.Handler) http.Handler {
 				if !isIPAllowed(clientIP, cfg.AllowFrom) {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusForbidden)
-					json.NewEncoder(w).Encode(map[string]string{"error": "forbidden"})
+					json.NewEncoder(w).Encode(map[string]string{"error": "forbidden"}) //nolint:errcheck
 					return
 				}
 			}

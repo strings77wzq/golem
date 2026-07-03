@@ -120,7 +120,7 @@ func (p *Provider) HealthCheck(ctx context.Context) (*providers.HealthStatus, er
 			CheckedAt: time.Now().Unix(),
 		}, nil
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode == http.StatusOK {
 		status := "healthy"
@@ -220,7 +220,7 @@ func (p *Provider) ChatStream(
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -496,7 +496,7 @@ func (p *Provider) doRequest(
 		// Network errors are retryable
 		return nil, 0, true, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
