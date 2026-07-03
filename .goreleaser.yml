@@ -48,6 +48,7 @@ changelog:
 dockers:
   - image_templates:
       - "ghcr.io/strings77wzq/golem:{{ .Version }}-amd64"
+    dockerfile: docker/Dockerfile
     use: buildx
     build_flag_templates:
       - "--platform=linux/amd64"
@@ -55,6 +56,7 @@ dockers:
 
   - image_templates:
       - "ghcr.io/strings77wzq/golem:{{ .Version }}-arm64"
+    dockerfile: docker/Dockerfile
     use: buildx
     build_flag_templates:
       - "--platform=linux/arm64"
