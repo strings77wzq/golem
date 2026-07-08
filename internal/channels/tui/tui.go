@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -55,6 +56,7 @@ var (
 	stepStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("2")) // green
 	toolStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("3")) // yellow
 	resultStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("5")) // magenta
+	thinkingStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("8")) // gray
 )
 
 // Model is the Bubble Tea model for the chat TUI.
@@ -64,15 +66,17 @@ type Model struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 
-	messages   []chatMsg
-	tokenCh    <-chan string
-	progressCh <-chan bus.OutboundMessage
-	input      string
-	thinking   bool
-	lastError  string
+	messages      []chatMsg
+	tokenCh       <-chan string
+	progressCh    <-chan bus.OutboundMessage
+	input         string
+	thinking      bool
+	thinkingPhase string
+	lastError     string
 
 	commands *CommandRegistry
 
+	spinner  spinner.Model
 	viewport viewport.Model
 	ready    bool
 	width    int
@@ -94,12 +98,17 @@ func New(ctx context.Context, sessionID string, handler MessageHandler) Model {
 	cmds.Register(sessionsCmd{})
 	cmds.Register(modelCmd{})
 
+	s := spinner.New()
+	s.Spinner = spinner.MiniDot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+
 	return Model{
 		agent:     handler,
 		sessionID: sessionID,
 		ctx:       childCtx,
 		cancel:    cancel,
 		commands:  cmds,
+		spinner:   s,
 		atBottom:  true,
 	}
 }
@@ -115,6 +124,11 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -167,6 +181,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.messages = append(m.messages, chatMsg{role: roleProgress, content: formatProgress(progressType, content)})
 
+		// Update thinking phase for spinner display
+		switch progressType {
+		case "tool":
+			m.thinkingPhase = fmt.Sprintf("using %s", content)
+		case "plan":
+			m.thinkingPhase = "planning"
+		case "step":
+			m.thinkingPhase = content
+		default:
+			m.thinkingPhase = content
+		}
+
 		if m.ready {
 			m.viewport.SetContent(m.buildTranscript())
 			if wasAtBottom {
@@ -182,6 +208,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case doneMsg:
 		m.thinking = false
+		m.thinkingPhase = ""
 		m.tokenCh = nil
 		if msg.err != nil {
 			m.lastError = msg.err.Error()
@@ -327,6 +354,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		m.thinking = true
+		m.thinkingPhase = "thinking"
 		m.lastError = ""
 		m.messages = append(m.messages, chatMsg{role: roleUser, content: text})
 
@@ -340,7 +368,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		progress := make(chan bus.OutboundMessage, 64)
 		m.tokenCh = tokens
 		m.progressCh = progress
-		return m, tea.Batch(m.startStream(text, tokens, progress), waitNextToken(tokens), waitNextProgress(progress))
+		return m, tea.Batch(m.startStream(text, tokens, progress), waitNextToken(tokens), waitNextProgress(progress), m.spinner.Tick)
 	}
 
 	return m, nil
@@ -496,7 +524,14 @@ func (m Model) buildTranscript() string {
 	}
 
 	if m.thinking {
-		b.WriteString(promptStyle.Render("AI:  ") + "…\n")
+		b.WriteString(promptStyle.Render("AI:  "))
+		b.WriteString(m.spinner.View())
+		phase := m.thinkingPhase
+		if phase == "" {
+			phase = "thinking"
+		}
+		b.WriteString(" " + thinkingStyle.Render(phase))
+		b.WriteString("\n")
 	}
 
 	return b.String()

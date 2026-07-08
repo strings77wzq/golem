@@ -4,7 +4,9 @@ package database
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/strings77wzq/golem/core/database"
@@ -172,6 +174,22 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 	}
 
 	// For write operations, use Execute
+	upper := strings.TrimSpace(strings.ToUpper(sqlQuery))
+
+	// Pre-update snapshot: capture old values BEFORE executing the UPDATE
+	// so we can generate a proper rollback SQL.
+	var preSnapshot map[string]interface{}
+	if strings.HasPrefix(upper, "UPDATE") {
+		table := extractTableName(sqlQuery)
+		whereClause := extractWhereClause(sqlQuery)
+		sanitizedWhere, whereArgs := sanitizeWhereClause(whereClause)
+		snapshotSQL := fmt.Sprintf(`SELECT * FROM "%s" WHERE %s LIMIT 1`, table, sanitizedWhere)
+		if snapshotRows, snapErr := driver.Query(ctx, snapshotSQL, whereArgs...); snapErr == nil && len(snapshotRows) > 0 {
+			preSnapshot = snapshotRows[0]
+		}
+		// Snapshot failure is non-fatal — we'll generate rollback as best-effort
+	}
+
 	res, err := driver.Execute(ctx, sqlQuery, queryArgs...)
 	if err != nil {
 		return &tools.ToolResult{ForLLM: fmt.Sprintf("Execute error: %v", err), IsError: true}, nil
@@ -181,16 +199,21 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 	// return (sql, error) so malformed/injectable rollback is never emitted;
 	// on error we record a documented "rollback unavailable" note in the audit
 	// trail rather than shipping broken SQL (e.g. UPDATE … SET  WHERE …).
-	upper := strings.TrimSpace(strings.ToUpper(sqlQuery))
 	rollbackSQL, rollbackErr := "", error(nil)
 	switch {
 	case strings.HasPrefix(upper, "DELETE"):
-		rollbackSQL, rollbackErr = security.GenerateDeleteRollback(extractTableName(sqlQuery), extractWhereClause(sqlQuery), queryArgs)
+		whereClause := extractWhereClause(sqlQuery)
+		sanitizedWhere, whereArgs := sanitizeWhereClause(whereClause)
+		rollbackSQL, rollbackErr = security.GenerateDeleteRollback(extractTableName(sqlQuery), sanitizedWhere, whereArgs)
 	case strings.HasPrefix(upper, "UPDATE"):
-		// oldValues are not captured pre-update in the live path today, so
-		// UPDATE rollback is documented as unavailable until a pre-snapshot
-		// is wired (spec Q1). Refuse rather than emit malformed SQL.
-		rollbackSQL, rollbackErr = "", fmt.Errorf("UPDATE rollback unavailable: pre-update values not captured")
+		table := extractTableName(sqlQuery)
+		whereClause := extractWhereClause(sqlQuery)
+		sanitizedWhere, _ := sanitizeWhereClause(whereClause)
+		if preSnapshot != nil {
+			rollbackSQL, rollbackErr = security.GenerateUpdateRollback(table, sanitizedWhere, preSnapshot)
+		} else {
+			rollbackErr = fmt.Errorf("UPDATE rollback unavailable: pre-update snapshot failed")
+		}
 	}
 
 	// Audit logging
@@ -213,6 +236,10 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 	result := fmt.Sprintf("OK: %d rows affected", res.RowsAffected)
 	if rollbackSQL != "" {
 		result += fmt.Sprintf("\nRollback SQL: %s", rollbackSQL)
+		// Warn if multi-row UPDATE but snapshot only captured one row
+		if res.RowsAffected > 1 && rollbackErr == nil {
+			result += "\n⚠️  Note: Rollback only restores 1 row (snapshot used LIMIT 1). For full rollback, use WHERE clause to target specific rows."
+		}
 	}
 
 	return &tools.ToolResult{
@@ -266,12 +293,21 @@ func normalizeSQL(sql string) string {
 	// Strip single-line comments -- ... and # ...
 	lines := strings.Split(s, "\n")
 	for i, line := range lines {
+		// Strip -- comments first
 		if idx := strings.Index(line, "--"); idx != -1 {
-			lines[i] = line[:idx]
+			line = line[:idx]
 		}
-		if idx := strings.Index(line, "#"); idx != -1 {
-			lines[i] = line[:idx]
+		// Only treat # as comment when it appears at the start of a line
+		// (after optional leading whitespace). This prevents stripping #
+		// inside string literals like 'O''Brien #test'.
+		// NOTE: reads from local `line` (already -- stripped), not the
+		// original loop variable, to avoid cascading bugs.
+		trimmed := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmed, "#") {
+			offset := len(line) - len(trimmed)
+			line = line[:offset]
 		}
+		lines[i] = line
 	}
 	s = strings.Join(lines, " ")
 
@@ -341,13 +377,59 @@ func extractTableName(sql string) string {
 }
 
 // extractWhereClause extracts the WHERE clause from a SQL statement.
+// It operates on the normalized SQL (comments stripped, whitespace collapsed)
+// to prevent comment-based bypass of the QualityGate.
 func extractWhereClause(sql string) string {
-	upper := strings.ToUpper(sql)
+	normalized := normalizeSQL(sql)
+	if normalized == "" {
+		return "1=1"
+	}
+	upper := strings.ToUpper(normalized)
 	idx := strings.Index(upper, "WHERE")
 	if idx < 0 {
 		return "1=1"
 	}
-	return strings.TrimSpace(sql[idx+5:])
+	return strings.TrimSpace(normalized[idx+5:])
+}
+
+var (
+	// reStringLiteral matches single-quoted string literals including escaped quotes:
+	// 'value', 'O''Brien', 'it''s a test'. The '' sequence is SQL's escape for a
+	// literal single quote inside a string.
+	reStringLiteral = regexp.MustCompile(`'[^']*(?:''[^']*)*'`)
+	// reNumericLiteral matches integer and decimal numbers
+	reNumericLiteral = regexp.MustCompile(`\b\d+(?:\.\d+)?\b`)
+)
+
+// sanitizeWhereClause replaces string and numeric literals in a WHERE clause
+// with ? placeholders, collecting the original values as args. This prevents
+// SQL injection when the WHERE clause is used in rollback SQL generation.
+// Keywords (AND, OR, IN, BETWEEN, LIKE, IS, NULL, =, >, <, etc.) are preserved.
+func sanitizeWhereClause(where string) (string, []interface{}) {
+	if where == "" {
+		return where, nil
+	}
+
+	var args []interface{}
+
+	// Replace string literals with ?
+	result := reStringLiteral.ReplaceAllStringFunc(where, func(match string) string {
+		// Strip surrounding quotes
+		args = append(args, match[1:len(match)-1])
+		return "?"
+	})
+
+	// Replace numeric literals with ? (only those not already replaced)
+	result = reNumericLiteral.ReplaceAllStringFunc(result, func(match string) string {
+		if f, err := strconv.ParseFloat(match, 64); err == nil {
+			args = append(args, f)
+		} else {
+			args = append(args, match)
+		}
+		return "?"
+	})
+
+	return result, args
 }
 
 func (t *SQLQueryTool) getDefaultDB(args map[string]interface{}) string {

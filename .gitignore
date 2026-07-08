@@ -43,3 +43,4 @@ vendor/
 # AI agent files
 .mimocode/
 core/tools/think/
+brainstorm.md

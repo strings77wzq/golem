@@ -466,6 +466,10 @@ func newGatewayCommand() *cobra.Command {
 				"auth_enabled", secCfg.EnableAuth,
 				"rate_limit_enabled", secCfg.EnableRateLimit,
 			)
+			if !secCfg.EnableAuth {
+				log.Warn("⚠️  Gateway running WITHOUT authentication — any client can execute SQL queries")
+				log.Warn("   Set GOLEM_AUTH_TOKEN environment variable or configure auth in config file")
+			}
 			return server.Start()
 		},
 	}

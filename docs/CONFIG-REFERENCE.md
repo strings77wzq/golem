@@ -2,6 +2,21 @@
 
 Complete reference for Golem configuration. Supports both JSON (`~/.golem/config.json`) and YAML (`agent.yaml`).
 
+## YAML ↔ JSON Field Mapping
+
+The same configuration concept uses different field names in YAML vs JSON. This table shows the mapping:
+
+| YAML Field | JSON Field | Description |
+|------------|------------|-------------|
+| `agent.model` | `agents.defaults.model_name` | Model identifier (`vendor/model-id` format) |
+| `agent.system_prompt` | `agents.defaults.system_prompt` | System prompt injected at session start |
+| `agent.max_tokens` | `agents.defaults.max_tokens` | Maximum tokens in LLM response |
+| `agent.fallback_models` | `agents.defaults.fallback_models` | Fallback model chain |
+| `database.path` | — | Database path (YAML only, auto-wired) |
+| `tools[].type` | — | Tool type config (YAML only, auto-wired) |
+| `hooks.pre_tool_use.command` | `agents.defaults.pre_tool_hook` | Shell command before tool call |
+| `hooks.post_tool_use.command` | `agents.defaults.post_tool_hook` | Shell command after tool call |
+
 ## File Location
 
 ```

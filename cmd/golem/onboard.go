@@ -67,7 +67,10 @@ func runOnboardWizard(configPath string, format string) error {
 		}
 	}
 
-	fmt.Println("=== Golem setup ===")
+	fmt.Println()
+	fmt.Println("  ⬡ Golem — AI database agent")
+	fmt.Println("  safe, fast, single binary")
+	fmt.Println()
 	fmt.Println("Choose a provider:")
 	for i, p := range providerPresets {
 		fmt.Printf("  %d. %s\n", i+1, p.label)

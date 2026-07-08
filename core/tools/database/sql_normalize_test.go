@@ -16,13 +16,16 @@ func TestNormalizeSQL(t *testing.T) {
 		{"leading whitespace", "  SELECT 1", "SELECT 1"},
 		{"block comment", "/* comment */ DELETE FROM users", "DELETE FROM users"},
 		{"inline comment", "SELECT -- comment\n* FROM users", "SELECT * FROM users"},
-		{"hash comment", "SELECT # comment\n* FROM users", "SELECT * FROM users"},
+		{"hash mid-line is NOT a comment", "SELECT # comment\n* FROM users", "SELECT # comment * FROM users"},
 		{"multi-statement rejected", "SELECT 1; DROP TABLE users", ""},
 		{"empty after strip", "/* only comment */", ""},
 		{"whitespace only", "   \n  \t  ", ""},
 		{"empty input", "", ""},
 		{"CTE query", "WITH cte AS (SELECT 1) SELECT * FROM cte", "WITH cte AS (SELECT 1) SELECT * FROM cte"},
 		{"nested block comment", "SELECT /* a /* b */ c */ 1", "SELECT c */ 1"},
+		{"hash inside string literal - not a comment", "SELECT * FROM users WHERE name = 'OBrien #test'", "SELECT * FROM users WHERE name = 'OBrien #test'"},
+		{"hash at line start is comment", "# comment\nSELECT * FROM users", "SELECT * FROM users"},
+		{"hash after leading spaces is comment", "   # comment\nSELECT * FROM users", "SELECT * FROM users"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

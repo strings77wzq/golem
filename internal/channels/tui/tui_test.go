@@ -191,9 +191,10 @@ func TestModelViewThinking(t *testing.T) {
 	handler := &mockHandler{}
 	m := New(context.Background(), "sess", handler)
 	m.thinking = true
+	m.thinkingPhase = "thinking"
 
 	view := m.View()
-	if !strings.Contains(view, "…") {
+	if !strings.Contains(view, "thinking") {
 		t.Errorf("view does not contain thinking indicator: %q", view)
 	}
 }

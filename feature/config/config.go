@@ -24,8 +24,10 @@ type AgentConfig struct {
 }
 
 // AgentSpec defines agent behavior.
+// Note: YAML field "model" maps to core config "model_name" internally.
+// The format is "vendor/model-id" (e.g., "openai/gpt-4o").
 type AgentSpec struct {
-	Model             string            `yaml:"model"`
+	Model             string            `yaml:"model"` // maps to core config.model_name
 	FallbackModels    []string          `yaml:"fallback_models,omitempty"`
 	SystemPrompt      string            `yaml:"system_prompt"`
 	MaxTokens         int               `yaml:"max_tokens,omitempty"`
