@@ -4,6 +4,31 @@ All notable changes to Golem will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.10.2] - 2026-07-08
+
+### Fixed
+- **Security: SQL injection in rollback WHERE clause** — `sanitizeWhereClause` parameterizes literals in WHERE clauses used for rollback SQL generation, preventing injection via `OR 1=1` style attacks
+- **Security: normalizeSQL hash comment fix** — `#` only treated as comment at line start, preserving string literals containing `#` (e.g., `O'Brien #test`)
+- **Security: extractWhereClause comment bypass** — now operates on normalized SQL to prevent comment-based QualityGate bypass
+- **Gateway auth warning** — logs WARNING when gateway starts without authentication
+- **UPDATE rollback** — pre-update SELECT snapshot enables rollback for UPDATE operations (single-row, best-effort)
+- **TUI double close panic** — removed duplicate `defer close(tokens)` in `ChatStream`
+
+### Added
+- **TUI spinner + thinking phase** — animated spinner with phase hints (`thinking`, `using sql_query`, `planning`) replaces static `...`
+- **Init wizard branded banner** — `⬡ Golem — AI database agent` replaces bare `=== Golem setup ===`
+- **Gateway `/v1/models` dynamic response** — returns actual model_list from config instead of hardcoded `golem-default`
+- **Config field mapping docs** — YAML↔JSON field mapping table in CONFIG-REFERENCE.md
+- **Escaped quote handling** — `sanitizeWhereClause` now handles SQL `''` escape sequences
+
+### Changed
+- **README Quick Start** — simplified to 3 steps with links to full guides
+- **Docs convergence** — merged FIRST-SUCCESS-DEMO.md into QUICKSTART.md, removed redundant file
+
+### Test Coverage
+- `core/agent`: 62.9% → 74.1% (24 new tests)
+- `feature/metrics`: 0.0% → 100.0% (8 new tests)
+
 ## [0.10.1] - 2026-07-03
 
 ### Added
