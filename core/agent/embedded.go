@@ -71,7 +71,7 @@ func (a *Agent) Chat(ctx context.Context, message string) (string, error) {
 // It creates an isolated session for each call.
 func (a *Agent) ChatStream(ctx context.Context, message string, onToken func(token string)) (string, error) {
 	tokens := make(chan string, 64)
-	defer close(tokens)
+	// NOTE: Do NOT close tokens here — HandleMessageStream defers close(tokens).
 
 	go func() {
 		for token := range tokens {
