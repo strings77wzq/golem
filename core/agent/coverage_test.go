@@ -444,7 +444,7 @@ func TestBuildSummaryPrompt(t *testing.T) {
 	messages := []providers.Message{
 		{Role: providers.RoleUser, Content: "What is Go?"},
 		{Role: providers.RoleAssistant, Content: "Go is a language."},
-		{Role: providers.RoleAssistant, Content: ""}, // empty assistant
+		{Role: providers.RoleAssistant, Content: ""},                  // empty assistant
 		{Role: providers.RoleTool, Content: strings.Repeat("x", 300)}, // long tool output
 	}
 	prompt := c.buildSummaryPrompt(messages)
