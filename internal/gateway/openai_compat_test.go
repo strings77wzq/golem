@@ -37,6 +37,49 @@ func TestOpenAICompatModels(t *testing.T) {
 	}
 }
 
+func TestOpenAICompatModelsDynamic(t *testing.T) {
+	server := newTestServer(t)
+	// Set model list with two models
+	server.SetModelList([]ModelListItem{
+		{ID: "openai/gpt-4o", Vendor: "openai"},
+		{ID: "anthropic/claude-3-haiku", Vendor: "anthropic"},
+	})
+
+	req := httptest.NewRequest("GET", "/v1/models", nil)
+	w := httptest.NewRecorder()
+	server.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		Object string `json:"object"`
+		Data   []struct {
+			ID      string `json:"id"`
+			OwnedBy string `json:"owned_by"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if resp.Object != "list" {
+		t.Errorf("expected object 'list', got %v", resp.Object)
+	}
+	if len(resp.Data) != 2 {
+		t.Fatalf("expected 2 models, got %d", len(resp.Data))
+	}
+	if resp.Data[0].ID != "openai/gpt-4o" {
+		t.Errorf("expected first model 'openai/gpt-4o', got %v", resp.Data[0].ID)
+	}
+	if resp.Data[0].OwnedBy != "openai" {
+		t.Errorf("expected owned_by 'openai', got %v", resp.Data[0].OwnedBy)
+	}
+	if resp.Data[1].ID != "anthropic/claude-3-haiku" {
+		t.Errorf("expected second model 'anthropic/claude-3-haiku', got %v", resp.Data[1].ID)
+	}
+}
+
 func TestOpenAICompatChat(t *testing.T) {
 	server := newTestServer(t)
 	body := OpenAICompatRequest{

@@ -426,6 +426,23 @@ func newGatewayCommand() *cobra.Command {
 			server := gateway.NewServerWithSecurity(serverCfg, secCfg, ag, log)
 			server.SetSessionStore(sessionStore)
 
+			// Wire model list from config for /v1/models endpoint
+			if len(cfg.ModelList) > 0 {
+				models := make([]gateway.ModelListItem, 0, len(cfg.ModelList))
+				for _, m := range cfg.ModelList {
+					vendor := ""
+					parts := strings.SplitN(m.Model, "/", 2)
+					if len(parts) == 2 {
+						vendor = parts[0]
+					}
+					models = append(models, gateway.ModelListItem{
+						ID:     m.Model,
+						Vendor: vendor,
+					})
+				}
+				server.SetModelList(models)
+			}
+
 			// Optional: health checks for gateway
 			if healthFlag, _ := cmd.Flags().GetString("health"); healthFlag != "" {
 				mgr, healthErr := LoadHealthManager(healthFlag, log)

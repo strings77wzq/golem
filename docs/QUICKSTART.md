@@ -65,6 +65,4 @@ golem agent --skills summarize,code-review -m "请总结并评审"
 ## 6) If something fails
 
 - Troubleshooting ladder: `docs/TROUBLESHOOTING.md`
-- Platform-specific constraints: `docs/PLATFORM-MATRIX.md`
-- Reproducible demo flow: `docs/FIRST-SUCCESS-DEMO.md`
 - Hands-on labs: `docs/BEGINNER-LABS.md`

@@ -79,7 +79,6 @@ hooks:
 ```bash
 golem agent --config agent.yaml
 ```
-```
 
 ## Full Field Reference
 

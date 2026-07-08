@@ -78,6 +78,13 @@ func DefaultSecurityConfig() SecurityConfig {
 	}
 }
 
+// ModelListItem represents a model entry for the /v1/models endpoint.
+type ModelListItem struct {
+	ID      string // full model ID (e.g., "openai/gpt-4o")
+	Vendor  string // vendor prefix (e.g., "openai")
+	Created int64  // Unix timestamp
+}
+
 // Server represents the HTTP gateway server
 type Server struct {
 	httpServer      *http.Server
@@ -86,6 +93,7 @@ type Server struct {
 	agent           AgentHandler
 	healthChecker   HealthStatusProvider
 	sessionStore    SessionStore
+	modelList       []ModelListItem
 	version         string
 	shutdownTimeout time.Duration
 	shutdownFuncs   []func()
@@ -195,6 +203,11 @@ func (s *Server) SetHealthChecker(hc HealthStatusProvider) {
 // SetSessionStore sets the session store for import/export endpoints.
 func (s *Server) SetSessionStore(store SessionStore) {
 	s.sessionStore = store
+}
+
+// SetModelList sets the model list for the /v1/models endpoint.
+func (s *Server) SetModelList(models []ModelListItem) {
+	s.modelList = models
 }
 
 // MountHandler registers an HTTP handler at the given path on the server mux.

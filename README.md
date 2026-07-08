@@ -42,15 +42,12 @@ $ golem agent --db ./myapp.db -m "Show me users from last week"
 ## Quick Start
 
 ```bash
-# Install
 go install github.com/strings77wzq/golem/cmd/golem@latest
-
-# Create demo database
-golem demo-db
-
-# Ask your database
-golem agent --db .golem-demo.db -m "What tables exist? Any performance issues?"
+golem init
+golem agent -m "hello"
 ```
+
+→ [Full getting started guide](docs/QUICKSTART.md) | [Configuration](docs/CONFIG-REFERENCE.md) | [API reference](docs/GATEWAY-API.md)
 
 ---
 

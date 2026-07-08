@@ -82,16 +82,31 @@ func (s *Server) registerOpenAICompatRoutes() {
 }
 
 func (s *Server) handleOpenAICompatModels(w http.ResponseWriter, _ *http.Request) {
+	data := make([]map[string]interface{}, 0, len(s.modelList))
+	for _, m := range s.modelList {
+		created := m.Created
+		if created == 0 {
+			created = time.Now().Unix()
+		}
+		data = append(data, map[string]interface{}{
+			"id":       m.ID,
+			"object":   "model",
+			"created":  created,
+			"owned_by": m.Vendor,
+		})
+	}
+	// Fallback to default if no models configured
+	if len(data) == 0 {
+		data = append(data, map[string]interface{}{
+			"id":       "golem-default",
+			"object":   "model",
+			"created":  time.Now().Unix(),
+			"owned_by": "golem",
+		})
+	}
 	resp := map[string]interface{}{
 		"object": "list",
-		"data": []map[string]interface{}{
-			{
-				"id":       "golem-default",
-				"object":   "model",
-				"created":  time.Now().Unix(),
-				"owned_by": "golem",
-			},
-		},
+		"data":   data,
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
