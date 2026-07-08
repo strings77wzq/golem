@@ -383,10 +383,6 @@ func (m *coverageMockTool) Execute(_ context.Context, _ map[string]interface{}) 
 	return &tools.ToolResult{ForLLM: "ok"}, nil
 }
 
-func newTestPlan() *planner.Plan {
-	return planner.NewPlan("test goal")
-}
-
 // --- Option functions ---
 
 func TestWithMaxToolIterations(t *testing.T) {
