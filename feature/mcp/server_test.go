@@ -1,126 +1,217 @@
 package mcp
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"strings"
+	"errors"
+	"fmt"
 	"testing"
+
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/strings77wzq/golem/core/tools"
 )
 
-type mockTool struct {
+// testGolemTool is a configurable tools.Tool used to exercise the SDK adapter.
+type testGolemTool struct {
 	name   string
-	result string
+	desc   string
+	params []tools.ToolParameter
+	exec   func(ctx context.Context, args map[string]interface{}) (*tools.ToolResult, error)
 }
 
-func (m *mockTool) Name() string        { return m.name }
-func (m *mockTool) Description() string { return "mock tool: " + m.name }
-func (m *mockTool) Parameters() []tools.ToolParameter {
-	return []tools.ToolParameter{{Name: "input", Type: "string", Description: "input", Required: true}}
+func (t *testGolemTool) Name() string        { return t.name }
+func (t *testGolemTool) Description() string { return t.desc }
+func (t *testGolemTool) Parameters() []tools.ToolParameter {
+	return t.params
 }
-func (m *mockTool) Execute(ctx context.Context, args map[string]interface{}) (*tools.ToolResult, error) {
-	return &tools.ToolResult{ForLLM: m.result, ForUser: m.result}, nil
-}
-
-func writeRequest(t *testing.T, input *bytes.Buffer, req interface{}) {
-	data, _ := json.Marshal(req)
-	data = append(data, '\n')
-	input.Write(data)
+func (t *testGolemTool) Execute(ctx context.Context, args map[string]interface{}) (*tools.ToolResult, error) {
+	return t.exec(ctx, args)
 }
 
-func readResponse(t *testing.T, output *bytes.Buffer) map[string]interface{} {
-	line := make([]byte, 4096)
-	n, _ := output.Read(line)
-	if n == 0 {
-		t.Fatal("no response")
+func TestInputSchemaFromParameters(t *testing.T) {
+	params := []tools.ToolParameter{
+		{Name: "query", Type: "string", Description: "Search query", Required: true},
+		{Name: "limit", Type: "number", Description: "Result limit", Required: false},
 	}
-	var resp map[string]interface{}
-	json.Unmarshal(line[:n], &resp)
-	return resp
-}
 
-func TestServerInitialize(t *testing.T) {
-	var output bytes.Buffer
-	input := bytes.NewBuffer(nil)
-	reg := tools.NewRegistry()
-	server := NewServer(input, &output, reg)
+	schema := inputSchemaFromParameters(params)
+	if schema["type"] != "object" {
+		t.Errorf("expected type object, got %v", schema["type"])
+	}
 
-	writeRequest(t, input, map[string]interface{}{
-		"jsonrpc": "2.0", "id": 1, "method": "initialize",
-		"params": map[string]interface{}{"protocolVersion": "2024-11-05", "clientInfo": map[string]string{"name": "test", "version": "1.0"}},
-	})
-	server.handleMessage(context.Background())
-	resp := readResponse(t, &output)
-	if resp["jsonrpc"] != "2.0" {
-		t.Errorf("jsonrpc = %v", resp["jsonrpc"])
+	props, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected properties map, got %T", schema["properties"])
+	}
+	if len(props) != 2 {
+		t.Errorf("expected 2 properties, got %d", len(props))
+	}
+
+	q, ok := props["query"].(map[string]any)
+	if !ok || q["type"] != "string" || q["description"] != "Search query" {
+		t.Errorf("query property malformed: %v", props["query"])
+	}
+
+	required, ok := schema["required"].([]string)
+	if !ok || len(required) != 1 || required[0] != "query" {
+		t.Errorf("expected required=[query], got %v", schema["required"])
 	}
 }
 
-func TestServerToolsList(t *testing.T) {
-	var output bytes.Buffer
-	input := bytes.NewBuffer(nil)
-	reg := tools.NewRegistry()
-	reg.Register(&mockTool{name: "sql_query", result: "ok"})
-	reg.Register(&mockTool{name: "sql_schema", result: "ok"})
-	server := NewServer(input, &output, reg)
-
-	writeRequest(t, input, map[string]interface{}{
-		"jsonrpc": "2.0", "id": 1, "method": "initialize",
-		"params": map[string]interface{}{"protocolVersion": "2024-11-05", "clientInfo": map[string]string{"name": "test", "version": "1.0"}},
-	})
-	server.handleMessage(context.Background())
-	readResponse(t, &output)
-
-	writeRequest(t, input, map[string]interface{}{"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
-	server.handleMessage(context.Background())
-	resp := readResponse(t, &output)
-	result := resp["result"].(map[string]interface{})
-	toolList := result["tools"].([]interface{})
-	if len(toolList) != 2 {
-		t.Errorf("expected 2 tools, got %d", len(toolList))
+func TestInputSchemaFromParametersEmpty(t *testing.T) {
+	schema := inputSchemaFromParameters(nil)
+	props, ok := schema["properties"].(map[string]any)
+	if !ok || len(props) != 0 {
+		t.Errorf("expected empty properties, got %v", schema["properties"])
+	}
+	required := schema["required"].([]string)
+	if len(required) != 0 {
+		t.Errorf("expected empty required, got %v", required)
 	}
 }
 
-func TestServerToolsCall(t *testing.T) {
-	var output bytes.Buffer
-	input := bytes.NewBuffer(nil)
-	reg := tools.NewRegistry()
-	reg.Register(&mockTool{name: "sql_query", result: "| id | name |\n| 1 | Alice |"})
-	server := NewServer(input, &output, reg)
+// connectServerClient wires an in-memory server↔client pair.
+func connectServerClient(t *testing.T, srv *Server) *sdk.ClientSession {
+	t.Helper()
 
-	writeRequest(t, input, map[string]interface{}{
-		"jsonrpc": "2.0", "id": 1, "method": "initialize",
-		"params": map[string]interface{}{"protocolVersion": "2024-11-05", "clientInfo": map[string]string{"name": "test", "version": "1.0"}},
-	})
-	server.handleMessage(context.Background())
-	readResponse(t, &output)
+	clientTransport, serverTransport := sdk.NewInMemoryTransports()
 
-	writeRequest(t, input, map[string]interface{}{
-		"jsonrpc": "2.0", "id": 3, "method": "tools/call",
-		"params": map[string]interface{}{"name": "sql_query", "arguments": map[string]interface{}{"sql": "SELECT * FROM users"}},
+	srvCtx, srvCancel := context.WithCancel(context.Background())
+	t.Cleanup(srvCancel)
+	if _, err := srv.Connect(srvCtx, serverTransport); err != nil {
+		t.Fatalf("server connect failed: %v", err)
+	}
+
+	client := sdk.NewClient(&sdk.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
+	session, err := client.Connect(context.Background(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client connect failed: %v", err)
+	}
+	t.Cleanup(func() { session.Close() }) //nolint:errcheck
+
+	return session
+}
+
+func TestServerExposesRegistryTools(t *testing.T) {
+	registry := tools.NewRegistry()
+	registry.Register(&testGolemTool{
+		name: "echo",
+		desc: "Echo back the input",
+		params: []tools.ToolParameter{
+			{Name: "message", Type: "string", Description: "Message to echo", Required: true},
+		},
+		exec: func(ctx context.Context, args map[string]interface{}) (*tools.ToolResult, error) {
+			return &tools.ToolResult{ForLLM: args["message"].(string), ForUser: args["message"].(string)}, nil
+		},
 	})
-	server.handleMessage(context.Background())
-	resp := readResponse(t, &output)
-	result := resp["result"].(map[string]interface{})
-	text := result["content"].([]interface{})[0].(map[string]interface{})["text"].(string)
-	if !strings.Contains(text, "Alice") {
-		t.Errorf("expected Alice in result, got %q", text)
+
+	srv := NewServer(registry)
+	session := connectServerClient(t, srv)
+
+	result, err := session.ListTools(context.Background(), &sdk.ListToolsParams{})
+	if err != nil {
+		t.Fatalf("list tools failed: %v", err)
+	}
+	if len(result.Tools) != 1 {
+		t.Fatalf("expected 1 tool, got %d", len(result.Tools))
+	}
+	tool := result.Tools[0]
+	if tool.Name != "echo" {
+		t.Errorf("expected tool echo, got %s", tool.Name)
+	}
+	if tool.Description != "Echo back the input" {
+		t.Errorf("unexpected description %q", tool.Description)
+	}
+	if tool.InputSchema == nil {
+		t.Error("expected non-nil input schema")
 	}
 }
 
-func TestServerUnknownMethod(t *testing.T) {
-	var output bytes.Buffer
-	input := bytes.NewBuffer(nil)
-	reg := tools.NewRegistry()
-	server := NewServer(input, &output, reg)
+func TestServerRoutesToolCall(t *testing.T) {
+	registry := tools.NewRegistry()
+	registry.Register(&testGolemTool{
+		name: "add",
+		desc: "Add two numbers",
+		params: []tools.ToolParameter{
+			{Name: "a", Type: "number", Description: "First number", Required: true},
+			{Name: "b", Type: "number", Description: "Second number", Required: true},
+		},
+		exec: func(ctx context.Context, args map[string]interface{}) (*tools.ToolResult, error) {
+			a := int(args["a"].(float64))
+			b := int(args["b"].(float64))
+			text := fmt.Sprintf("%d", a+b)
+			return &tools.ToolResult{ForLLM: text, ForUser: text}, nil
+		},
+	})
 
-	writeRequest(t, input, map[string]interface{}{"jsonrpc": "2.0", "id": 1, "method": "unknown/method"})
-	server.handleMessage(context.Background())
-	resp := readResponse(t, &output)
-	errObj := resp["error"].(map[string]interface{})
-	if errObj["code"] != float64(-32601) {
-		t.Errorf("expected method not found error, got %v", errObj)
+	srv := NewServer(registry)
+	session := connectServerClient(t, srv)
+
+	result, err := session.CallTool(context.Background(), &sdk.CallToolParams{
+		Name:      "add",
+		Arguments: map[string]any{"a": float64(2), "b": float64(3)},
+	})
+	if err != nil {
+		t.Fatalf("call tool failed: %v", err)
+	}
+	if result.IsError {
+		t.Error("expected no error")
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("expected 1 content block, got %d", len(result.Content))
+	}
+	tc, ok := result.Content[0].(*sdk.TextContent)
+	if !ok {
+		t.Fatalf("expected TextContent, got %T", result.Content[0])
+	}
+	if tc.Text != "5" {
+		t.Errorf("expected text 5, got %q", tc.Text)
+	}
+}
+
+func TestServerMapsToolErrorToIsError(t *testing.T) {
+	registry := tools.NewRegistry()
+	registry.Register(&testGolemTool{
+		name: "failing",
+		desc: "Always fails",
+		exec: func(ctx context.Context, args map[string]interface{}) (*tools.ToolResult, error) {
+			return &tools.ToolResult{ForLLM: "denied by policy", ForUser: "", IsError: true}, nil
+		},
+	})
+
+	srv := NewServer(registry)
+	session := connectServerClient(t, srv)
+
+	result, err := session.CallTool(context.Background(), &sdk.CallToolParams{Name: "failing"})
+	if err != nil {
+		t.Fatalf("call tool failed: %v", err)
+	}
+	if !result.IsError {
+		t.Error("expected IsError=true for failing tool")
+	}
+}
+
+func TestServerMapsExecutionErrorToIsError(t *testing.T) {
+	registry := tools.NewRegistry()
+	registry.Register(&testGolemTool{
+		name: "crashing",
+		desc: "Returns a Go error",
+		exec: func(ctx context.Context, args map[string]interface{}) (*tools.ToolResult, error) {
+			return nil, errors.New("boom")
+		},
+	})
+
+	srv := NewServer(registry)
+	session := connectServerClient(t, srv)
+
+	result, err := session.CallTool(context.Background(), &sdk.CallToolParams{Name: "crashing"})
+	if err != nil {
+		t.Fatalf("call tool failed: %v", err)
+	}
+	if !result.IsError {
+		t.Error("expected IsError=true for execution error")
+	}
+	if len(result.Content) == 0 {
+		t.Fatal("expected error content")
 	}
 }

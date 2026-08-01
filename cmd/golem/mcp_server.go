@@ -44,8 +44,8 @@ func runMCPServer(cmd *cobra.Command) error {
 	// Build tool registry
 	registry := buildMCPTools(dbFlag, readOnly, toolsFlag)
 
-	// Create MCP server with stdio transport
-	server := mcp.NewServer(os.Stdin, os.Stdout, registry)
+	// Create MCP server with stdio transport (official go-sdk)
+	server := mcp.NewServer(registry)
 
 	// Handle shutdown
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -55,7 +55,7 @@ func runMCPServer(cmd *cobra.Command) error {
 	fmt.Fprintln(os.Stderr, "Tools:", registry.Count(), "registered")
 	fmt.Fprintln(os.Stderr, "Read-only:", readOnly)
 
-	return server.Start(ctx)
+	return server.Run(ctx)
 }
 
 func buildMCPTools(dbPath string, readOnly bool, toolsFilter string) *tools.Registry {

@@ -4,6 +4,23 @@ All notable changes to Golem will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.10.3] - 2026-08-01
+
+### Changed
+- **MCP protocol layer replaced with official SDK** — `feature/mcp` now uses `github.com/modelcontextprotocol/go-sdk` v1.7.0 instead of the hand-rolled JSON-RPC client/server. Server mode (`mcp-server`) exposes the registry via `StdioTransport`; client mode (`--mcp`) connects via `CommandTransport`. External contracts unchanged: `--mcp` flag, `mcp_<server>_<tool>` naming, `mcp-server` subcommand, lazy start. Protocol evolution (2026-07-28 spec + 5 legacy specs) is now handled by the SDK's built-in version negotiation.
+- **MCP server output semantics** — tool results now return `ForLLM` content to MCP consumers (LLM-facing), with `ForUser` as fallback.
+
+### Removed
+- **Dead code: `foundation/concurrency`** — `Semaphore`, `Pool`, `RateLimiter` had zero production consumers (verified by grep); the token-bucket `RateLimiter` duplicated `internal/security`'s per-IP limiter.
+
+### Security
+- **External MCP server boundary hardening** — per-server connect timeout (10s), tool discovery cap (100 tools), proxy output truncation (10 KiB), tool-name sanitization (identifier charset, ≤64 chars), oversized-arguments rejection (1 MiB) on the server side, server output truncation (10 KiB), nil-result guard.
+- **Fixed nil-pointer panic** in `delegate` when the delegated command cannot be started (`cmd.Process` is nil); `timeout` parameter is now honored (capped at 30s default).
+- Manager error paths now close already-established sessions; `Close` releases the lock before blocking session teardown.
+
+### Test Coverage
+- `feature/mcp`: rewritten on the official SDK — in-memory transport end-to-end (list/call/IsError), helper-subprocess integration for manager/delegate success paths, review regression tests. Coverage 92.8%.
+
 ## [0.10.2] - 2026-07-08
 
 ### Fixed

@@ -1,12 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/strings77wzq/golem/feature/mcp"
 )
@@ -111,52 +112,61 @@ func TestMCPServerEndToEnd(t *testing.T) {
 	}
 
 	registry := buildMCPTools(dbPath, false, "sql_query")
-	server := mcp.NewServer(nil, nil, registry)
+	server := mcp.NewServer(registry)
 
-	// Simulate initialize request
-	var input bytes.Buffer
-	var output bytes.Buffer
+	// Wire the server to a client over in-memory transports.
+	clientTransport, serverTransport := sdk.NewInMemoryTransports()
 
-	// Use the server's handleMessage via a pipe
-	writeJSON(t, &input, map[string]interface{}{
-		"jsonrpc": "2.0", "id": 1, "method": "initialize",
-		"params": map[string]interface{}{
-			"protocolVersion": "2024-11-05",
-			"clientInfo":      map[string]string{"name": "test", "version": "1.0"},
-		},
-	})
-
-	// The server reads from stdin, so we need to use it differently
-	// Instead, test the tool directly through the registry
-	tool, found := registry.Get("sql_query")
-	if !found {
-		t.Fatal("sql_query not found")
+	srvCtx, srvCancel := context.WithCancel(context.Background())
+	defer srvCancel()
+	if _, err := server.Connect(srvCtx, serverTransport); err != nil {
+		t.Fatalf("server connect: %v", err)
 	}
 
-	result, err := tool.Execute(context.Background(), map[string]interface{}{
-		"sql": "SELECT name FROM users ORDER BY id LIMIT 2",
+	client := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "1.0"}, nil)
+	session, err := client.Connect(context.Background(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client connect: %v", err)
+	}
+	defer session.Close() //nolint:errcheck
+
+	// tools/list must expose the registered sql_query tool.
+	listResult, err := session.ListTools(context.Background(), &sdk.ListToolsParams{})
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	found := false
+	for _, tool := range listResult.Tools {
+		if tool.Name == "sql_query" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("sql_query not exposed by MCP server")
+	}
+
+	// tools/call must execute against the real database.
+	callResult, err := session.CallTool(context.Background(), &sdk.CallToolParams{
+		Name:      "sql_query",
+		Arguments: json.RawMessage(`{"sql": "SELECT name FROM users ORDER BY id LIMIT 2"}`),
 	})
 	if err != nil {
-		t.Fatalf("execute: %v", err)
+		t.Fatalf("call tool: %v", err)
 	}
-	if result.IsError {
-		t.Fatalf("unexpected error: %s", result.ForLLM)
+	if callResult.IsError {
+		t.Fatalf("unexpected error result: %+v", callResult)
 	}
-	// Should contain real data, not stub text
-	if strings.Contains(result.ForLLM, "executed with input") {
-		t.Errorf("got stub result, not real data: %s", result.ForLLM)
+	text := ""
+	for _, block := range callResult.Content {
+		if tc, ok := block.(*sdk.TextContent); ok {
+			text += tc.Text
+		}
 	}
-	if !strings.Contains(result.ForLLM, "user_") {
-		t.Errorf("expected real user data, got: %s", result.ForLLM)
+	if strings.Contains(text, "executed with input") {
+		t.Errorf("got stub result, not real data: %s", text)
 	}
-
-	_ = server // suppress unused
-	_ = output
-}
-
-func writeJSON(t *testing.T, buf *bytes.Buffer, v interface{}) {
-	t.Helper()
-	data, _ := json.Marshal(v)
-	data = append(data, '\n')
-	buf.Write(data)
+	if !strings.Contains(text, "user_") {
+		t.Errorf("expected real user data, got: %s", text)
+	}
 }

@@ -1,223 +1,137 @@
+// Package mcp implements MCP server/client integration using the official
+// modelcontextprotocol/go-sdk (v1.7.0). The golem tool registry is exposed
+// over stdio (mcp-server subcommand) and external MCP servers are proxied
+// via Manager with mcp_ prefixed tools.
 package mcp
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
-	"sync"
+
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/strings77wzq/golem/core/tools"
 )
 
-// Server is an MCP server that exposes tools via stdio JSON-RPC.
+// Server-side input/output limits: a remote MCP client must not be able to
+// OOM this process with oversized arguments, nor drain unbounded tokens via
+// oversized tool output.
+const (
+	maxCallArgumentsBytes = 1 << 20  // 1 MiB
+	maxServerOutputBytes  = 10 << 10 // 10 KiB, mirrors core/tools/exec
+)
+
+// Server exposes golem registry tools over MCP using the official SDK.
 type Server struct {
-	stdin       io.Reader
-	stdout      io.Writer
-	scanner     *bufio.Scanner
-	registry    *tools.Registry
-	mu          sync.Mutex
-	initialized bool
+	sdk      *sdk.Server
+	registry *tools.Registry
 }
 
-// NewServer creates a new MCP server with stdio transport.
-func NewServer(stdin io.Reader, stdout io.Writer, registry *tools.Registry) *Server {
-	return &Server{
-		stdin:    stdin,
-		stdout:   stdout,
-		scanner:  bufio.NewScanner(stdin),
-		registry: registry,
-	}
-}
+// NewServer creates an MCP server exposing all registry tools. Tool
+// parameters are converted to a JSON Schema object (draft 2020-12) so that
+// MCP clients can validate arguments before calling.
+func NewServer(registry *tools.Registry) *Server {
+	s := &Server{registry: registry}
 
-// Start runs the server main loop until stdin is closed or context is cancelled.
-func (s *Server) Start(ctx context.Context) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
+	sdkServer := sdk.NewServer(&sdk.Implementation{
+		Name:    "golem-mcp",
+		Version: "0.7.0",
+	}, nil)
 
-		if !s.scanner.Scan() {
-			if err := s.scanner.Err(); err != nil {
-				return fmt.Errorf("scanner error: %w", err)
-			}
-			return nil // EOF
-		}
-
-		line := s.scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
-
-		var req map[string]interface{}
-		if err := json.Unmarshal(line, &req); err != nil {
-			s.sendError(-1, -32700, "Parse error")
-			continue
-		}
-
-		id, _ := req["id"].(float64)
-		method, _ := req["method"].(string)
-
-		s.handleRequest(context.Background(), int(id), method, req)
-	}
-}
-
-// handleMessage processes a single JSON-RPC message (used in tests).
-func (s *Server) handleMessage(ctx context.Context) error {
-	if !s.scanner.Scan() {
-		return io.EOF
-	}
-
-	line := s.scanner.Bytes()
-	if len(line) == 0 {
-		return nil
-	}
-
-	var req map[string]interface{}
-	if err := json.Unmarshal(line, &req); err != nil {
-		s.sendError(-1, -32700, "Parse error")
-		return nil
-	}
-
-	id, _ := req["id"].(float64)
-	method, _ := req["method"].(string)
-
-	s.handleRequest(ctx, int(id), method, req)
-	return nil
-}
-
-func (s *Server) handleRequest(ctx context.Context, id int, method string, req map[string]interface{}) {
-	switch method {
-	case "initialize":
-		s.handleInitialize(id)
-	case "notifications/initialized":
-		// No response needed for notifications
-	case "tools/list":
-		s.handleToolsList(id)
-	case "tools/call":
-		params, _ := req["params"].(map[string]interface{})
-		s.handleToolsCall(ctx, id, params)
-	default:
-		s.sendError(id, -32601, fmt.Sprintf("Method not found: %s", method))
-	}
-}
-
-func (s *Server) handleInitialize(id int) {
-	result := map[string]interface{}{
-		"protocolVersion": "2024-11-05",
-		"serverInfo": map[string]string{
-			"name":    "golem-mcp",
-			"version": "0.7.0",
-		},
-		"capabilities": map[string]interface{}{
-			"tools": map[string]bool{"listChanged": false},
-		},
-		"instructions": "Golem MCP Server provides database query, schema introspection, and analysis tools.",
-	}
-	s.sendResult(id, result)
-	s.initialized = true
-}
-
-func (s *Server) handleToolsList(id int) {
-	var mcpTools []map[string]interface{}
-
-	for _, t := range s.registry.ListTools() {
-		schema := map[string]interface{}{
-			"type":       "object",
-			"properties": map[string]interface{}{},
-			"required":   []string{},
-		}
-
-		// Build schema from tool parameters
-		props := map[string]interface{}{}
-		var required []string
-		for _, p := range t.Parameters() {
-			prop := map[string]interface{}{
-				"type":        p.Type,
-				"description": p.Description,
-			}
-			props[p.Name] = prop
-			if p.Required {
-				required = append(required, p.Name)
-			}
-		}
-		schema["properties"] = props
-		schema["required"] = required
-
-		mcpTools = append(mcpTools, map[string]interface{}{
-			"name":        t.Name(),
-			"description": t.Description(),
-			"inputSchema": schema,
+	for _, tool := range registry.ListTools() {
+		t := tool
+		sdkServer.AddTool(&sdk.Tool{
+			Name:        t.Name(),
+			Description: t.Description(),
+			InputSchema: inputSchemaFromParameters(t.Parameters()),
+		}, func(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+			return handleToolCall(ctx, t, req)
 		})
 	}
 
-	s.sendResult(id, map[string]interface{}{
-		"tools": mcpTools,
-	})
+	s.sdk = sdkServer
+	return s
 }
 
-func (s *Server) handleToolsCall(ctx context.Context, id int, params map[string]interface{}) {
-	name, _ := params["name"].(string)
-	args, _ := params["arguments"].(map[string]interface{})
+// Run serves on stdio (newline-delimited JSON) until ctx is cancelled or
+// stdin closes.
+func (s *Server) Run(ctx context.Context) error {
+	return s.sdk.Run(ctx, &sdk.StdioTransport{})
+}
 
-	if name == "" {
-		s.sendError(id, -32602, "Missing tool name")
-		return
+// Connect binds the server to an explicit transport. Used by tests with
+// sdk.NewInMemoryTransports; production uses Run.
+func (s *Server) Connect(ctx context.Context, transport sdk.Transport) (*sdk.ServerSession, error) {
+	return s.sdk.Connect(ctx, transport, nil)
+}
+
+// inputSchemaFromParameters converts golem ToolParameters into a JSON Schema
+// object (type: object + properties + required).
+func inputSchemaFromParameters(params []tools.ToolParameter) map[string]any {
+	props := make(map[string]any, len(params))
+	required := make([]string, 0, len(params))
+	for _, p := range params {
+		props[p.Name] = map[string]any{
+			"type":        p.Type,
+			"description": p.Description,
+		}
+		if p.Required {
+			required = append(required, p.Name)
+		}
 	}
+	return map[string]any{
+		"type":       "object",
+		"properties": props,
+		"required":   required,
+	}
+}
 
-	tool, found := s.registry.Get(name)
-	if !found {
-		s.sendError(id, -32602, fmt.Sprintf("Tool not found: %s", name))
-		return
+// handleToolCall routes a tools/call request into the golem tool and maps the
+// ToolResult back to an MCP CallToolResult. Errors from Execute are mapped to
+// IsError=true so the MCP connection stays usable.
+func handleToolCall(ctx context.Context, tool tools.Tool, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+	args := map[string]any{}
+	if req.Params != nil && len(req.Params.Arguments) > maxCallArgumentsBytes {
+		return &sdk.CallToolResult{
+			Content: []sdk.Content{&sdk.TextContent{Text: "arguments too large"}},
+			IsError: true,
+		}, nil
+	}
+	if req.Params != nil && len(req.Params.Arguments) > 0 {
+		if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
+			return &sdk.CallToolResult{
+				Content: []sdk.Content{&sdk.TextContent{Text: fmt.Sprintf("Invalid arguments: %v", err)}},
+				IsError: true,
+			}, nil
+		}
 	}
 
 	result, err := tool.Execute(ctx, args)
 	if err != nil {
-		s.sendError(id, -32000, fmt.Sprintf("Tool execution failed: %v", err))
-		return
+		return &sdk.CallToolResult{
+			Content: []sdk.Content{&sdk.TextContent{Text: fmt.Sprintf("Tool execution failed: %v", err)}},
+			IsError: true,
+		}, nil
+	}
+	if result == nil {
+		return &sdk.CallToolResult{
+			Content: []sdk.Content{&sdk.TextContent{Text: "tool returned no result"}},
+			IsError: true,
+		}, nil
 	}
 
-	s.sendResult(id, map[string]interface{}{
-		"content": []map[string]interface{}{
-			{"type": "text", "text": result.ForLLM},
-		},
-	})
-}
-
-func (s *Server) sendResult(id int, result interface{}) {
-	resp := map[string]interface{}{
-		"jsonrpc": "2.0",
-		"id":      id,
-		"result":  result,
+	// MCP consumers are LLMs, so return the full LLM-facing result.
+	// ForUser is a human summary and used only as a fallback.
+	text := result.ForLLM
+	if text == "" {
+		text = result.ForUser
 	}
-	s.send(resp)
-}
-
-func (s *Server) sendError(id int, code int, message string) {
-	resp := map[string]interface{}{
-		"jsonrpc": "2.0",
-		"id":      id,
-		"error": map[string]interface{}{
-			"code":    code,
-			"message": message,
-		},
+	if len(text) > maxServerOutputBytes {
+		text = text[:maxServerOutputBytes] + "\n...[truncated]"
 	}
-	s.send(resp)
-}
-
-func (s *Server) send(resp interface{}) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	data, err := json.Marshal(resp)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "MCP server marshal error: %v\n", err)
-		return
-	}
-	data = append(data, '\n')
-	s.stdout.Write(data) //nolint:errcheck
+	return &sdk.CallToolResult{
+		Content: []sdk.Content{&sdk.TextContent{Text: text}},
+		IsError: result.IsError,
+	}, nil
 }

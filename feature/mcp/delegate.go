@@ -2,15 +2,19 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"time"
+
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/strings77wzq/golem/core/tools"
 )
 
 // DelegateTool allows an agent to delegate tasks to other agents via MCP.
+// The spawned command is fully caller-controlled — the tool is currently not
+// registered into any production registry; wire it in only behind an
+// explicit command allowlist (see security review M2).
 type DelegateTool struct {
 	timeout time.Duration
 }
@@ -30,11 +34,12 @@ func (t *DelegateTool) Parameters() []tools.ToolParameter {
 		{Name: "args", Type: "array", Description: "Arguments for the command", Required: false},
 		{Name: "tool", Type: "string", Description: "Tool name to call on the agent", Required: true},
 		{Name: "arguments", Type: "object", Description: "Arguments for the tool call", Required: true},
-		{Name: "timeout", Type: "number", Description: "Timeout in seconds (default 30)", Required: false},
+		{Name: "timeout", Type: "number", Description: "Timeout in seconds (default 30, capped at 30)", Required: false},
 	}
 }
 
-// Execute delegates a tool call to another agent via MCP.
+// Execute delegates a tool call to another agent via MCP using the official
+// go-sdk client with a CommandTransport.
 func (t *DelegateTool) Execute(ctx context.Context, args map[string]interface{}) (*tools.ToolResult, error) {
 	command, _ := args["command"].(string)
 	toolName, _ := args["tool"].(string)
@@ -45,6 +50,15 @@ func (t *DelegateTool) Execute(ctx context.Context, args map[string]interface{})
 		return &tools.ToolResult{ForLLM: "Error: command and tool are required", IsError: true}, nil
 	}
 
+	// Honor the caller-provided timeout, capped at the tool default so it
+	// cannot be used to escalate past the built-in bound.
+	timeout := t.timeout
+	if v, ok := args["timeout"].(float64); ok && v > 0 {
+		if d := time.Duration(v) * time.Second; d < timeout {
+			timeout = d
+		}
+	}
+
 	// Convert args
 	argsList := make([]string, len(commandArgs))
 	for i, a := range commandArgs {
@@ -52,94 +66,40 @@ func (t *DelegateTool) Execute(ctx context.Context, args map[string]interface{})
 	}
 
 	// Start the agent process
-	ctx, cancel := context.WithTimeout(ctx, t.timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, command, argsList...) // #nosec G204 -- subprocess with controlled input
+	cmd := exec.CommandContext(ctx, command, argsList...) // #nosec G204 -- caller-controlled delegate command
 	cmd.Stderr = nil                                      // suppress stderr
 
-	// Create pipe for stdin/stdout
-	stdin, _ := cmd.StdinPipe()
-	stdout, _ := cmd.StdoutPipe()
-
-	if err := cmd.Start(); err != nil {
-		return &tools.ToolResult{ForLLM: fmt.Sprintf("Error starting agent: %v", err), IsError: true}, nil
+	client := sdk.NewClient(&sdk.Implementation{Name: "golem", Version: "0.1.0"}, nil)
+	session, err := client.Connect(ctx, &sdk.CommandTransport{Command: cmd}, nil)
+	if err != nil {
+		// cmd.Start may never have succeeded (nonexistent/unexecutable
+		// command) — Process is nil then, and Kill would panic.
+		if cmd.Process != nil {
+			cmd.Process.Kill() //nolint:errcheck
+		}
+		return &tools.ToolResult{ForLLM: fmt.Sprintf("error initializing agent: %v", err), IsError: true}, nil
 	}
-	defer cmd.Wait() //nolint:errcheck // reap child process on all exit paths
+	defer session.Close() //nolint:errcheck
 
-	// Create MCP client connected to the agent
-	transport := &stdioTransport{stdin: stdin, stdout: stdout}
-	client := NewClient(transport)
-
-	// Initialize
-	initCtx, initCancel := context.WithTimeout(ctx, 5*time.Second)
-	defer initCancel()
-	if _, err := client.Initialize(initCtx); err != nil {
+	result, err := session.CallTool(ctx, &sdk.CallToolParams{Name: toolName, Arguments: toolArgs})
+	if cmd.Process != nil {
 		cmd.Process.Kill() //nolint:errcheck
-		return &tools.ToolResult{ForLLM: fmt.Sprintf("Error initializing agent: %v", err), IsError: true}, nil
 	}
-
-	// Call the tool
-	result, err := client.CallTool(ctx, toolName, toolArgs)
-	cmd.Process.Kill() //nolint:errcheck
 
 	if err != nil {
-		return &tools.ToolResult{ForLLM: fmt.Sprintf("Error calling tool %s: %v", toolName, err), IsError: true}, nil
+		return &tools.ToolResult{ForLLM: fmt.Sprintf("error calling tool %s: %v", toolName, err), IsError: true}, nil
 	}
 
 	// Extract text from result
 	var text string
 	for _, block := range result.Content {
-		if block.Type == "text" {
-			text += block.Text
+		if tc, ok := block.(*sdk.TextContent); ok {
+			text += tc.Text
 		}
 	}
 
 	return &tools.ToolResult{ForLLM: text, ForUser: text}, nil
-}
-
-// stdioTransport wraps stdin/stdout as a Transport.
-type stdioTransport struct {
-	stdin  interface{ Write([]byte) (int, error) }
-	stdout interface{ Read([]byte) (int, error) }
-}
-
-func (t *stdioTransport) Send(req *JSONRPCRequest) error {
-	data, err := json.Marshal(req)
-	if err != nil {
-		return fmt.Errorf("marshal request: %w", err)
-	}
-	data = append(data, '\n')
-	_, err = t.stdin.Write(data)
-	return err
-}
-
-func (t *stdioTransport) SendNotification(n *JSONRPCNotification) error {
-	data, err := json.Marshal(n)
-	if err != nil {
-		return fmt.Errorf("marshal notification: %w", err)
-	}
-	data = append(data, '\n')
-	_, err = t.stdin.Write(data)
-	return err
-}
-
-func (t *stdioTransport) Receive() (*JSONRPCResponse, error) {
-	line := make([]byte, 4096)
-	n, err := t.stdout.Read(line)
-	if err != nil {
-		return nil, err
-	}
-	var resp JSONRPCResponse
-	if err := json.Unmarshal(line[:n], &resp); err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
-
-func (t *stdioTransport) Close() error {
-	if closer, ok := t.stdin.(interface{ Close() error }); ok {
-		return closer.Close()
-	}
-	return nil
 }
