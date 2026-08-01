@@ -29,6 +29,17 @@ func LoadMCPTools(ctx context.Context, cfg MCPConfig) (*mcp.Manager, error) {
 		return nil, fmt.Errorf("starting MCP servers: %w", err)
 	}
 
+	// Close all external MCP server connections when the caller's context is
+	// cancelled, so their subprocesses do not outlive golem. Only cancellable
+	// contexts register the cleanup goroutine (ctx.Done() is nil for
+	// context.Background()).
+	if ctx.Done() != nil {
+		go func() {
+			<-ctx.Done()
+			_ = manager.Close()
+		}()
+	}
+
 	return manager, nil
 }
 

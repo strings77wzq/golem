@@ -43,8 +43,9 @@ type serverConnection struct {
 // Manager connects to external MCP servers and proxies their tools into the
 // golem registry under the mcp_<server>_<tool> naming scheme.
 type Manager struct {
-	mu      sync.RWMutex
-	servers map[string]*serverConnection
+	mu        sync.RWMutex
+	servers   map[string]*serverConnection
+	closeOnce sync.Once
 }
 
 func NewManager() *Manager {
@@ -220,21 +221,25 @@ func (m *Manager) DiscoverTools(ctx context.Context) ([]MCPToolProxy, error) {
 func (m *Manager) Close() error {
 	// Collect sessions under the lock, close outside it: session.Close can
 	// block up to the SDK terminate window (~10s) and must not hold m.mu.
-	m.mu.Lock()
-	sessions := make([]*sdk.ClientSession, 0, len(m.servers))
-	for _, conn := range m.servers {
-		if conn.session != nil {
-			sessions = append(sessions, conn.session)
-		}
-	}
-	m.mu.Unlock()
-
+	// Idempotent: the ctx-cleanup goroutine and explicit callers may both
+	// close the manager.
 	var errs []error
-	for _, s := range sessions {
-		if err := s.Close(); err != nil {
-			errs = append(errs, err)
+	m.closeOnce.Do(func() {
+		m.mu.Lock()
+		sessions := make([]*sdk.ClientSession, 0, len(m.servers))
+		for _, conn := range m.servers {
+			if conn.session != nil {
+				sessions = append(sessions, conn.session)
+			}
 		}
-	}
+		m.mu.Unlock()
+
+		for _, s := range sessions {
+			if err := s.Close(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	})
 
 	if len(errs) > 0 {
 		return fmt.Errorf("failed to close %d connection(s): %v", len(errs), errs)

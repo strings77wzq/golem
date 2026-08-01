@@ -42,7 +42,7 @@ func TestDelegateExecuteSuccess(t *testing.T) {
 		t.Setenv("GOLEM_MCP_HELPER", "1")
 	}
 
-	tool := NewDelegateTool()
+	tool := NewDelegateToolWithAllowlist(os.Args[0])
 	result, err := tool.Execute(context.Background(), map[string]interface{}{
 		"command":   os.Args[0],
 		"args":      []interface{}{"-test.run=TestHelperMCPServer"},

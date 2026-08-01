@@ -14,9 +14,10 @@ import (
 
 // AuthConfig holds configuration for API key authentication middleware
 type AuthConfig struct {
-	APIKeys   []string // valid API keys
-	AllowFrom []string // allowed IP CIDRs (empty = allow all)
-	Enabled   bool     // if false, skip auth
+	APIKeys        []string // valid API keys
+	AllowFrom      []string // allowed IP CIDRs (empty = allow all)
+	TrustedProxies []string // proxy IPs allowed to set X-Forwarded-For (empty = trust none)
+	Enabled        bool     // if false, skip auth
 }
 
 // AuthMiddleware returns HTTP middleware that validates API keys
@@ -48,7 +49,7 @@ func AuthMiddleware(cfg AuthConfig) func(http.Handler) http.Handler {
 
 			// If AllowFrom is set, validate source IP
 			if len(cfg.AllowFrom) > 0 {
-				clientIP := getClientIP(r)
+				clientIP := getClientIP(r, cfg.TrustedProxies)
 				if !isIPAllowed(clientIP, cfg.AllowFrom) {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusForbidden)
@@ -73,21 +74,27 @@ func isValidAPIKey(key string, validKeys []string) bool {
 	return false
 }
 
-// getClientIP extracts the client IP from the request
-func getClientIP(r *http.Request) string {
-	// Try X-Forwarded-For first
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff != "" {
-		ips := strings.Split(xff, ",")
-		if len(ips) > 0 {
-			return strings.TrimSpace(ips[0])
+// getClientIP extracts the client IP from the request. Proxy headers
+// (X-Forwarded-For / X-Real-IP) are trusted only when the direct peer is in
+// the trustedProxies allowlist; otherwise they are attacker-controlled and
+// must not drive rate limiting or IP allowlisting. Empty trustedProxies
+// (the default) means "trust no proxy".
+func getClientIP(r *http.Request, trustedProxies []string) string {
+	if isTrustedProxy(r.RemoteAddr, trustedProxies) {
+		// Try X-Forwarded-For first
+		xff := r.Header.Get("X-Forwarded-For")
+		if xff != "" {
+			ips := strings.Split(xff, ",")
+			if len(ips) > 0 {
+				return strings.TrimSpace(ips[0])
+			}
 		}
-	}
 
-	// Try X-Real-IP
-	xri := r.Header.Get("X-Real-IP")
-	if xri != "" {
-		return xri
+		// Try X-Real-IP
+		xri := r.Header.Get("X-Real-IP")
+		if xri != "" {
+			return xri
+		}
 	}
 
 	// Fall back to RemoteAddr
@@ -96,6 +103,24 @@ func getClientIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return ip
+}
+
+// isTrustedProxy reports whether the direct peer (RemoteAddr host) is in the
+// trusted proxy allowlist. When empty, no proxy is trusted.
+func isTrustedProxy(remoteAddr string, trusted []string) bool {
+	if len(trusted) == 0 {
+		return false
+	}
+	host := remoteAddr
+	if h, _, err := net.SplitHostPort(remoteAddr); err == nil {
+		host = h
+	}
+	for _, tp := range trusted {
+		if host == tp {
+			return true
+		}
+	}
+	return false
 }
 
 // isIPAllowed checks if the client IP is in the allowed CIDR ranges

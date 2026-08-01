@@ -19,6 +19,7 @@ import (
 	"github.com/strings77wzq/golem/core/bus"
 	"github.com/strings77wzq/golem/core/config"
 	"github.com/strings77wzq/golem/core/providers"
+	"github.com/strings77wzq/golem/core/security"
 	"github.com/strings77wzq/golem/core/session"
 	toolexec "github.com/strings77wzq/golem/core/tools/exec"
 	featureconfig "github.com/strings77wzq/golem/feature/config"
@@ -115,6 +116,13 @@ func runAgent(cmd *cobra.Command) error {
 	infraFlag, _ := cmd.Flags().GetBool("infra")
 	jsonEvents, _ := cmd.Flags().GetBool("json-events")
 
+	// Cancellable context for feature-tool lifetimes: external MCP server
+	// subprocesses are closed when golem shuts down (LoadMCPTools registers
+	// ctx-based cleanup). cobra's cmd.Context() is context.Background() and
+	// cannot trigger that cleanup.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	cfg, err := loadConfig(cmd)
 	if err != nil {
 		return err
@@ -161,9 +169,22 @@ func runAgent(cmd *cobra.Command) error {
 
 	registry := wiring.BuildToolRegistry(workspace, execOpts...)
 
-	// Load database tools
+	// Load database tools. Audit every allowed and denied operation as
+	// structured log output (component=audit, trace_id when available).
+	auditFn := func(entry security.AuditEntry) {
+		log.WithComponent(logger.ComponentAgent).Info("db audit",
+			"operation", entry.Operation,
+			"database", entry.Database,
+			"table", entry.Table,
+			"sql", entry.SQL,
+			"status", entry.Status,
+			"affected_rows", entry.AffectedRows,
+			"rollback_sql", entry.RollbackSQL,
+			"trace_id", entry.TraceID,
+		)
+	}
 	if dbFlag != "" {
-		_, dbTools := wiring.BuildDBTools(dbFlag, nil, nil)
+		_, dbTools := wiring.BuildDBTools(dbFlag, auditFn, nil)
 		if dbTools != nil {
 			for _, t := range dbTools.ListTools() {
 				if err := registry.Register(t); err != nil {
@@ -190,7 +211,7 @@ func runAgent(cmd *cobra.Command) error {
 	if err := loadRAGTools(cmd.Context(), cfg, mustGetString(cmd, "rag"), registry); err != nil {
 		return err
 	}
-	if err := loadMCPTools(cmd.Context(), mustGetString(cmd, "mcp"), registry, log); err != nil {
+	if err := loadMCPTools(ctx, mustGetString(cmd, "mcp"), registry, log); err != nil {
 		return err
 	}
 	if err := loadMemoryTools(cmd.Context(), mustGetString(cmd, "memory"), registry, log); err != nil {

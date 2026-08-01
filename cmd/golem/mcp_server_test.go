@@ -22,7 +22,7 @@ func TestBuildMCPToolsWithRealDB(t *testing.T) {
 	}
 
 	// Build real tools
-	registry := buildMCPTools(dbPath, false, "")
+	registry := buildMCPTools(dbPath, false, "", nil)
 	if registry.Count() == 0 {
 		t.Fatal("expected tools to be registered")
 	}
@@ -55,7 +55,7 @@ func TestBuildMCPToolsReadOnly(t *testing.T) {
 		t.Fatalf("createTestDB: %v", err)
 	}
 
-	registry := buildMCPTools(dbPath, true, "")
+	registry := buildMCPTools(dbPath, true, "", nil)
 
 	// exec should NOT be present in read-only mode
 	_, found := registry.Get("exec")
@@ -83,7 +83,7 @@ func TestBuildMCPToolsFilter(t *testing.T) {
 		t.Fatalf("createTestDB: %v", err)
 	}
 
-	registry := buildMCPTools(dbPath, false, "sql_query,sql_schema")
+	registry := buildMCPTools(dbPath, false, "sql_query,sql_schema", nil)
 
 	// Only sql_query and sql_schema should be present
 	if registry.Count() != 2 {
@@ -111,7 +111,7 @@ func TestMCPServerEndToEnd(t *testing.T) {
 		t.Fatalf("createTestDB: %v", err)
 	}
 
-	registry := buildMCPTools(dbPath, false, "sql_query")
+	registry := buildMCPTools(dbPath, false, "sql_query", nil)
 	server := mcp.NewServer(registry)
 
 	// Wire the server to a client over in-memory transports.

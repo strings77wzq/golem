@@ -17,7 +17,7 @@ import (
 func TestDelegateExecuteNonexistentCommand(t *testing.T) {
 	// Regression for H2: cmd.Process.Kill() on a command whose Start never
 	// succeeded must not panic.
-	tool := NewDelegateTool()
+	tool := NewDelegateToolWithAllowlist("/nonexistent/binary-xyz")
 	result, err := tool.Execute(context.Background(), map[string]interface{}{
 		"command":   "/nonexistent/binary-xyz",
 		"tool":      "ping",
@@ -34,7 +34,7 @@ func TestDelegateExecuteNonexistentCommand(t *testing.T) {
 func TestDelegateExecuteTimeoutParam(t *testing.T) {
 	// The advertised timeout parameter must be honored (capped at default).
 	start := time.Now()
-	tool := NewDelegateTool()
+	tool := NewDelegateToolWithAllowlist("sleep")
 	result, err := tool.Execute(context.Background(), map[string]interface{}{
 		"command":   "sleep",
 		"args":      []interface{}{"10"},
@@ -50,6 +50,42 @@ func TestDelegateExecuteTimeoutParam(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Errorf("timeout param ignored: took %v", elapsed)
+	}
+}
+
+func TestDelegateAllowlistFailClosed(t *testing.T) {
+	// Default tool has an empty allowlist: every command is rejected before
+	// any process is spawned.
+	tool := NewDelegateTool()
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"command":   "echo",
+		"tool":      "ping",
+		"arguments": map[string]interface{}{},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected rejection for non-allowlisted command")
+	}
+	if !strings.Contains(result.ForLLM, "not in allowlist") {
+		t.Errorf("expected 'not in allowlist' message, got %q", result.ForLLM)
+	}
+
+	// Allowlisted command is not blocked by the allowlist check itself.
+	allowed := NewDelegateToolWithAllowlist("echo")
+	result, err = allowed.Execute(context.Background(), map[string]interface{}{
+		"command":   "echo",
+		"tool":      "ping",
+		"arguments": map[string]interface{}{},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	// echo is not an MCP server, so it fails at the connect step — but not
+	// at the allowlist gate.
+	if strings.Contains(result.ForLLM, "not in allowlist") {
+		t.Errorf("allowlisted command rejected: %s", result.ForLLM)
 	}
 }
 

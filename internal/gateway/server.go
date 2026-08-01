@@ -64,7 +64,11 @@ type SecurityConfig struct {
 	EnableRateLimit bool
 	RateLimitRPS    float64
 	RateLimitBurst  int
-	CORS            CORSConfig
+	// TrustedProxies lists direct-peer IPs allowed to set
+	// X-Forwarded-For/X-Real-IP for rate limiting and AllowFrom checks.
+	// Empty (default) trusts no proxy — proxy headers are ignored.
+	TrustedProxies []string
+	CORS           CORSConfig
 }
 
 // DefaultSecurityConfig returns security defaults (auth disabled, rate limit enabled)
@@ -141,17 +145,19 @@ func NewServerWithSecurity(cfg ServerConfig, secCfg SecurityConfig, agentHandler
 
 	if secCfg.EnableAuth && secCfg.AuthToken != "" {
 		middlewares = append(middlewares, security.AuthMiddleware(security.AuthConfig{
-			Enabled: true,
-			APIKeys: []string{secCfg.AuthToken},
+			Enabled:        true,
+			APIKeys:        []string{secCfg.AuthToken},
+			TrustedProxies: secCfg.TrustedProxies,
 		}))
 		log.Info("gateway auth enabled")
 	}
 
 	if secCfg.EnableRateLimit {
 		rateLimitMw, rateLimitCleanup := security.RateLimitMiddlewareWithCleanup(security.RateLimitConfig{
-			Enabled: true,
-			Rate:    secCfg.RateLimitRPS,
-			Burst:   secCfg.RateLimitBurst,
+			Enabled:        true,
+			Rate:           secCfg.RateLimitRPS,
+			Burst:          secCfg.RateLimitBurst,
+			TrustedProxies: secCfg.TrustedProxies,
 		})
 		middlewares = append(middlewares, rateLimitMw)
 		s.shutdownFuncs = append(s.shutdownFuncs, rateLimitCleanup)

@@ -4,6 +4,29 @@ All notable changes to Golem will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.10.4] - 2026-08-01
+
+### Added
+- **Database audit trail wired** — `AuditEntry` now carries `trace_id`; denied, quality-gate-blocked, successful, and failed operations are all logged as structured `db audit` output (component=audit) from both the CLI agent and `mcp-server` entry points. Previously the audit callback was never connected (`auditFn=nil`).
+- **`DelegateTool` command allowlist** — fail-closed by default (`NewDelegateTool()` rejects every command); `NewDelegateToolWithAllowlist(commands...)` opts into specific commands.
+- **Gateway `TrustedProxies` config** — proxy headers (`X-Forwarded-For`/`X-Real-IP`) are honored for rate limiting and `AllowFrom` checks only when the direct peer is listed; the default trusts no proxy.
+
+### Changed
+- **Rate limiting uses `golang.org/x/time/rate`** — the per-IP token bucket now delegates to the official Go implementation (rejected requests return quota via `Cancel`, preserving the previous no-consumption semantics).
+- **RetryProvider backoff scheduler uses `cenkalti/backoff/v4`** — exponential backoff + jitter computation delegated to the maintained scheduler; retry-decision logic (which errors retry, 429 handling) unchanged.
+- **`AuditEntry.ExecutedBy`** now records the execution error on failed operations (was an unassigned field).
+- **External MCP server lifecycle** — `LoadMCPTools` closes all connections when its context is cancelled; the agent command now uses a signal-based context, so external MCP subprocesses are terminated on shutdown instead of being orphaned.
+
+### Security
+- **X-Forwarded-For spoofing fix** — previously any client could set arbitrary `X-Forwarded-For` values to bypass per-IP rate limiting and `AllowFrom` checks (and inflate the limiter map indefinitely). Proxy headers are now ignored unless the direct peer is in `TrustedProxies`. Deployments behind a reverse proxy must configure it.
+- **`mcp-server` SQL operations audited** — the stdio server path now wires the same audit logging as the CLI agent.
+- **Manager close is idempotent** (`sync.Once`) — ctx-cleanup and explicit close cannot double-tear-down sessions.
+
+### Docs
+- RAG package comment corrected: BM25, not TF-IDF (`feature/rag/pipeline.go`).
+- Project CLAUDE.md provider description corrected: registry-driven registration, not switch-case.
+- AGENTS.md: MCP module now documents the official go-sdk protocol layer and tool-name sanitization rule.
+
 ## [0.10.3] - 2026-08-01
 
 ### Changed

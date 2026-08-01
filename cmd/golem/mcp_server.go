@@ -11,12 +11,14 @@ import (
 	"github.com/spf13/cobra"
 
 	dbcore "github.com/strings77wzq/golem/core/database"
+	"github.com/strings77wzq/golem/core/security"
 	"github.com/strings77wzq/golem/core/tools"
 	dbtools "github.com/strings77wzq/golem/core/tools/database"
 	toolexec "github.com/strings77wzq/golem/core/tools/exec"
 	"github.com/strings77wzq/golem/core/tools/fileops"
 	"github.com/strings77wzq/golem/core/tools/websearch"
 	"github.com/strings77wzq/golem/feature/mcp"
+	"github.com/strings77wzq/golem/foundation/logger"
 )
 
 func newMCPServerCommand() *cobra.Command {
@@ -41,8 +43,22 @@ func runMCPServer(cmd *cobra.Command) error {
 	dbFlag, _ := cmd.Flags().GetString("db")
 	readOnly, _ := cmd.Flags().GetBool("read-only")
 
+	log := logger.New(logger.DefaultOptions())
+	auditFn := func(entry security.AuditEntry) {
+		log.WithComponent(logger.ComponentMCP).Info("db audit",
+			"operation", entry.Operation,
+			"database", entry.Database,
+			"table", entry.Table,
+			"sql", entry.SQL,
+			"status", entry.Status,
+			"affected_rows", entry.AffectedRows,
+			"rollback_sql", entry.RollbackSQL,
+			"trace_id", entry.TraceID,
+		)
+	}
+
 	// Build tool registry
-	registry := buildMCPTools(dbFlag, readOnly, toolsFlag)
+	registry := buildMCPTools(dbFlag, readOnly, toolsFlag, auditFn)
 
 	// Create MCP server with stdio transport (official go-sdk)
 	server := mcp.NewServer(registry)
@@ -58,7 +74,7 @@ func runMCPServer(cmd *cobra.Command) error {
 	return server.Run(ctx)
 }
 
-func buildMCPTools(dbPath string, readOnly bool, toolsFilter string) *tools.Registry {
+func buildMCPTools(dbPath string, readOnly bool, toolsFilter string, auditFn func(security.AuditEntry)) *tools.Registry {
 	registry := tools.NewRegistry()
 
 	// Parse tool filter
@@ -83,7 +99,11 @@ func buildMCPTools(dbPath string, readOnly bool, toolsFilter string) *tools.Regi
 			dbRegistry.SetDefault(driverName)
 
 			if acceptAll || allowedTools["sql_query"] {
-				if err := registry.Register(dbtools.NewSQLQueryTool(dbRegistry)); err != nil {
+				sqlTool := dbtools.NewSQLQueryTool(dbRegistry)
+				if auditFn != nil {
+					sqlTool.SetAuditFunc(auditFn)
+				}
+				if err := registry.Register(sqlTool); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: failed to register sql_query: %v\n", err)
 				}
 			}

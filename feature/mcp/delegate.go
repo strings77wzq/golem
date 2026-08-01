@@ -12,16 +12,32 @@ import (
 )
 
 // DelegateTool allows an agent to delegate tasks to other agents via MCP.
-// The spawned command is fully caller-controlled — the tool is currently not
-// registered into any production registry; wire it in only behind an
-// explicit command allowlist (see security review M2).
+// The spawned command is caller-controlled, so the tool is fail-closed by
+// default: no commands are allowed unless an explicit allowlist is provided
+// via NewDelegateToolWithAllowlist. The tool is currently not registered
+// into any production registry; wire it in only with an allowlist.
 type DelegateTool struct {
-	timeout time.Duration
+	timeout   time.Duration
+	allowlist map[string]struct{}
 }
 
-// NewDelegateTool creates a new delegate tool.
+// NewDelegateTool creates a delegate tool that rejects every command
+// (empty allowlist = fail closed).
 func NewDelegateTool() *DelegateTool {
-	return &DelegateTool{timeout: 30 * time.Second}
+	return &DelegateTool{
+		timeout:   30 * time.Second,
+		allowlist: make(map[string]struct{}),
+	}
+}
+
+// NewDelegateToolWithAllowlist creates a delegate tool that only runs the
+// given commands.
+func NewDelegateToolWithAllowlist(commands ...string) *DelegateTool {
+	t := NewDelegateTool()
+	for _, c := range commands {
+		t.allowlist[c] = struct{}{}
+	}
+	return t
 }
 
 func (t *DelegateTool) Name() string { return "delegate" }
@@ -48,6 +64,14 @@ func (t *DelegateTool) Execute(ctx context.Context, args map[string]interface{})
 
 	if command == "" || toolName == "" {
 		return &tools.ToolResult{ForLLM: "Error: command and tool are required", IsError: true}, nil
+	}
+
+	// Fail closed: only allowlisted commands may be spawned.
+	if _, allowed := t.allowlist[command]; !allowed {
+		return &tools.ToolResult{
+			ForLLM:  fmt.Sprintf("Error: command %q not in allowlist", command),
+			IsError: true,
+		}, nil
 	}
 
 	// Honor the caller-provided timeout, capped at the tool default so it

@@ -12,6 +12,7 @@ import (
 	"github.com/strings77wzq/golem/core/database"
 	"github.com/strings77wzq/golem/core/security"
 	"github.com/strings77wzq/golem/core/tools"
+	"github.com/strings77wzq/golem/foundation/logger"
 )
 
 const (
@@ -47,6 +48,23 @@ func NewSQLQueryToolWithPermission(registry *database.Registry, permLevel securi
 // SetAuditFunc sets the audit callback function.
 func (t *SQLQueryTool) SetAuditFunc(fn func(entry security.AuditEntry)) {
 	t.auditFn = fn
+}
+
+// auditError records a failed Query/Execute so success and failure rates can
+// be reconciled from the audit log.
+func (t *SQLQueryTool) auditError(ctx context.Context, op, dbName, table, sql string, execErr error) {
+	if t.auditFn == nil {
+		return
+	}
+	t.auditFn(security.AuditEntry{
+		Operation:  op,
+		Database:   dbName,
+		Table:      table,
+		SQL:        sql,
+		Status:     "error",
+		ExecutedBy: fmt.Sprintf("error: %v", execErr),
+		TraceID:    logger.TraceIDFromContext(ctx),
+	})
 }
 
 // SetSecurityEventHandler sets the security event handler for metrics.
@@ -85,6 +103,7 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 				Table:     extractTableName(sqlQuery),
 				SQL:       sqlQuery,
 				Status:    "denied",
+				TraceID:   logger.TraceIDFromContext(ctx),
 			})
 		}
 		if t.secHandler != nil {
@@ -113,6 +132,7 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 					Table:     extractTableName(sqlQuery),
 					SQL:       sqlQuery,
 					Status:    "denied",
+					TraceID:   logger.TraceIDFromContext(ctx),
 				})
 			}
 			if t.secHandler != nil {
@@ -141,6 +161,7 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 	if opLevel <= security.PermRead {
 		rows, err := driver.Query(ctx, sqlQuery, queryArgs...)
 		if err != nil {
+			t.auditError(ctx, classifyOpName(sqlQuery), dbName, extractTableName(sqlQuery), sqlQuery, err)
 			return &tools.ToolResult{ForLLM: fmt.Sprintf("Query error: %v", err), IsError: true}, nil
 		}
 
@@ -192,6 +213,7 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 
 	res, err := driver.Execute(ctx, sqlQuery, queryArgs...)
 	if err != nil {
+		t.auditError(ctx, classifyOpName(sqlQuery), dbName, extractTableName(sqlQuery), sqlQuery, err)
 		return &tools.ToolResult{ForLLM: fmt.Sprintf("Execute error: %v", err), IsError: true}, nil
 	}
 
@@ -230,6 +252,7 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 			AffectedRows: res.RowsAffected,
 			RollbackSQL:  auditRollback,
 			Status:       "success",
+			TraceID:      logger.TraceIDFromContext(ctx),
 		})
 	}
 

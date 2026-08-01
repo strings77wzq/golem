@@ -206,4 +206,5 @@ type AuditEntry struct {
 	RollbackSQL  string `json:"rollback_sql,omitempty"`
 	Status       string `json:"status"`
 	ExecutedBy   string `json:"executed_by"`
+	TraceID      string `json:"trace_id,omitempty"`
 }

@@ -149,20 +149,24 @@ func TestAuthMiddlewareAllowFrom(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
+	// The direct peer (RemoteAddr) drives the AllowFrom check; XFF is not
+	// trusted without a configured proxy.
 	req := httptest.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "192.168.1.100:5678"
 	req.Header.Set("X-API-Key", "test-key")
-	req.Header.Set("X-Forwarded-For", "192.168.1.100")
+	req.Header.Set("X-Forwarded-For", "10.0.0.1") // spoofed, must be ignored
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("expected status 200 for allowed IP, got %d", rec.Code)
+		t.Errorf("expected status 200 for allowed direct peer, got %d", rec.Code)
 	}
 
 	req2 := httptest.NewRequest("GET", "/test", nil)
+	req2.RemoteAddr = "10.0.0.1:5678"
 	req2.Header.Set("X-API-Key", "test-key")
-	req2.Header.Set("X-Forwarded-For", "10.0.0.1")
+	req2.Header.Set("X-Forwarded-For", "192.168.1.100") // spoofed, must be ignored
 	rec2 := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec2, req2)

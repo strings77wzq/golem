@@ -6,34 +6,40 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 // RateLimitConfig holds configuration for rate limiting middleware
 type RateLimitConfig struct {
-	Rate    float64
-	Burst   int
-	Enabled bool
+	Rate           float64
+	Burst          int
+	Enabled        bool
+	TrustedProxies []string // proxy IPs allowed to set X-Forwarded-For (empty = trust none)
 }
 
-type limiter struct {
-	tokens     float64
-	lastRefill time.Time
-}
-
+// rateLimitStore keeps one official token-bucket limiter per client IP.
+// The bucket semantics (burst refill, retry-after computation) are provided
+// by golang.org/x/time/rate; the store only owns the per-IP map, its idle
+// cleanup, and the last-activity bookkeeping that drives it.
 type rateLimitStore struct {
-	limiters map[string]*limiter
-	mu       sync.Mutex
-	rate     float64
-	burst    int
-	done     chan struct{}
+	limiters       map[string]*rate.Limiter
+	lastSeen       map[string]time.Time
+	mu             sync.Mutex
+	rate           rate.Limit
+	burst          int
+	trustedProxies []string
+	done           chan struct{}
 }
 
-func newRateLimitStore(rate float64, burst int) *rateLimitStore {
+func newRateLimitStore(r float64, burst int, trustedProxies []string) *rateLimitStore {
 	store := &rateLimitStore{
-		limiters: make(map[string]*limiter),
-		rate:     rate,
-		burst:    burst,
-		done:     make(chan struct{}),
+		limiters:       make(map[string]*rate.Limiter),
+		lastSeen:       make(map[string]time.Time),
+		rate:           rate.Limit(r),
+		burst:          burst,
+		trustedProxies: trustedProxies,
+		done:           make(chan struct{}),
 	}
 	go store.cleanup()
 	return store
@@ -48,9 +54,10 @@ func (rl *rateLimitStore) cleanup() {
 		case <-ticker.C:
 			rl.mu.Lock()
 			now := time.Now()
-			for ip, lim := range rl.limiters {
-				if now.Sub(lim.lastRefill) > 10*time.Minute {
+			for ip, last := range rl.lastSeen {
+				if now.Sub(last) > 10*time.Minute {
 					delete(rl.limiters, ip)
+					delete(rl.lastSeen, ip)
 				}
 			}
 			rl.mu.Unlock()
@@ -64,35 +71,31 @@ func (rl *rateLimitStore) Close() {
 	close(rl.done)
 }
 
+// allow consumes one token for the IP's bucket. It returns true when the
+// request is admitted and the wait duration when it must be retried.
 func (rl *rateLimitStore) allow(ip string) (bool, time.Duration) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
-	now := time.Now()
 	lim, exists := rl.limiters[ip]
-
 	if !exists {
-		lim = &limiter{
-			tokens:     float64(rl.burst),
-			lastRefill: now,
-		}
+		lim = rate.NewLimiter(rl.rate, rl.burst)
 		rl.limiters[ip] = lim
 	}
 
-	elapsed := now.Sub(lim.lastRefill).Seconds()
-	lim.tokens += elapsed * rl.rate
-	if lim.tokens > float64(rl.burst) {
-		lim.tokens = float64(rl.burst)
-	}
-	lim.lastRefill = now
-
-	if lim.tokens >= 1 {
-		lim.tokens -= 1
+	// Reserve() always succeeds for n <= burst by reserving future tokens;
+	// a non-zero Delay means the bucket is empty and the request must wait.
+	// A rejected request must not consume quota — Cancel returns the
+	// reservation so the bucket recovers at the same pace as a no-op.
+	res := lim.Reserve()
+	if res.Delay() == 0 {
+		// Only admitted requests refresh the idle timer, so a flood of
+		// rejected requests cannot pin an entry in the map forever.
+		rl.lastSeen[ip] = time.Now()
 		return true, 0
 	}
-
-	retryAfter := time.Duration((1 - lim.tokens) / rl.rate * float64(time.Second))
-	return false, retryAfter
+	res.Cancel()
+	return false, res.Delay()
 }
 
 // RateLimitMiddleware returns HTTP middleware that rate-limits by client IP.
@@ -100,7 +103,7 @@ func (rl *rateLimitStore) allow(ip string) (bool, time.Duration) {
 func RateLimitMiddleware(cfg RateLimitConfig) func(http.Handler) http.Handler {
 	var store *rateLimitStore
 	if cfg.Enabled {
-		store = newRateLimitStore(cfg.Rate, cfg.Burst)
+		store = newRateLimitStore(cfg.Rate, cfg.Burst, cfg.TrustedProxies)
 	}
 
 	return func(next http.Handler) http.Handler {
@@ -110,7 +113,7 @@ func RateLimitMiddleware(cfg RateLimitConfig) func(http.Handler) http.Handler {
 				return
 			}
 
-			clientIP := getClientIP(r)
+			clientIP := getClientIP(r, cfg.TrustedProxies)
 			allowed, retryAfter := store.allow(clientIP)
 
 			if !allowed {
@@ -132,7 +135,7 @@ func RateLimitMiddleware(cfg RateLimitConfig) func(http.Handler) http.Handler {
 func RateLimitMiddlewareWithCleanup(cfg RateLimitConfig) (func(http.Handler) http.Handler, func()) {
 	var store *rateLimitStore
 	if cfg.Enabled {
-		store = newRateLimitStore(cfg.Rate, cfg.Burst)
+		store = newRateLimitStore(cfg.Rate, cfg.Burst, cfg.TrustedProxies)
 	}
 
 	cleanup := func() {
@@ -148,7 +151,7 @@ func RateLimitMiddlewareWithCleanup(cfg RateLimitConfig) (func(http.Handler) htt
 				return
 			}
 
-			clientIP := getClientIP(r)
+			clientIP := getClientIP(r, cfg.TrustedProxies)
 			allowed, retryAfter := store.allow(clientIP)
 
 			if !allowed {
