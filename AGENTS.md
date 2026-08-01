@@ -34,9 +34,9 @@ golem/
 ├── core/                  # Domain logic — agent, bus, config, providers, session, tools, usage
 ├── foundation/            # Infrastructure primitives — concurrency, logger, store, term
 ├── feature/               # Optional feature modules (wired into main.go via CLI flags)
-│   ├── mcp/               # MCP protocol client (JSON-RPC over stdio) — ✅ Wired, enabled via --mcp
+│   ├── mcp/               # MCP via official go-sdk (stdio) — ✅ Wired, enabled via --mcp
 │   ├── memory/            # Long-term memory with importance decay — ✅ Wired, enabled via --memory
-│   ├── rag/               # RAG pipeline with TF-IDF + embeddings — ✅ Wired, enabled via --rag
+│   ├── rag/               # RAG pipeline with BM25 + embeddings — ✅ Wired, enabled via --rag
 │   ├── routing/           # Provider fallback routing — ✅ Wired, enabled via --routing
 │   └── skills/            # Composable skill registry — ✅ Wired, enabled via --skills
 ├── internal/              # Internal adapters (only importable within this module)
@@ -328,17 +328,19 @@ golangci-lint run
 ## 13. MCP Module Rules (Wired)
 **MUST ALWAYS FOLLOW THESE RULES WHEN MODIFYING MCP MODULE:**
 1. All MCP logic must remain in `feature/mcp/` — no MCP code allowed in core/ or internal/
-2. MCP servers are only supported via STDIO mode (HTTP mode is planned but not implemented)
-3. MCP tools must be registered into the global tool registry with `mcp_` prefix to avoid name conflicts
-4. MCP configuration must accept both JSON string and JSON file path via `--mcp` flag
-5. MCP servers must be started lazily only when the feature is enabled via flag
+2. The protocol layer is provided by `github.com/modelcontextprotocol/go-sdk` (v1.7.0) — never hand-roll JSON-RPC
+3. MCP servers are only supported via STDIO mode (HTTP mode is planned but not implemented)
+4. MCP tools must be registered into the global tool registry with `mcp_` prefix to avoid name conflicts
+5. MCP configuration must accept both JSON string and JSON file path via `--mcp` flag
+6. MCP servers must be started lazily only when the feature is enabled via flag
+7. External tool names must be sanitized (identifier charset, ≤64 chars) before registry registration
 
 ## 14. RAG Module Rules (Wired)
 **MUST ALWAYS FOLLOW THESE RULES WHEN MODIFYING RAG MODULE:**
 1. All RAG logic must remain in `feature/rag/` — no RAG code allowed in core/ or internal/
 2. RAG supports two input modes: directory path (auto-index all text files) and JSON document list
 3. The `rag_retrieve` tool must be registered only when RAG is enabled via `--rag` flag
-4. Default similarity search uses TF-IDF + cosine similarity (no external embedding dependencies by default)
+4. Default similarity search uses BM25 + cosine similarity (no external embedding dependencies by default)
 5. Embedding providers must be optional and configurable without breaking the pure Go constraint
 
 ## 15. Skills Module Rules (Wired)

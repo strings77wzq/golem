@@ -178,7 +178,7 @@ Three layers enforced in `core/tools/database/sql_query.go` and `core/security/g
 
 ## Providers
 
-Two protocol adapters cover all vendors: `openai` (OpenAI-compatible: DeepSeek, Kimi, GLM, MiniMax, Qwen, MiMo, Ollama, vLLM, OpenRouter, LiteLLM) and `anthropic`. Add a vendor by creating `core/providers/<vendor>/vendor.go` implementing the interface, registering in `cmd/golem/main.go`:`registerProviders()`, and adding a preset in `cmd/golem/onboard.go`:`providerPresets`.
+Two protocol adapters cover all vendors: `openai` (OpenAI-compatible: DeepSeek, Kimi, GLM, MiniMax, Qwen, MiMo, Ollama, vLLM, OpenRouter, LiteLLM) and `anthropic`. Vendors self-register via `init()` in their package (`core/providers/<vendor>/register.go`), and `internal/wiring/providers.go` drives creation from the configured `model_list` — no switch-case. Add a vendor by creating `core/providers/<vendor>/vendor.go` implementing the interface, registering the vendor name in the package's `init()`, and adding a preset in `cmd/golem/onboard.go`:`providerPresets`.
 
 ## Feature Modules
 

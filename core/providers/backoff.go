@@ -2,10 +2,10 @@ package providers
 
 import (
 	"context"
-	"math"
-	"math/rand"
 	"strings"
 	"time"
+
+	"github.com/cenkalti/backoff/v4"
 
 	"github.com/strings77wzq/golem/core/tools"
 )
@@ -86,15 +86,25 @@ func (r *RetryProvider) Chat(ctx context.Context, messages []Message, toolDefs [
 	return nil, lastErr
 }
 
-// calculateDelay computes exponential backoff with jitter.
+// calculateDelay computes exponential backoff with jitter using
+// cenkalti/backoff's ExponentialBackOff scheduler. The retry loop owns the
+// attempt budget (MaxElapsedTime is disabled), and a fresh scheduler is
+// constructed per call so concurrent Chat invocations stay race-free.
 func (r *RetryProvider) calculateDelay(attempt int) time.Duration {
-	delay := time.Duration(float64(r.config.BaseDelay) * math.Pow(2, float64(attempt)))
-	if delay > r.config.MaxDelay {
-		delay = r.config.MaxDelay
+	b := backoff.NewExponentialBackOff()
+	// Cap the initial interval so a misconfigured BaseDelay > MaxDelay
+	// still respects the cap from the first attempt (matches the previous
+	// formula, which clamped before jitter).
+	b.InitialInterval = min(r.config.BaseDelay, r.config.MaxDelay)
+	b.MaxInterval = r.config.MaxDelay
+	b.Multiplier = 2.0
+	b.RandomizationFactor = 0.25 // ±25% jitter, mirrors the previous formula
+	b.MaxElapsedTime = 0         // attempt budget is managed by the retry loop
+
+	var delay time.Duration
+	for i := 0; i <= attempt; i++ {
+		delay = b.NextBackOff()
 	}
-	// Add jitter: ±25%
-	jitter := float64(delay) * 0.25
-	delay = time.Duration(float64(delay) + (rand.Float64()*2-1)*jitter) // #nosec G404 -- non-security context
 	return delay
 }
 
