@@ -183,7 +183,9 @@ func TestRateLimitAllow(t *testing.T) {
 		Enabled: true,
 	}
 
-	handler := RateLimitMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mw, cleanup := RateLimitMiddlewareWithCleanup(cfg)
+	defer cleanup()
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -205,7 +207,9 @@ func TestRateLimitDeny(t *testing.T) {
 		Enabled: true,
 	}
 
-	handler := RateLimitMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mw, cleanup := RateLimitMiddlewareWithCleanup(cfg)
+	defer cleanup()
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -241,7 +245,9 @@ func TestRateLimitPerIP(t *testing.T) {
 		Enabled: true,
 	}
 
-	handler := RateLimitMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mw, cleanup := RateLimitMiddlewareWithCleanup(cfg)
+	defer cleanup()
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -270,7 +276,9 @@ func TestRateLimitDisabled(t *testing.T) {
 		Enabled: false,
 	}
 
-	handler := RateLimitMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mw, cleanup := RateLimitMiddlewareWithCleanup(cfg)
+	defer cleanup()
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -294,7 +302,9 @@ func TestRateLimitRefill(t *testing.T) {
 		Enabled: true,
 	}
 
-	handler := RateLimitMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mw, cleanup := RateLimitMiddlewareWithCleanup(cfg)
+	defer cleanup()
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -397,7 +407,9 @@ func TestRateLimitConcurrent(t *testing.T) {
 		Enabled: true,
 	}
 
-	handler := RateLimitMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mw, cleanup := RateLimitMiddlewareWithCleanup(cfg)
+	defer cleanup()
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
