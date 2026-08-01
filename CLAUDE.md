@@ -261,6 +261,8 @@ Every implementation task needs a spec first. Exceptions: trivial one-liners, ty
 - Or batch push at end of work session if multiple related commits
 - **After push: MUST poll CI status (`gh pr checks` or `gh run watch`) until all checks pass.** CI failure = stop, analyze root cause, fix, re-push, re-poll. Never claim "done" while CI is red.
 
+> The commit → push → CI-poll loop is codified as the global `/git-commit-push-ci` skill (conflict check, atomic commit, push, poll until green), decoupled from the development workflow.
+
 ## Reference
 
 - Full architecture, guardrails, and decision log: `AGENTS.md` (read this)
