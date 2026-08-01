@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -44,6 +45,11 @@ func RepoRoot(t *testing.T) string {
 // BuildGolem compiles the production golem binary and returns its path.
 // The binary is built with CGO_ENABLED=0 for Termux compatibility.
 // Cleanup is registered via t.Cleanup.
+//
+// Package-level tests run in parallel processes (helpers and e2e), so the
+// build is serialized with a flock and the already-built binary is reused:
+// without this, two concurrent `go build -o` invocations race on the same
+// output path and one process can observe a half-built/missing binary.
 func BuildGolem(t *testing.T) string {
 	t.Helper()
 	root := RepoRoot(t)
@@ -52,6 +58,22 @@ func BuildGolem(t *testing.T) string {
 		t.Fatalf("mkdir bin: %v", err)
 	}
 	binPath := filepath.Join(binDir, "golem")
+
+	// Serialize concurrent builds across test processes.
+	lock, err := os.OpenFile(filepath.Join(binDir, ".build.lock"), os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		t.Fatalf("open build lock: %v", err)
+	}
+	defer lock.Close()
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+		t.Fatalf("acquire build lock: %v", err)
+	}
+	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) //nolint:errcheck
+
+	// Another process may have built it while we waited for the lock.
+	if _, err := os.Stat(binPath); err == nil {
+		return binPath
+	}
 
 	cmd := exec.Command("go", "build", "-trimpath", "-o", binPath, "./cmd/golem")
 	cmd.Dir = root

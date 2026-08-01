@@ -67,6 +67,21 @@ func (t *SQLQueryTool) auditError(ctx context.Context, op, dbName, table, sql st
 	})
 }
 
+// auditDenied records a permission or quality-gate rejection.
+func (t *SQLQueryTool) auditDenied(ctx context.Context, sqlQuery, dbName string) {
+	if t.auditFn == nil {
+		return
+	}
+	t.auditFn(security.AuditEntry{
+		Operation: classifyOpName(sqlQuery),
+		Database:  dbName,
+		Table:     extractTableName(sqlQuery),
+		SQL:       sqlQuery,
+		Status:    "denied",
+		TraceID:   logger.TraceIDFromContext(ctx),
+	})
+}
+
 // SetSecurityEventHandler sets the security event handler for metrics.
 func (t *SQLQueryTool) SetSecurityEventHandler(h security.SecurityEventHandler) {
 	t.secHandler = h
@@ -96,16 +111,7 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 	opLevel := classifyOperation(sqlQuery)
 	checker := security.NewPermissionChecker(t.permLevel)
 	if err := checker.Check(opLevel, dbName, sqlQuery); err != nil {
-		if t.auditFn != nil {
-			t.auditFn(security.AuditEntry{
-				Operation: classifyOpName(sqlQuery),
-				Database:  dbName,
-				Table:     extractTableName(sqlQuery),
-				SQL:       sqlQuery,
-				Status:    "denied",
-				TraceID:   logger.TraceIDFromContext(ctx),
-			})
-		}
+		t.auditDenied(ctx, sqlQuery, dbName)
 		if t.secHandler != nil {
 			t.secHandler(security.EventSQLDenied, map[string]string{
 				"operation": classifyOpName(sqlQuery),
@@ -125,16 +131,7 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 		gate := security.NewQualityGate()
 		gateResult := gate.CheckSQL(ctx, sqlQuery, 0)
 		if !gateResult.Passed {
-			if t.auditFn != nil {
-				t.auditFn(security.AuditEntry{
-					Operation: classifyOpName(sqlQuery),
-					Database:  dbName,
-					Table:     extractTableName(sqlQuery),
-					SQL:       sqlQuery,
-					Status:    "denied",
-					TraceID:   logger.TraceIDFromContext(ctx),
-				})
-			}
+			t.auditDenied(ctx, sqlQuery, dbName)
 			if t.secHandler != nil {
 				t.secHandler(security.EventSQLDenied, map[string]string{
 					"operation": classifyOpName(sqlQuery),

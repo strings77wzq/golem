@@ -12,7 +12,9 @@ import (
 
 func TestRateLimitIgnoresSpoofedXFF(t *testing.T) {
 	cfg := RateLimitConfig{Rate: 1, Burst: 1, Enabled: true} // no trusted proxies
-	handler := RateLimitMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mw, cleanup := RateLimitMiddlewareWithCleanup(cfg)
+	defer cleanup()
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -37,7 +39,9 @@ func TestRateLimitIgnoresSpoofedXFF(t *testing.T) {
 
 func TestRateLimitTrustsXFFFromTrustedProxy(t *testing.T) {
 	cfg := RateLimitConfig{Rate: 1, Burst: 1, Enabled: true, TrustedProxies: []string{"127.0.0.1"}}
-	handler := RateLimitMiddleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mw, cleanup := RateLimitMiddlewareWithCleanup(cfg)
+	defer cleanup()
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 

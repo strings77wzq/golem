@@ -44,18 +44,7 @@ func runMCPServer(cmd *cobra.Command) error {
 	readOnly, _ := cmd.Flags().GetBool("read-only")
 
 	log := logger.New(logger.DefaultOptions())
-	auditFn := func(entry security.AuditEntry) {
-		log.WithComponent(logger.ComponentMCP).Info("db audit",
-			"operation", entry.Operation,
-			"database", entry.Database,
-			"table", entry.Table,
-			"sql", entry.SQL,
-			"status", entry.Status,
-			"affected_rows", entry.AffectedRows,
-			"rollback_sql", entry.RollbackSQL,
-			"trace_id", entry.TraceID,
-		)
-	}
+	auditFn := newAuditFn(log, logger.ComponentMCP)
 
 	// Build tool registry
 	registry := buildMCPTools(dbFlag, readOnly, toolsFlag, auditFn)

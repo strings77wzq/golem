@@ -19,7 +19,6 @@ import (
 	"github.com/strings77wzq/golem/core/bus"
 	"github.com/strings77wzq/golem/core/config"
 	"github.com/strings77wzq/golem/core/providers"
-	"github.com/strings77wzq/golem/core/security"
 	"github.com/strings77wzq/golem/core/session"
 	toolexec "github.com/strings77wzq/golem/core/tools/exec"
 	featureconfig "github.com/strings77wzq/golem/feature/config"
@@ -171,18 +170,7 @@ func runAgent(cmd *cobra.Command) error {
 
 	// Load database tools. Audit every allowed and denied operation as
 	// structured log output (component=audit, trace_id when available).
-	auditFn := func(entry security.AuditEntry) {
-		log.WithComponent(logger.ComponentAgent).Info("db audit",
-			"operation", entry.Operation,
-			"database", entry.Database,
-			"table", entry.Table,
-			"sql", entry.SQL,
-			"status", entry.Status,
-			"affected_rows", entry.AffectedRows,
-			"rollback_sql", entry.RollbackSQL,
-			"trace_id", entry.TraceID,
-		)
-	}
+	auditFn := newAuditFn(log, logger.ComponentAgent)
 	if dbFlag != "" {
 		_, dbTools := wiring.BuildDBTools(dbFlag, auditFn, nil)
 		if dbTools != nil {
